@@ -1,0 +1,270 @@
+# Architecture
+
+> Status: **target architecture**. Folders and files described here are created by the tasks in
+> [the build plan](plan/README.md). When a task builds something, it updates this doc to match reality.
+
+## 1. Decisions at a glance
+
+| Question | Decision | Why |
+| --- | --- | --- |
+| Native app or web app? | **PWA** (installable web app) | Only way to install on an iPhone **for free, permanently, from Linux**. See ADR-1. |
+| UI framework | **React 19 + TypeScript (strict)**, built with **Vite** | Mature, fast, every agent knows it, huge ecosystem. |
+| Styling | **Tailwind CSS v4** with design tokens as CSS variables | Fast to iterate, tokens keep the look consistent. |
+| Local database | **Dexie 4** over **IndexedDB** | Indexed queries, transactions, reactive live queries, tiny. See ADR-2. |
+| Validation | **Zod** | Validates import files and form input with readable errors. |
+| Offline / install | **vite-plugin-pwa** (Workbox) | Precaches the app so it works with zero network. |
+| Routing | **wouter** with hash routes (`#/`, `#/insights`, `#/settings`) | Tiny; hash routes work on any static host with no rewrites. |
+| Bottom sheets | **vaul** | iOS-feeling drawers; render as dialogs on the unfolded screen. |
+| Icons | **lucide-react** | Clean, consistent line icons. |
+| Unit tests | **Vitest** + **fast-check** (property tests) + **fake-indexeddb** | Fast, readable, and property tests catch money edge cases. |
+| End-to-end | **Playwright** on **WebKit** (Safari's engine) and Chromium | WebKit is the closest thing to iPhone Safari on Linux. |
+| Hosting | **GitHub Pages** (or Cloudflare Pages) — static files only | Free, HTTPS (required for PWAs). The host never sees your data. |
+| Dates | Plain `"YYYY-MM-DD"` strings + a small tested calendar module | `Temporal` is not in iOS Safari; strings avoid timezone bugs. |
+| Money | Integer cents, branded `Cents` type | Floats can't represent 0.10 exactly. Budgets must be exact. |
+
+### ADR-1: PWA instead of React Native / Expo / native Swift
+
+- **Free install on iPhone:** A PWA is added from Safari → Share → *Add to Home Screen* and stays
+  forever. A native app needs either the **\$99/year Apple Developer Program** (TestFlight, App Store,
+  and Expo EAS device builds all require it) or free-Apple-ID sideloading, which **expires every 7 days**
+  and needs a native `.ipa` that can only be built with Xcode on a Mac.
+- **Linux development:** A PWA is developed and tested fully on Linux. iOS simulators require macOS.
+- **Android later:** Android has the best PWA support of any platform — same app, zero extra work.
+- **Escape hatch:** If App Store distribution is ever wanted, **Capacitor** can wrap this exact build
+  into native iOS/Android shells without a rewrite. Keep platform APIs behind `src/pwa/` (planned) so this stays easy.
+- **Trade-offs accepted:** no home-screen widgets, no haptics in iOS Safari, Safari's storage rules
+  (handled — see §6).
+
+### ADR-2: Dexie/IndexedDB instead of SQLite-in-WebAssembly
+
+The dataset is tiny (≈100–200 entries/month → ~2,400/year). IndexedDB with the right indexes answers
+every query in single-digit milliseconds, and Dexie adds transactions, compound/multi-entry indexes and
+live queries that re-render React automatically. SQLite WASM would add ~1 MB of WebAssembly and OPFS
+complexity on iOS for no user-visible gain. The repository layer in `src/data/` (planned) isolates storage, so
+switching later is contained.
+
+## 2. Layers
+
+```mermaid
+flowchart TD
+  UI["src/ui — screens, components, layout"] --> APP["src/app — use-cases + React hooks"]
+  APP --> DOMAIN["src/domain — pure rules: money, calendar, ledger, config changes, insights"]
+  APP --> DATA["src/data — Dexie schema, repositories, backup format"]
+  DATA --> DOMAIN
+  DATA --> IDB[("IndexedDB on the device")]
+  PWA["src/pwa — service worker, install, storage persistence"] --> UI
+```
+
+Rules:
+
+- `src/domain/` (planned) imports nothing from the other layers, has no I/O, and is where the money math lives.
+  Everything in it is unit-tested, including property tests.
+- `src/data/` (planned) never contains business decisions — it stores and fetches.
+- `src/app/` (planned) is where a user intention ("add an expense", "change income starting next month") becomes
+  domain calls + one database transaction. **Every write is a single Dexie transaction** so a failure
+  can never leave half-written data.
+- `src/ui/` (planned) reads through hooks (`useLiveQuery`) and writes only through `src/app/` use-cases.
+- Time and ids are injected (`Clock`, `IdGenerator`) so tests are deterministic. Ids use
+  `crypto.getRandomValues` (works over plain-HTTP LAN dev too; `crypto.randomUUID` does not).
+
+## 3. Folder structure (target)
+
+```text
+config/
+  devices.ts              Device viewport profiles (iPhone Duo folded/unfolded, others) — used by Playwright + device wall
+dev/
+  devices.html            Dev-only "device wall": the app in side-by-side frames at every profile size
+e2e/
+  journeys/               One *.spec.ts per feature; each test reads like a user story
+  support/                budget-app.ts (the readable driver), custom matchers, fixtures
+  fixtures/backups/       Backup files used to load history through the real import feature
+public/                   Icons, apple-touch-icon, manifest assets
+scripts/                  verify.sh, check-docs.sh, e2e container runner, fixture generators
+src/
+  domain/                 money.ts, calendar.ts, ledger.ts, budget-plan-changes.ts, insights.ts, tags.ts (+ *.test.ts)
+  data/                   database.ts (Dexie schema & versions), repositories/, backup/ (export, import, migrations)
+  app/                    use-cases/, providers (clock, ids), hooks/
+  ui/
+    theme/                tokens.css, global.css
+    layout/               AppShell, TwoPane (hinge-aware), useLayoutMode, safe areas
+    components/           Button, Sheet, MoneyField, TagPicker, AmountText, MonthCalendar, Toast…
+    screens/              setup/, month/, insights/, settings/
+  pwa/                    register-service-worker.ts, install-guide, storage-persistence.ts
+  main.tsx
+```
+
+Unit tests sit next to the code they test (`money.ts` + `money.test.ts`) (planned until T02).
+
+## 4. Data model (Dexie schema v1)
+
+```ts
+type Cents = number & { readonly __brand: 'Cents' };   // integer, may be negative in ledger entries
+type IsoDate = string;   // "2026-11-05" — local calendar date
+type MonthKey = string;  // "2026-11"
+
+interface Settings {            // table: settings (single row, id = 'app')
+  id: 'app';
+  currency: 'USD';
+  locale: string;               // e.g. 'en-US'
+  weekStartsOn: 0 | 1;          // 0 = Sunday
+  setupCompletedAt: string | null;
+  lastBackupAt: string | null;
+}
+
+interface Tag {                 // table: tags
+  id: string;
+  name: string;                 // display name, trimmed
+  nameKey: string;              // lower-cased name, unique (case-insensitive uniqueness)
+  color: string;                // token name from the tag palette
+  createdAt: string;
+}
+
+interface RecurringItem {       // table: recurringItems — the budget plan
+  id: string;
+  kind: 'income' | 'expense';
+  name: string;
+  amount: Cents;                // always positive; kind decides the sign
+  tagIds: string[];
+  startMonth: MonthKey;         // first month it is snapshotted into
+  endMonth: MonthKey | null;    // last month (inclusive); null = ongoing
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface LedgerEntry {         // table: entries
+  id: string;
+  date: IsoDate;
+  monthKey: MonthKey;           // always derived from date
+  amount: Cents;                // signed: + adds to budget, − subtracts
+  name: string;
+  note: string;
+  tagIds: string[];
+  source: 'manual' | 'recurring' | 'adjustment';
+  recurringItemId: string | null;     // set for 'recurring' and 'adjustment'
+  recurrenceKey?: string;             // `${monthKey}:${recurringItemId}`, only on 'recurring' → unique
+  adjustment?: { change: 'amount-changed' | 'added' | 'removed'; from: Cents | null; to: Cents | null };
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface OpenedMonth {         // table: months
+  monthKey: MonthKey;           // primary key
+  openedAt: string;
+}
+```
+
+Dexie store definitions:
+
+```ts
+db.version(1).stores({
+  settings: 'id',
+  tags: 'id, &nameKey',
+  recurringItems: 'id, kind, startMonth, endMonth',
+  entries: 'id, monthKey, date, [monthKey+date], source, recurringItemId, &recurrenceKey, *tagIds',
+  months: 'monthKey',
+});
+```
+
+- `monthKey` index → "everything in November" and "everything before November" are index range scans.
+- `*tagIds` multi-entry index → "everything tagged Groceries" without scanning.
+- `&recurrenceKey` unique index → a recurring line can **never** be snapshotted twice into a month,
+  even if two tabs race (entries without the key are not indexed, so manual lines are unaffected).
+
+## 5. Key flows
+
+### 5.1 First-run setup
+
+1. User enters monthly income and recurring expenses (each with optional tags).
+2. One transaction: write settings (`setupCompletedAt`), write recurring items with
+   `startMonth = current month`, **open the current month**.
+3. The month screen shows: *Carried over from {previous month}* `$0.00`, *Monthly income* `+`,
+   each recurring expense `−`, and the **current budget**.
+
+### 5.2 Opening months (rollover)
+
+Runs on startup, whenever the app becomes visible again, and at local midnight while open.
+
+```text
+target = month of today (device local time)
+last   = newest row in `months` (nothing to do if setup isn't complete)
+for each month m after last, up to and including target:          // fills gaps if the app wasn't opened
+  in ONE transaction:
+    for each recurring item active in m (startMonth ≤ m ≤ endMonth?):
+      add entry { source: 'recurring', date: first day of m, recurrenceKey: m:itemId } unless it exists
+    add months row m
+```
+
+- **Idempotent:** running it 100 times changes nothing after the first.
+- **Carried over is derived, never stored:** `carriedOver(m) = sum(amount of every entry with monthKey < m)`.
+  Editing an old entry therefore corrects every later month automatically.
+- If the clock moves backwards, nothing is deleted; the app simply shows the clock's month.
+
+### 5.3 Changing the budget plan ("this month" vs "starting next month")
+
+Any change that affects money (income amount, expense amount, adding or removing a recurring expense)
+asks: **This month (November)** or **Starting next month (December)**.
+
+| Change | Starting next month | This month |
+| --- | --- | --- |
+| Amount changed | Item's `amount` updated; November untouched; December snapshots the new amount. | Same update **plus** an *Adjustment* line in November for the difference. |
+| Expense added | New item with `startMonth = December`. | Same **plus** an *Adjustment* line `−amount` in November. |
+| Expense removed | `endMonth = November` (stays this month, gone from December). | `endMonth = November` **plus** an *Adjustment* line `+amount` (refund) in November. |
+
+- The month's snapshot lines are never rewritten; the adjustment line tells the story
+  (e.g. *Monthly income changed \$5,000.00 → \$5,500.00* `+$500.00`).
+- The difference is always computed against the amount **in effect this month**
+  (snapshot + earlier adjustments for that item), so changing an amount twice in one month nets out correctly.
+- Name and tag edits don't affect money: no prompt; they apply to the plan and to this month's
+  recurring line for that item. Past months keep their history.
+- All of this is a pure function in `src/domain/` (planned) returning `{ planUpdates, entriesToAdd }`; the use-case just persists it.
+
+### 5.4 Manual expenses & deposits
+
+Expense → negative amount, Deposit → positive amount. Date defaults to today; the month is derived from
+the date. Edits and deletes are allowed (delete has an *Undo* toast). Recurring and adjustment lines are
+not editable from the ledger — the UI points to Settings so the plan stays the source of truth.
+
+## 6. Storage durability (your data must not vanish)
+
+- Home Screen web apps on iOS are **exempt** from Safari's 7-day storage eviction. Browser tabs are not.
+  The app detects when it is running in a Safari tab and shows an install guide.
+- Safari tabs and the Home Screen app have **separate storage**. Do setup inside the installed app.
+- The app calls `navigator.storage.persist()` and shows the result in Settings → Data.
+- **Backups are the real safety net:** a reminder appears if the last export is older than 30 days.
+- Before an import replaces data, a safety snapshot is kept in the database so the import can be undone.
+
+## 7. Backup format (export/import)
+
+```json
+{
+  "app": "simple-budget",
+  "schemaVersion": 1,
+  "exportedAt": "2026-11-30T21:14:03.000Z",
+  "data": {
+    "settings": { "...": "..." },
+    "tags": [],
+    "recurringItems": [],
+    "entries": [],
+    "months": []
+  }
+}
+```
+
+- Validated with Zod (types, integer cents, valid dates, `monthKey` matches `date`, every `tagId` and
+  `recurringItemId` reference exists). Any problem → rejected with a clear message, nothing changes.
+- Older `schemaVersion`s are migrated forward step by step (`v1 → v2 → …`) before validation.
+- Import **replaces** all data in one transaction after showing a preview (counts and date range).
+- Round-trip guarantee (property-tested): `import(export(data))` reproduces `data` exactly.
+- CSV export of ledger entries is also offered for spreadsheets (one-way, not importable).
+
+## 8. Performance budget
+
+| Operation (10 years of data, ~25,000 entries, WebKit) | Budget |
+| --- | --- |
+| Month screen data (carried over + month lines) | < 30 ms |
+| Insights for "All time" | < 100 ms |
+| Add expense → current budget updated on screen | < 50 ms |
+| Cold start to interactive (installed, offline) | < 1 s |
+
+All queries use indexes. If a budget is ever missed, add a `monthTotals` cache table maintained in the
+same transaction as writes — but only with a test proving it equals the derived value.
