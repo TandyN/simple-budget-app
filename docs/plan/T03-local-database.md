@@ -4,24 +4,23 @@
 
 ## Goal
 
-Durable, indexed, transactional local storage with Dexie, and the `src/app/` use-case layer skeleton that
-turns user intentions into domain calls + exactly one transaction.
+Durable, indexed, transactional local storage using the browser's **native IndexedDB API** (zero external runtime
+dependencies) and the `src/app/` use-case layer skeleton that turns user intentions into domain calls + one transaction.
 
 ## Read first
 
-`docs/architecture.md` §2, §4, §5.2, §6, §8. Dexie docs on `version().stores()`, transactions, `useLiveQuery`.
+`docs/architecture.md` §2, §4, §5.2, §6, §8.
 
 ## Scope
 
-**In:** `src/data/database.ts` (schema v1), repositories, `src/app/` providers (Clock, IdGenerator), use-cases
-`completeSetup`, `openMonthsThrough`, `getMonthView` (query), React hook `useMonthView`. Tests with fake-indexeddb.
-**Out:** UI (T05), backups (T09), tags management (T11 — but `tagIds` fields and the `tags` table exist now).
+**In:** `src/data/database.ts` (native IndexedDB schema v1 + typed transaction wrapper), repositories, `src/app/` providers (Clock, IdGenerator), use-cases
+`completeSetup`, `openMonthsThrough`, `getMonthView` (query), React hook `useMonthView` (built with React 19 `useSyncExternalStore` + change events). Tests with `fake-indexeddb` (devDependency only).
+**Out:** UI (T05), backups (T09), tags management (T11 — but `tagIds` fields and the `tags` object store exist now).
 
 ## Steps
 
-1. Add `dexie`, `dexie-react-hooks`; dev: `fake-indexeddb`.
-2. `src/data/database.ts`: `SimpleBudgetDatabase` class with tables and **exactly** the v1 stores in `docs/architecture.md` §4.
-   Database name `simple-budget`. Export a factory so tests get a fresh, isolated database each time.
+1. Add `fake-indexeddb` to **`devDependencies`** only (runtime `dependencies` must remain strictly `react` and `react-dom`).
+2. `src/data/database.ts`: `SimpleBudgetDatabase` class wrapping native `indexedDB.open('simple-budget', 1)` with object stores and indexes matching `docs/architecture.md` §4 (`settings`, `tags`, `recurringItems`, `entries`, `months`). Export a factory so tests get a fresh, isolated database each time.
 3. Repositories in `src/data/repositories/`: thin functions, typed with domain types. No business decisions.
    Queries needed now: entries by month, sum of entries before a month (index range on `monthKey`), recurring items,
    opened months (latest), settings get/put.

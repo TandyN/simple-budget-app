@@ -17,8 +17,9 @@ description: >-
 
 ## 2. Start
 
-1. Make sure the working tree is clean (`git status`). If not, ask the user what to do with the changes.
-2. In `docs/plan/README.md` set the task's status to `in-progress`.
+1. Make sure the working tree is clean (`git status`) and `origin` is `TandyN/simple-budget-app`.
+2. Create a feature branch from `main` (e.g. `git checkout -b feat/T02-domain-core`).
+3. In `docs/plan/README.md` set the task's status to `in-progress`.
 
 ## 3. Build it, tests first
 
@@ -45,9 +46,9 @@ anything that now exists), `docs/developer-setup.md` commands, `docs/testing.md`
 1. Tick every acceptance-criteria checkbox in the task file that is truly met. If one isn't met, the task isn't done.
 2. Fill in the task's **Completion notes**: what was built, anything surprising, follow-ups.
 3. Set the status to `done` in `docs/plan/README.md`.
-4. Commit (Conventional Commits + task id, e.g. `feat(rollover): carry leftover budget into the next month [T07]`).
-   Small intermediate commits are fine; each one must pass the gate.
-5. Report to the user: what changed, how it was verified (with screenshot paths), any follow-ups.
+4. Commit using the `agent-commit` skill (Conventional Commits + task id + mandatory `(agent-generated)` suffix, e.g. `feat(rollover): carry leftover budget into the next month [T07] (agent-generated)`). Never touch `# Human Description` in `README.md` and never add runtime dependencies outside `react` and `react-dom`.
+5. Ship and verify the release using the `ship-and-verify-release` skill: push the branch, open a PR on `TandyN/simple-budget-app`, run independent review (`review-pr`), bump SemVer (`pnpm release:bump`), merge to `main`, deploy to GitHub Pages (`pnpm release:deploy`), and run live WebKit + offline QA (`pnpm verify:live`).
+6. Report to the user: what changed, the PR and release version, how it was verified locally and live (with screenshot paths), any follow-ups.
    **Do not start the next task** unless the user asked for several.
 
 ## If you get stuck

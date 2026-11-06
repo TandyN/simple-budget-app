@@ -17,14 +17,11 @@ No Apple Developer account, no TestFlight, no 7-day expiry.
 
 If you ever want the App Store, Capacitor can wrap this same app into a native shell later (see `docs/architecture.md`, ADR-1).
 
-## One-time hosting setup (done once T10 is complete)
+## One-time hosting setup (already live!)
 
-1. Create the GitHub repo `tandyn/simple-budget` and push `main`.
-   - **Public repo:** GitHub Pages is free. Your _data_ is never in the repo or on the host — only the app's code.
-   - **Private repo:** GitHub Pages needs a paid plan for private repos. Use **Cloudflare Pages** (free, works with private repos) instead; T10 documents both.
-2. In the repo: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
-3. Push to `main`. The deploy workflow runs the full test suite, and only if everything passes,
-   publishes to **https://tandyn.github.io/simple-budget/**.
+1. Repository: **`TandyN/simple-budget-app`** (`https://github.com/TandyN/simple-budget-app`).
+   - **Public repo:** Both GitHub Pages hosting and GitHub Actions standard Linux runners are **100% free with unlimited minutes**. Your _data_ is never in the repo or on the host — only the app's code.
+2. Live deployment happens automatically via `pnpm release:deploy` (`scripts/deploy.sh`), which publishes the verified build to the `gh-pages` branch and serves it at **https://tandyn.github.io/simple-budget-app/**.
 
 > ⚠️ **Pick the URL once and keep it.** Your data is tied to the exact address (origin). If the address
 > ever changes, the app at the new address starts empty. If you must move: export a backup at the old
@@ -32,7 +29,7 @@ If you ever want the App Store, Capacitor can wrap this same app into a native s
 
 ## Installing on the iPhone Duo
 
-1. Open **Safari** and go to https://tandyn.github.io/simple-budget/
+1. Open **Safari** and go to https://tandyn.github.io/simple-budget-app/
 2. Tap **Share** → **Add to Home Screen**. Keep **Open as Web App** on. Tap **Add**.
 3. Open **Simple Budget from the Home Screen icon** and do the first-run setup **there**.
    (Safari tabs and the Home Screen app keep separate data; Safari tabs can also have data cleared after 7 days of non-use. The installed app is exempt.)

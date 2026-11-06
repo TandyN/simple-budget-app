@@ -15,6 +15,8 @@ export default tseslint.config(
       'test-results/**',
       'blob-report/**',
       'node_modules/**',
+      'public/sw.js',
+      'scripts/*.mjs',
       'eslint.config.js',
     ],
   },

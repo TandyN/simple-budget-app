@@ -13,9 +13,10 @@ its storage, and deploys automatically (only when every test passes) to a free s
 
 ## Scope
 
-**In:** vite-plugin-pwa (`registerType: 'prompt'`), manifest + icons, update toast, offline precache, `src/pwa/`
-(registration, standalone detection, install guide, `storage.persist()`), Settings → Data storage status,
-`.github/workflows/deploy.yml`, Vite `base` for `/simple-budget/`, owner-facing install checklist.
+**In:** Service worker update toast (`SKIP_WAITING` prompt on `public/sw.js`), `src/pwa/`
+(standalone detection, Safari install guide card, `navigator.storage.persist()`), Settings → Data storage status,
+owner-facing install & viewport verification checklist. (Base offline SW, manifest, icons, and GitHub Pages deployment
+pipeline are already live from v0.1.0!)
 **Out:** push notifications, background sync (not needed for a local app).
 
 ## Steps

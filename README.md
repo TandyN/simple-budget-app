@@ -20,6 +20,8 @@ Foundation in progress (T01 complete: toolchain, test harness & CI). See the [bu
 ## Docs
 
 - [Build plan](docs/plan/README.md) — ordered tasks, each one agent-sized
+- [Workflow & releases](docs/workflow.md) — PR review, automated SemVer, live GitHub Pages deploy, offline QA & rollback
+- [Changelog](CHANGELOG.md) — version history
 - [Architecture](docs/architecture.md) — how it works and why
 - [Testing](docs/testing.md) — how tests are written (human-readable first)
 - [Design](docs/design.md) — look & feel, folded/unfolded layouts

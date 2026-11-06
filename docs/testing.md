@@ -97,6 +97,9 @@ The vocabulary grows with the plan. Each task adds the methods it needs and docu
 | `reopenApp()`                                                                     | Reloads the app, keeping its storage (proves data survives).                           |
 | `appHeading`                                                                      | Locator for the top-level heading (`<h1>`).                                            |
 | `mainRegion`                                                                      | Locator for the `<main>` landmark.                                                     |
+| `appStatus`                                                                       | Locator for the app version & offline status footer (`contentinfo`).                   |
+| `goOffline()`                                                                     | Switches the browser context to offline mode (`context.setOffline(true)`).             |
+| `goOnline()`                                                                      | Restores network connectivity (`context.setOffline(false)`).                           |
 | `finishSetup({ monthlyIncome, recurringExpenses })`                               | (planned until T05) Walks the first-run setup screens.                                 |
 | `addExpense({ name, amount, date?, tags? })`                                      | (planned until T06) Taps _Expense_, fills the sheet, saves.                            |
 | `addDeposit({ name, amount, date?, tags? })`                                      | (planned until T06) Taps _Deposit_, fills the sheet, saves.                            |

@@ -44,16 +44,16 @@ git diff --staged
 - Only files related to this change. No `dist/`, `test-results/`, `playwright-report/`, scratch files, or secrets.
 - Docs updated in the same commit (`keep-docs-accurate` skill). `bash scripts/check-docs.sh` already passed in step 1.
 
-## 4. Commit
+## 4. Commit (using the `agent-commit` skill)
 
-Conventional Commits with the plan task id:
+Conventional Commits with the plan task id and mandatory `(agent-generated)` suffix on both subject and body:
 
 ```text
-feat(ledger): subtract manual expenses from the current budget [T06]
+feat(ledger): subtract manual expenses from the current budget [T06] (agent-generated)
 
 - Expense sheet with amount, name, date
 - Journeys: expense subtracts, deposit adds, delete + undo
-Verified: scripts/verify.sh green; screenshots checked at Duo folded + unfolded.
+Verified: scripts/verify.sh green; screenshots checked at Duo folded + unfolded. (agent-generated)
 ```
 
 ## 5. Report

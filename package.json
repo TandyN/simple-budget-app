@@ -29,6 +29,10 @@
     "test:e2e:ui": "playwright test --ui --project=chromium-iphone-duo-folded --project=chromium-iphone-duo-unfolded --project=pixel-android",
     "docs:check": "bash scripts/check-docs.sh",
     "verify": "bash scripts/verify.sh",
+    "verify:live": "PLAYWRIGHT_BROWSERS_PATH=/tmp/pw-browsers PLAYWRIGHT_HOST_PLATFORM_OVERRIDE=ubuntu24.04-x64 node scripts/verify-live.mjs",
+    "release:bump": "node scripts/release-version.mjs",
+    "release:deploy": "bash scripts/deploy.sh",
+    "release:rollback": "bash scripts/rollback.sh",
     "prepare": "lefthook install || true"
   },
   "dependencies": {

@@ -13,15 +13,14 @@ components — plus dev tools to see every device size at once on Linux and to i
 
 ## Scope
 
-**In:** Tailwind v4 + tokens, light/dark, safe areas, `useLayoutMode`, `AppShell`, hinge-aware `TwoPane`, hash routing
-(`#/`, `#/insights`, `#/settings`) with placeholder screens, base components, device wall, `?debug=layout` overlay,
+**In:** Native CSS custom properties (`src/ui/theme/tokens.css` + `global.css`, zero extra runtime packages), light/dark, safe areas, `useLayoutMode`, `AppShell`, hinge-aware `TwoPane`, native hash routing
+(`#/`, `#/insights`, `#/settings`) with placeholder screens, base components (using native HTML `<dialog>` for sheets and inline SVG icons), device wall, `?debug=layout` overlay,
 `?debug=console` (dev/preview only), `index.html` meta for iOS.
-**Out:** real screen content (T05+), PWA manifest/icons (T10).
+**Out:** real screen content (T05+), PWA install guide UI (T10).
 
 ## Steps
 
-1. Tailwind CSS v4 via the Vite plugin; tokens from `docs/design.md` in `src/ui/theme/tokens.css` as CSS variables mapped
-   into Tailwind's `@theme`. Dark mode via `prefers-color-scheme`.
+1. Design tokens from `docs/design.md` in `src/ui/theme/tokens.css` as CSS custom properties (`--color-canvas`, `--color-surface`, etc.) and `src/ui/theme/global.css`. Dark mode via `prefers-color-scheme`. Zero external CSS runtime libraries.
 2. `index.html`: `<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">`, `theme-color` for light
    and dark, `apple-mobile-web-app-capable`, `apple-mobile-web-app-status-bar-style` = `black-translucent`, title "Simple Budget".
    Disable double-tap zoom on controls (`touch-action: manipulation`), keep pinch-zoom for accessibility.

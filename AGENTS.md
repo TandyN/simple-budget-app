@@ -8,6 +8,8 @@ Read this whole file before touching anything. It's short on purpose.
 no server, no subscription. You type in your monthly income and your recurring expenses, then log
 expenses and deposits by hand. Whatever is left at the end of a month **rolls over** into the next.
 
+- **Canonical GitHub Repository:** `TandyN/simple-budget-app` (`https://github.com/TandyN/simple-budget-app`) — all commits, branches, PRs, and releases happen ONLY in this repository.
+- **Live Deployed PWA URL:** `https://tandyn.github.io/simple-budget-app/` (hosted free on GitHub Pages; standard GitHub Actions runners are 100% free on public repos).
 - Runs as an installable **Progressive Web App (PWA)**. Primary device: **iPhone Duo** (Apple's
   foldable), both folded (cover screen) and unfolded (inner screen). Android works as a PWA too.
 - All data lives on the device in IndexedDB. Export/import of a JSON backup is a first-class feature.
@@ -15,31 +17,36 @@ expenses and deposits by hand. Whatever is left at the end of a month **rolls ov
 
 ## Where things are
 
-| Path                        | What it is                                                                                                |
-| --------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `AGENTS.md`                 | This file.                                                                                                |
-| `README.md`                 | Human-facing intro.                                                                                       |
-| `docs/plan/README.md`       | **The build plan.** Ordered task list with status. Start here when asked to "do the next task".           |
-| `docs/architecture.md`      | Stack, layers, data model, key flows, and the reasons behind each decision.                               |
-| `docs/testing.md`           | How tests must be written (human-readable, end-to-end first). **Mandatory reading before writing tests.** |
-| `docs/design.md`            | Visual design system, layouts for folded/unfolded, device profiles.                                       |
-| `docs/developer-setup.md`   | Toolchain install, every `pnpm` command, viewing the app on Linux and on a real phone.                    |
-| `docs/install-on-iphone.md` | Free hosting + installing on the iPhone (and why not TestFlight).                                         |
-| `scripts/verify.sh`         | The one verification gate: docs, format, lint, types, unit, build, e2e.                                   |
-| `scripts/check-docs.sh`     | Mechanical docs-accuracy check (paths exist, scripts/skills/folders documented).                          |
-| `scripts/run-e2e.sh`        | Runs Playwright journeys natively (with Ubuntu 24.04 WebKit libs on Arch) or in the Playwright container. |
-| `config/devices.ts`         | Device viewport profiles shared by Playwright and the dev device wall.                                    |
-| `e2e/`                      | Playwright journeys (`e2e/journeys/`) and the readable test driver (`e2e/support/budget-app.ts`).         |
-| `config/workflows/ci.yml`  | GitHub Actions CI gate running on every push and pull request.                                            |
-| `.agents/skills/`           | Project skills for agents (see below).                                                                    |
+| Path                        | What it is                                                                                                 |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `AGENTS.md`                 | This file.                                                                                                 |
+| `README.md`                 | Human-facing intro (**Note:** `# Human Description` at the top is human-only; agents must NEVER touch it). |
+| `CHANGELOG.md`              | Automated SemVer release history (`0.y.z` pre-1.0 → `1.0.0`).                                              |
+| `docs/plan/README.md`       | **The build plan.** Ordered task list with status. Start here when asked to "do the next task".            |
+| `docs/workflow.md`          | Branch, PR, independent review, SemVer release, GitHub Pages deploy, live QA, rollback & agent personas.   |
+| `docs/architecture.md`      | Stack, layers, data model, key flows, and the reasons behind each decision.                                |
+| `docs/testing.md`           | How tests must be written (human-readable, end-to-end first). **Mandatory reading before writing tests.**  |
+| `docs/design.md`            | Visual design system, layouts for folded/unfolded, device profiles.                                        |
+| `docs/developer-setup.md`   | Toolchain install, every `pnpm` command, viewing the app on Linux and on a real phone.                     |
+| `docs/install-on-iphone.md` | Free hosting + installing on the iPhone (and why not TestFlight).                                          |
+| `scripts/verify.sh`         | The one verification gate: docs & policy check, format, lint, types, unit, build, e2e.                     |
+| `scripts/check-docs.sh`     | Mechanical docs & policy check (paths exist, human README intact, zero extra runtime deps).                |
+| `scripts/run-e2e.sh`        | Runs Playwright journeys natively (with Ubuntu 24.04 WebKit libs on Arch) or in the Playwright container.  |
+| `scripts/deploy.sh`         | Builds `dist/`, deploys to `gh-pages`, enables GitHub Pages, tags `v*`, and creates the GitHub Release.    |
+| `scripts/verify-live.mjs`   | Post-deploy live WebKit + offline PWA verification against `https://tandyn.github.io/simple-budget-app/`.  |
+| `scripts/rollback.sh`       | One-command rollback of the live site to any previous `v*` tag.                                            |
+| `config/devices.ts`         | Device viewport profiles shared by Playwright and the dev device wall.                                     |
+| `src/pwa/`                  | Service worker registration and offline status hook (`public/sw.js` + `public/manifest.webmanifest`).      |
+| `e2e/`                      | Playwright journeys (`e2e/journeys/`) and the readable test driver (`e2e/support/budget-app.ts`).          |
+| `config/workflows/ci.yml`   | GitHub Actions CI gate template.                                                                           |
+| `.agents/skills/`           | Project skills for agents (see below).                                                                     |
 
 Target source layout (built by the plan; each folder gets a row in the table above once it exists):
 
-- `src/domain/` (planned) — pure TypeScript business rules: money, calendar, ledger math, config changes, insights. No React, no Dexie, no DOM.
-- `src/data/` (planned) — Dexie (IndexedDB) schema, migrations, repositories, backup serialization.
+- `src/domain/` (planned) — pure TypeScript business rules: money, calendar, ledger math, config changes, insights. No React, no storage, no DOM.
+- `src/data/` (planned) — Native browser IndexedDB schema, migrations, repositories, backup serialization (zero external packages).
 - `src/app/` (planned) — use-cases (commands/queries) that combine domain + data; clock and id providers; React hooks.
 - `src/ui/` (planned) — theme tokens, layout primitives, components, screens.
-- `src/pwa/` (planned) — service worker registration, install guidance, storage persistence.
 
 ## Golden rules
 
@@ -49,10 +56,13 @@ Target source layout (built by the plan; each folder gets a row in the table abo
 4. **The domain is pure.** Anything in `src/domain/` (planned until T02) must be deterministic and free of I/O so it can be tested exhaustively.
 5. **History is immutable-ish.** Recurring lines are snapshotted into a month when it opens. Mid-month config changes appear as _adjustment_ lines, never by rewriting the snapshot.
 6. **Every behavior change ships with a readable test** following `docs/testing.md`. Journey tests drive the real UI.
-7. **Schema changes need a migration** (new Dexie version + backup-format migration + test). Never edit an existing Dexie version.
-8. **Never change the deploy origin** (URL) casually — IndexedDB is per-origin; users would "lose" their data.
-9. **Do not commit until `scripts/verify.sh` passes** and you have seen the feature work (use the `verify-before-commit` skill).
+7. **Schema changes need a migration** (new IndexedDB version + backup-format migration + test). Never edit an existing IndexedDB version.
+8. **Never change the deploy origin** (`https://tandyn.github.io/simple-budget-app/`) casually — IndexedDB is per-origin; users would "lose" their data.
+9. **Do not commit until `scripts/verify.sh` passes** and you have seen the feature work (use the `verify-before-commit` and `agent-commit` skills).
 10. **Docs must stay 100% accurate.** Update docs in the same commit as the change (use the `keep-docs-accurate` skill).
+11. **NEVER touch `# Human Description` in `README.md`.** Everything in `README.md` above `# Simple Budget` is strictly human-authored and mechanically protected by `scripts/check-docs.sh`.
+12. **Zero extra runtime dependencies.** `package.json` `"dependencies"` may contain **only** `react` and `react-dom` (enforced by `scripts/check-docs.sh`). Use native browser APIs (`indexedDB`, `<dialog>`, hash routing, inline SVGs, CSS variables, standard Service Worker). Well-tested dev tools belong in `"devDependencies"` only.
+13. **Every agent commit ends with `(agent-generated)`** on both the subject line and the commit body, and every completed task ships through a PR, independent review, SemVer bump, GitHub Pages deploy, and live offline QA (`docs/workflow.md`).
 
 ## Glossary (use these exact words in code, UI copy and test names)
 
@@ -72,18 +82,24 @@ Target source layout (built by the plan; each folder gets a row in the table abo
 
 ## Commands
 
-The full command list lives in `docs/developer-setup.md`. The two you need most: `pnpm dev` and `pnpm verify` (or `bash scripts/verify.sh`).
+The full command list lives in `docs/developer-setup.md`. The ones you need most: `pnpm dev`, `pnpm verify`, `pnpm release:deploy`, and `pnpm verify:live`.
 
 ## Skills (in `.agents/skills/`)
 
-| Skill                  | Use it when                                                                         |
-| ---------------------- | ----------------------------------------------------------------------------------- |
-| `work-next-plan-task`  | Asked to work on the plan / "do the next task". Picks the task, runs the full loop. |
-| `write-readable-tests` | Writing or changing any test.                                                       |
-| `verify-before-commit` | Before **every** commit. Runs the gate and a hands-on check of the feature.         |
-| `keep-docs-accurate`   | After any change to code, scripts, structure or behavior — and before committing.   |
+| Skill                     | Use it when                                                                                         |
+| ------------------------- | --------------------------------------------------------------------------------------------------- |
+| `work-next-plan-task`     | Asked to work on the plan / "do the next task". Picks the task, runs the full loop + release.       |
+| `write-readable-tests`    | Writing or changing any test.                                                                       |
+| `verify-before-commit`    | Before **every** commit. Runs the gate and a hands-on check of the feature.                         |
+| `keep-docs-accurate`      | After any change to code, scripts, structure or behavior — and before committing.                   |
+| `agent-commit`            | Making any git commit. Enforces the `(agent-generated)` suffix and human-README protection.         |
+| `review-pr`               | Reviewing a Pull Request on `TandyN/simple-budget-app` before merging.                              |
+| `ship-and-verify-release` | Opening a PR, running review, bumping SemVer, merging, deploying to GitHub Pages, and running QA.   |
+| `rollback-release`        | Rolling back the live deployment to a previous `v*` release tag.                                    |
+| `orchestrate-tasks`       | Coordinating multi-agent personas (`implementer`, `reviewer`, `release-qa`) or parallel plan tasks. |
 
 ## Commit style
 
-Conventional Commits with the plan task id, e.g. `feat(ledger): subtract manual expenses from the current budget [T06]`.
+Conventional Commits with the plan task id and mandatory `(agent-generated)` suffix, e.g.:
+`feat(ledger): subtract manual expenses from the current budget [T06] (agent-generated)`.
 One logical change per commit. Never commit generated folders (`dist/`, `test-results/`, `playwright-report/`).
