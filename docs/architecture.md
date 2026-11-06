@@ -5,36 +5,29 @@
 
 ## 1. Decisions at a glance
 
-| Question               | Decision                                                                  | Why                                                                                            |
-| ---------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| Native app or web app? | **PWA** (installable web app)                                             | Only way to install on an iPhone **for free, permanently, from Linux**. See ADR-1.             |
-| Runtime dependencies   | **`react` and `react-dom` ONLY** (zero extra runtime packages)            | Smallest bundle, zero supply-chain bloat on the phone, total control.                          |
-| UI framework           | **React 19 + TypeScript (strict)**, built with **Vite**                   | Mature, fast, every agent knows it.                                                            |
-| Styling                | **Native CSS custom properties** (`tokens.css` (planned until T04) + CSS) | Fast, zero external CSS framework runtime, tokens keep the look consistent.                    |
-| Local database         | **Native browser IndexedDB API** + typed wrapper & `useSyncExternalStore` | Indexed queries, native `IDBTransaction`, reactive live queries, zero dependencies. See ADR-2. |
-| Validation             | **Pure TypeScript validators**                                            | Validates import files and form input with readable errors and zero dependencies.              |
-| Offline / install      | **Standard Service Worker** (`public/sw.js`) + `manifest.webmanifest`     | Precaches the app at build time so it works with zero network and zero library bloat.          |
-| Routing                | **Native hash routing** (`#/`, `#/insights`, `#/settings`)                | ~25 lines using `window.location.hash` + `hashchange`; works on any static host.               |
-| Bottom sheets          | **Native HTML `<dialog>`** + CSS transitions                              | Built-in accessibility, focus trap, and `Escape` handling; drawer in compact, modal unfolded.  |
-| Icons                  | **Inline SVG components**                                                 | Clean, crisp line icons with zero external icon package.                                       |
-| Unit tests             | **Vitest** + **fast-check** (property tests) + **fake-indexeddb**         | Dev-only packages; fast, readable, and property tests catch money edge cases.                  |
-| End-to-end             | **Playwright** on **WebKit** (Safari's engine) and Chromium               | Dev-only; WebKit is the closest thing to iPhone Safari on Linux.                               |
-| Hosting                | **GitHub Pages** (`https://tandyn.github.io/simple-budget-app/`)          | Free static hosting + free GitHub Actions runners on public repo; host never sees data.        |
-| Dates                  | Plain `"YYYY-MM-DD"` strings + a small tested calendar module             | `Temporal` is not in iOS Safari; strings avoid timezone bugs.                                  |
-| Money                  | Integer cents, branded `Cents` type                                       | Floats can't represent 0.10 exactly. Budgets must be exact.                                    |
+| Question               | Decision                                                                                     | Why                                                                                                           |
+| ---------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Native app or web app? | **Native iOS App (`ios/`)** via TestFlight/App Store + **Web/PWA preview**                   | Native iOS `Application Support` storage cannot be wiped by clearing Safari cache; fast Linux dev.            |
+| Runtime dependencies   | **`react` and `react-dom` ONLY** (zero extra runtime packages)                               | Smallest bundle, zero supply-chain bloat on the phone, total control.                                         |
+| UI framework           | **React 19 + TypeScript (strict)**, built with **Vite**                                      | Mature, fast, every agent knows it.                                                                           |
+| Styling                | **Native CSS custom properties** (`tokens.css` (planned until T04) + CSS)                    | Fast, zero external CSS framework runtime, tokens keep the look consistent.                                   |
+| Local database         | **Native iOS `Application Support` file bridge** + **browser `IndexedDB` API**               | Immune to Safari cache resets on iOS; indexed fast queries & transactions in `src/data/` (planned until T03). |
+| Validation             | **Pure TypeScript validators**                                                               | Validates import files and form input with readable errors and zero dependencies.                             |
+| Offline / install      | **Embedded native iOS bundle (`simplebudget://app/`)** + **Service Worker (`public/sw.js`)** | 100% embedded inside `.ipa` on iOS, plus offline-ready web preview on GitHub Pages.                           |
+| Routing                | **Native hash routing** (`#/`, `#/insights`, `#/settings`)                                   | ~25 lines using `window.location.hash` + `hashchange`; works in both native iOS `WKWebView` and web.          |
+| Bottom sheets          | **Native HTML `<dialog>`** + CSS transitions                                                 | Built-in accessibility, focus trap, and `Escape` handling; drawer in compact, modal unfolded.                 |
+| Icons                  | **Inline SVG components**                                                                    | Clean, crisp line icons with zero external icon package.                                                      |
+| Unit tests             | **Vitest** + **fast-check** (property tests) + **fake-indexeddb**                            | Dev-only packages; fast, readable, and property tests catch money edge cases.                                 |
+| End-to-end             | **Playwright** on **WebKit** (Safari's engine) and Chromium                                  | Dev-only; WebKit is the closest thing to iPhone WebKit on Linux.                                              |
+| Release & Hosting      | **GitHub Actions `macos-15` → TestFlight/App Store** + **GitHub Pages preview**              | Compiles native `.ipa` in Xcode on free public macOS runners from Linux; hosts web preview for free.          |
+| Dates                  | Plain `"YYYY-MM-DD"` strings + a small tested calendar module                                | `Temporal` is not in iOS Safari; strings avoid timezone bugs.                                                 |
+| Money                  | Integer cents, branded `Cents` type                                                          | Floats can't represent 0.10 exactly. Budgets must be exact.                                                   |
 
-### ADR-1: PWA instead of React Native / Expo / native Swift
+### ADR-1: Native iOS Wrapper (`ios/`) + Web Core (Developed on Linux, Built on GitHub Actions `macos-15`)
 
-- **Free install on iPhone:** A PWA is added from Safari → Share → _Add to Home Screen_ and stays
-  forever. A native app needs either the **\$99/year Apple Developer Program** (TestFlight, App Store,
-  and Expo EAS device builds all require it) or free-Apple-ID sideloading, which **expires every 7 days**
-  and needs a native `.ipa` that can only be built with Xcode on a Mac.
-- **Linux development:** A PWA is developed and tested fully on Linux. iOS simulators require macOS.
-- **Android later:** Android has the best PWA support of any platform — same app, zero extra work.
-- **Escape hatch:** If App Store distribution is ever wanted, **Capacitor** can wrap this exact build
-  into native iOS/Android shells without a rewrite. Keep platform APIs behind `src/pwa/` so this stays easy.
-- **Trade-offs accepted:** no home-screen widgets, no haptics in iOS Safari, Safari's storage rules
-  (handled — see §6).
+- **Why a Native iOS App (`ios/`):** In a browser or Home Screen PWA, going to **iOS Settings → Safari → Clear History and Website Data** can wipe WebKit storage. By wrapping the compiled Vite bundle inside a zero-dependency native Swift iOS app ([`ios/SimpleBudget/BudgetViewController.swift`](../ios/SimpleBudget/BudgetViewController.swift)), the app stores its database atomically inside iOS `Application Support` (with an automatic backup copy), which is **100% isolated from Safari** and **automatically included in iOS device/iCloud backups**.
+- **How we build for iOS from Linux:** The owner develops on Linux (`pnpm dev`, `pnpm verify`). Because the repository is public on GitHub, GitHub Actions provides **unlimited free `macos-15` (macOS + Xcode) runner minutes** that run `scripts/build-ios.sh` (`xcodegen` + `xcodebuild`), compile the native iOS app on every commit, and sign + upload the `.ipa` binary to **TestFlight / App Store Connect** on every `v*` release tag.
+- **Zero extra npm dependencies:** Unlike Capacitor (which adds runtime npm dependencies), `ios/` is ~150 lines of pure Swift using `WKURLSchemeHandler` (`simplebudget://app/`) and `WKScriptMessageHandlerWithReply` (`window.webkit.messageHandlers.nativeStorage`), keeping `package.json` `"dependencies"` strictly `react` and `react-dom`.
 
 ### ADR-2: Dexie/IndexedDB instead of SQLite-in-WebAssembly
 

@@ -5,6 +5,9 @@ node_modules/
 dist/
 dev-dist/
 *.tsbuildinfo
+ios/SimpleBudget/www/
+ios/SimpleBudget.xcodeproj/
+ios/build/
 
 # Test output
 coverage/

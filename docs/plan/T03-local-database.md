@@ -20,7 +20,7 @@ dependencies) and the `src/app/` use-case layer skeleton that turns user intenti
 ## Steps
 
 1. Add `fake-indexeddb` to **`devDependencies`** only (runtime `dependencies` must remain strictly `react` and `react-dom`).
-2. `src/data/database.ts`: `SimpleBudgetDatabase` class wrapping native `indexedDB.open('simple-budget', 1)` with object stores and indexes matching `docs/architecture.md` §4 (`settings`, `tags`, `recurringItems`, `entries`, `months`). Export a factory so tests get a fresh, isolated database each time.
+2. `src/data/database.ts`: `SimpleBudgetDatabase` class wrapping native `indexedDB.open('simple-budget', 1)` with object stores and indexes matching `docs/architecture.md` §4 (`settings`, `tags`, `recurringItems`, `entries`, `months`), plus automatic synchronization with the native iOS `Application Support` file bridge (`window.webkit?.messageHandlers?.nativeStorage`) when running inside the native iOS app (`ios/`). Export a factory so tests get a fresh, isolated database each time.
 3. Repositories in `src/data/repositories/`: thin functions, typed with domain types. No business decisions.
    Queries needed now: entries by month, sum of entries before a month (index range on `monthKey`), recurring items,
    opened months (latest), settings get/put.

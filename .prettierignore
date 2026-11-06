@@ -11,5 +11,7 @@ public/sw.js
 public/*.png
 public/*.svg
 public/*.webmanifest
+ios/
+LICENSE
 README.md
 

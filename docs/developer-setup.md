@@ -46,6 +46,7 @@ via Podman/Docker if installed.
 | `pnpm release:bump`     | Runs `scripts/release-version.mjs` — bumps SemVer in `package.json` and updates `CHANGELOG.md`. |
 | `pnpm release:deploy`   | Runs `scripts/deploy.sh` — deploys `dist/` to GitHub Pages and publishes the GitHub Release.    |
 | `pnpm release:rollback` | Runs `scripts/rollback.sh` — rolls back the live site to a specified `v*` release tag.          |
+| `pnpm ios:build`        | Runs `scripts/build-ios.sh` — bundles `dist/` into `ios/` and compiles/uploads on macOS CI.     |
 | `pnpm prepare`          | Installs git hooks via `lefthook` (runs automatically on `pnpm install`).                       |
 
 ## 3. Seeing the app as an iPhone Duo — on Linux

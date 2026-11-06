@@ -1,22 +1,20 @@
-# T10 — Installable offline PWA & free deployment 🎯 MVP
+# T10 — Native iOS App, Offline Shell & Automated Deployment 🎯 MVP
 
 **Depends on:** T09 — **Milestone:** MVP — after this the owner installs the app and starts using it.
 
 ## Goal
 
-The app installs to the iPhone Home Screen, opens full-screen, works with no network, asks before updating, protects
-its storage, and deploys automatically (only when every test passes) to a free static host.
+The app ships both as a **Native iOS App (`ios/`)** (compiled and uploaded to TestFlight / App Store Connect via GitHub Actions `macos-15`) where storage lives in native iOS `Application Support` (immune to Safari cache clearing), and as an offline-ready web preview on GitHub Pages.
 
 ## Read first
 
-`docs/install-on-iphone.md`, `docs/architecture.md` §6, vite-plugin-pwa docs, GitHub Pages "deploy with Actions" docs.
+`docs/install-on-iphone.md`, `docs/architecture.md` §1 & §6, `ios/project.yml`, `scripts/build-ios.sh`.
 
 ## Scope
 
-**In:** Service worker update toast (`SKIP_WAITING` prompt on `public/sw.js`), `src/pwa/`
-(standalone detection, Safari install guide card, `navigator.storage.persist()`), Settings → Data storage status,
-owner-facing install & viewport verification checklist. (Base offline SW, manifest, icons, and GitHub Pages deployment
-pipeline are already live from v0.1.0!)
+**In:** Native iOS storage persistence verification (`window.webkit.messageHandlers.nativeStorage` integration test with mock handler in Playwright), Service worker update toast (`SKIP_WAITING` prompt on `public/sw.js`), `src/pwa/`
+(native iOS / standalone detection, Safari install guide card when opened in a mobile browser tab, `navigator.storage.persist()`), Settings → Data storage status ("Protected in Native iOS App Storage" vs browser storage status),
+owner-facing TestFlight & viewport verification checklist. (Base `ios/` Swift target, `scripts/build-ios.sh`, offline SW, manifest, icons, and GitHub Pages deployment pipeline are already scaffolded!)
 **Out:** push notifications, background sync (not needed for a local app).
 
 ## Steps
