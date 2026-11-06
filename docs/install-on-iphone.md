@@ -1,48 +1,59 @@
-# Installing on your iPhone (free, permanently)
+# Installing on your iPhone (Native iOS App via TestFlight / App Store + Web Preview)
 
-## Short answer
+## Why the Native iOS App (`ios/`)?
 
-Host the app as a static website (free on GitHub Pages) and **Add it to your Home Screen** from Safari.
-It then opens full-screen like a native app, works offline, and stores data only on your phone.
-No Apple Developer account, no TestFlight, no 7-day expiry.
+In a browser or Home Screen PWA, iOS stores data inside WebKit's origin container — which means if a user goes to **iOS Settings → Safari → Clear History and Website Data**, iOS can wipe the browser's storage.
 
-## Why not TestFlight or sideloading?
+By shipping **Simple Budget** as a **Native iOS App (`ios/`)** via **TestFlight / App Store**:
 
-| Option                                                          | Cost      | Catch                                                                                                                    |
-| --------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------ |
-| **PWA via Add to Home Screen** ✅                               | Free      | None that matter here. No widgets/haptics.                                                                               |
-| TestFlight                                                      | \$99/year | Requires the paid Apple Developer Program and a native build (Xcode on a Mac or cloud macOS).                            |
-| App Store                                                       | \$99/year | Same as TestFlight, plus App Review.                                                                                     |
-| Free Apple ID sideload (Xcode, AltStore, SideStore, Sideloadly) | Free      | App **expires every 7 days**, max 3 apps, needs a native `.ipa` built on a Mac. Unacceptable for a budget you depend on. |
+1. **Safari Cache Clearing Cannot Touch Your Data:** Your budget database is saved by native Swift code ([`ios/SimpleBudget/BudgetViewController.swift`](../ios/SimpleBudget/BudgetViewController.swift)) directly into iOS `Application Support` (with an automatic backup copy). Wiping Safari's cache/history has **zero effect** on the app.
+2. **100% Embedded Offline Binary:** All HTML/JS/CSS assets are compiled into the `.ipa` bundle and served locally via a custom `WKURLSchemeHandler` (`simplebudget://app/`).
+3. **Built & Deployed Automatically from Linux (No Mac Required):** Because this repository is **public** on GitHub, GitHub Actions provides **unlimited free `macos-15` (macOS + Xcode) runner minutes** that compile the Xcode project, sign the `.ipa`, and upload it straight to **TestFlight / App Store Connect** on every release tag (`v*`).
 
-If you ever want the App Store, Capacitor can wrap this same app into a native shell later (see `docs/architecture.md`, ADR-1).
+---
 
-## One-time hosting setup (already live!)
+## Automated Native iOS Deployment Setup (Apple Developer Program)
 
-1. Repository: **`TandyN/simple-budget-app`** (`https://github.com/TandyN/simple-budget-app`).
-   - **Public repo:** Both GitHub Pages hosting and GitHub Actions standard Linux runners are **100% free with unlimited minutes**. Your _data_ is never in the repo or on the host — only the app's code.
-2. Live deployment happens automatically via `pnpm release:deploy` (`scripts/deploy.sh`), which publishes the verified build to the `gh-pages` branch and serves it at **https://tandyn.github.io/simple-budget-app/**.
+Once you enroll in the **Apple Developer Program (\$99/year)** at https://developer.apple.com/programs/:
 
-> ⚠️ **Pick the URL once and keep it.** Your data is tied to the exact address (origin). If the address
-> ever changes, the app at the new address starts empty. If you must move: export a backup at the old
-> address, install the new one, import the backup.
+### 1. Create the App in App Store Connect (One-Time)
 
-## Installing on the iPhone Duo
+1. Sign in to **App Store Connect** (`https://appstoreconnect.apple.com/`) → **Apps** → **+** → **New App**.
+2. Choose **iOS**, Name: **Simple Budget**, Bundle ID: **`io.github.tandyn.simplebudget`** (matches [`ios/project.yml`](../ios/project.yml)).
 
-1. Open **Safari** and go to https://tandyn.github.io/simple-budget-app/
-2. Tap **Share** → **Add to Home Screen**. Keep **Open as Web App** on. Tap **Add**.
-3. Open **Simple Budget from the Home Screen icon** and do the first-run setup **there**.
-   (Safari tabs and the Home Screen app keep separate data; Safari tabs can also have data cleared after 7 days of non-use. The installed app is exempt.)
-4. Optional but recommended: open the app once with `?debug=layout` added to the URL in Safari to confirm
-   the screen sizes, and tell the agent the numbers so `config/devices.ts` (planned) matches your phone exactly.
+### 2. Create an App Store Connect API Key (One-Time)
 
-## Updates
+1. Go to **App Store Connect → Users and Access → Integrations → App Store Connect API → Team Keys**.
+2. Generate a key with **App Manager** (or **Admin**) access and download the `.p8` file.
+3. Note your **Key ID**, **Issuer ID**, and your 10-character **Apple Team ID** (from `developer.apple.com/account`).
 
-When a new version is deployed, the app shows **"Update available — Reload"**. It never reloads on its own,
-so you can't lose a half-typed expense.
+### 3. Add the 4 Secrets to GitHub (`TandyN/simple-budget-app`)
+
+In your repository on GitHub, go to **Settings → Secrets and variables → Actions → New repository secret** and add:
+
+| Secret Name                    | Value                                                                |
+| ------------------------------ | -------------------------------------------------------------------- |
+| `APPLE_TEAM_ID`                | Your 10-character Apple Developer Team ID                            |
+| `APP_STORE_CONNECT_API_KEY_ID` | Your App Store Connect API Key ID                                    |
+| `APP_STORE_CONNECT_ISSUER_ID`  | Your App Store Connect API Issuer ID (UUID)                          |
+| `APP_STORE_CONNECT_API_KEY_P8` | The full text contents of your downloaded `AuthKey_<KEY_ID>.p8` file |
+
+### 4. How Every Release Ships Automatically
+
+Whenever an agent (or you) ships a release (`v0.2.0`, `v0.3.0`, …, `v1.0.0`):
+
+1. `scripts/build-ios.sh` (invoked by the `ios-testflight` job in `config/workflows/ci.yml` on `macos-15`) builds the production React bundle, embeds it into `ios/`, generates the Xcode project with `xcodegen`, archives and signs the `.ipa`, and uploads it to **TestFlight** via `xcrun altool`.
+2. On your iPhone Duo, install Apple's free **TestFlight** app from the App Store — every new release automatically appears in TestFlight (or auto-updates on your phone)!
+3. When you are ready to publish or sell the app on the public **App Store**, you simply select the TestFlight build in App Store Connect and click **Submit for Review**.
+
+---
+
+## Live Web Preview (Available Anytime Without TestFlight)
+
+While developing on Linux or before your Apple Developer account is active, every release also deploys to **https://tandyn.github.io/simple-budget-app/** so you can preview layouts immediately on your phone.
 
 ## Backups & Data Safety (built in T09)
 
-- **Silent Background Auto-Backup (Zero Taps, Zero Popups):** Every budget change silently saves a mirror copy in your phone's Origin Private File System and `localStorage`, and freezes a `pre-update` snapshot before any new app version runs.
+- **Silent Background Auto-Backup (Zero Taps, Zero Popups):** Every budget change silently writes both a primary and backup database file in native iOS `Application Support` (plus `IndexedDB`, Origin Private File System, and `localStorage`), and freezes a `pre-update` snapshot before any new app version runs.
 - **Manual Export Backup:** In Settings → Data, tap **Export backup** anytime to save `simple-budget-backup-YYYY-MM-DD.json` (planned until T09) via the iOS share sheet (_Save to Files_). That screen shows when you last exported a backup, and the app never nags you with automatic popup messages.
 - **Restore:** On any new phone or fresh install, go to Settings → Data → **Import backup** and pick your latest exported JSON file.

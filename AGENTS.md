@@ -9,10 +9,8 @@ no server, no subscription. You type in your monthly income and your recurring e
 expenses and deposits by hand. Whatever is left at the end of a month **rolls over** into the next.
 
 - **Canonical GitHub Repository:** `TandyN/simple-budget-app` (`https://github.com/TandyN/simple-budget-app`) — all commits, branches, PRs, and releases happen ONLY in this repository.
-- **Live Deployed PWA URL:** `https://tandyn.github.io/simple-budget-app/` (hosted free on GitHub Pages; standard GitHub Actions runners are 100% free on public repos).
-- Runs as an installable **Progressive Web App (PWA)**. Primary device: **iPhone Duo** (Apple's
-  foldable), both folded (cover screen) and unfolded (inner screen). Android works as a PWA too.
-- All data lives on the device in IndexedDB. Export/import of a JSON backup is a first-class feature.
+- **Native iOS App + Live Web Preview:** Ships as a **Native iOS App (`ios/`)** via TestFlight / App Store Connect (where data lives in native iOS `Application Support`, completely immune to Safari cache clearing) AND as a live web preview at `https://tandyn.github.io/simple-budget-app/`. Primary device: **iPhone Duo** (Apple's foldable), both folded (cover screen) and unfolded (inner screen).
+- All data lives locally on the device (native iOS `Application Support` + `IndexedDB` mirror). Export/import of a JSON backup is a first-class feature.
 - The owner's rent depends on the numbers being right. **Correctness beats cleverness, always.**
 
 ## Where things are
@@ -21,24 +19,27 @@ expenses and deposits by hand. Whatever is left at the end of a month **rolls ov
 | --------------------------- | ---------------------------------------------------------------------------------------------------------- |
 | `AGENTS.md`                 | This file.                                                                                                 |
 | `README.md`                 | Human-facing intro (**Note:** `# Human Description` at the top is human-only; agents must NEVER touch it). |
+| `LICENSE`                   | MIT License (`Copyright (c) 2026 Tandy Nguyen`) — requires attribution/credit when reusing this work.      |
 | `CHANGELOG.md`              | Automated SemVer release history (`0.y.z` pre-1.0 → `1.0.0`).                                              |
 | `docs/plan/README.md`       | **The build plan.** Ordered task list with status. Start here when asked to "do the next task".            |
-| `docs/workflow.md`          | Branch, PR, independent review, SemVer release, GitHub Pages deploy, live QA, rollback & agent personas.   |
+| `docs/workflow.md`          | Branch, PR, independent review, SemVer release, GitHub Pages + TestFlight deploy, live QA & rollback.      |
 | `docs/architecture.md`      | Stack, layers, data model, key flows, and the reasons behind each decision.                                |
 | `docs/testing.md`           | How tests must be written (human-readable, end-to-end first). **Mandatory reading before writing tests.**  |
 | `docs/design.md`            | Visual design system, layouts for folded/unfolded, device profiles.                                        |
 | `docs/developer-setup.md`   | Toolchain install, every `pnpm` command, viewing the app on Linux and on a real phone.                     |
-| `docs/install-on-iphone.md` | Free hosting + installing on the iPhone (and why not TestFlight).                                          |
+| `docs/install-on-iphone.md` | Native iOS TestFlight / App Store automated deployment + live web preview on iPhone.                       |
+| `ios/`                      | Native Swift iOS app target (`ios/project.yml`, `ios/SimpleBudget/`) with native file storage bridge.      |
 | `scripts/verify.sh`         | The one verification gate: docs & policy check, format, lint, types, unit, build, e2e.                     |
 | `scripts/check-docs.sh`     | Mechanical docs & policy check (paths exist, human README intact, zero extra runtime deps).                |
 | `scripts/run-e2e.sh`        | Runs Playwright journeys natively (with Ubuntu 24.04 WebKit libs on Arch) or in the Playwright container.  |
+| `scripts/build-ios.sh`      | Bundles `dist/` into `ios/SimpleBudget/www/`, compiles Xcode iOS target, and uploads `.ipa` to TestFlight. |
 | `scripts/deploy.sh`         | Builds `dist/`, deploys to `gh-pages`, enables GitHub Pages, tags `v*`, and creates the GitHub Release.    |
 | `scripts/verify-live.mjs`   | Post-deploy live WebKit + offline PWA verification against `https://tandyn.github.io/simple-budget-app/`.  |
 | `scripts/rollback.sh`       | One-command rollback of the live site to any previous `v*` tag.                                            |
 | `config/devices.ts`         | Device viewport profiles shared by Playwright and the dev device wall.                                     |
 | `src/pwa/`                  | Service worker registration and offline status hook (`public/sw.js` + `public/manifest.webmanifest`).      |
 | `e2e/`                      | Playwright journeys (`e2e/journeys/`) and the readable test driver (`e2e/support/budget-app.ts`).          |
-| `.github/workflows/ci.yml`  | GitHub Actions CI gate (runs on every push and PR).                                                        |
+| `config/workflows/ci.yml`   | GitHub Actions CI + macOS Xcode iOS Simulator & TestFlight release pipeline.                               |
 | `.agents/skills/`           | Project skills for agents (see below).                                                                     |
 
 Target source layout (built by the plan; each folder gets a row in the table above once it exists):
