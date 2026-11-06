@@ -41,8 +41,9 @@ If you ever want the App Store, Capacitor can wrap this same app into a native s
 When a new version is deployed, the app shows **"Update available — Reload"**. It never reloads on its own,
 so you can't lose a half-typed expense.
 
-## Backups (please do this)
+## Backups & Auto-Backup to iCloud (built in T09)
 
-- Settings → Data → **Export backup** → _Save to Files_ (iCloud Drive is a good place).
-- The app reminds you if your last backup is older than 30 days.
-- To restore (new phone, reinstall): install the app, Settings → Data → **Import backup**.
+- **Automatic Local Mirror & Pre-Update Snapshot:** Every budget change automatically saves a mirror copy in your phone's Origin Private File System and `localStorage`, and freezes a `pre-update` snapshot before any new app version runs.
+- **1-Tap Auto-Backup to iCloud Drive:** Whenever a new version installs or a new month opens, a **"Save Auto-Backup to iCloud"** banner lets you save `simple-budget-backup-YYYY-MM-DD.json` (planned until T09) to **iCloud Drive** in a single tap via the native iOS share sheet (or anytime under Settings → Data → **Export backup**).
+- **Zero-Tap iOS Shortcuts Automation:** In iPhone's **Shortcuts** app → **Automation** → **New Automation** → **App** (_Simple Budget → Is Closed → Run Immediately_), open `#auto-backup` to automatically save timestamped backups to **iCloud Drive** every time you close the app.
+- **Restore:** On any new phone or fresh install, go to Settings → Data → **Import backup** and pick your latest iCloud Drive JSON file.

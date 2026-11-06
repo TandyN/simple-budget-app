@@ -12,8 +12,7 @@ export function App() {
       }}
     >
       <h1>Simple Budget</h1>
-      <p
-        role="status"
+      <footer
         aria-label="App status"
         style={{
           marginTop: '16px',
@@ -33,7 +32,7 @@ export function App() {
               ? 'Offline ready'
               : 'Local storage active'}
         </span>
-      </p>
+      </footer>
     </main>
   );
 }
