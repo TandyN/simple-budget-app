@@ -4,7 +4,7 @@
 
 ## Goal
 
-Your history is portable and safe: silent background local auto-backups protect every edit and app update with zero taps or popups, while the Settings → Data screen provides a manual **Save to iCloud / Export backup** button (showing when you last saved) and an **Import backup** flow with preview and undo.
+Your history is portable and safe: silent background local auto-backups protect every edit and app update with zero taps or popups, while the Settings → Data screen provides a manual **Export backup** button (showing when you last exported) and an **Import backup** flow with preview and undo.
 
 ## Read first
 
@@ -13,7 +13,7 @@ Your history is portable and safe: silent background local auto-backups protect 
 ## Scope
 
 **In:** `src/data/backup/` (serialize, pure TypeScript schema v1 validator with zero external runtime packages, migrations registry, validate), silent background local auto-backup mirror (`IndexedDB` + Origin Private File System `navigator.storage.getDirectory()` + `localStorage`), silent automatic pre-update snapshot before any app version or schema upgrade, use-cases `exportBackup`, `importBackup`
-(preview → replace), `undoImport`, `restoreFromAutoBackup`, CSV export, Settings → Data screen with manual **Save to iCloud / Export backup** button and `lastBackupAt` status timestamp ("Last saved to iCloud / Files: ..."), a pre-import
+(preview → replace), `undoImport`, `restoreFromAutoBackup`, CSV export, Settings → Data screen with manual **Export backup** button and `lastBackupAt` status timestamp ("Last exported: ..."), a pre-import
 safety snapshot (new store → **IndexedDB v2** with migration test), deterministic fixture generator.
 **Out:** automatic popup/reminder banners (never nag the user with popups to save), merging two histories (not planned), cloud server sync (not planned).
 
@@ -24,9 +24,9 @@ safety snapshot (new store → **IndexedDB v2** with migration test), determinis
    - On every data write, silently write a complete backup JSON mirror into both the browser's Origin Private File System (`navigator.storage.getDirectory()`, file `simple-budget-auto-backup.json`) and `localStorage` (`simple-budget:auto-backup:latest`).
    - On startup, before applying any new app version (`__APP_VERSION__` change) or IndexedDB schema upgrade, silently freeze the current state into `simple-budget:auto-backup:pre-update`.
    - If `IndexedDB` ever opens empty while a mirror snapshot exists in OPFS or `localStorage`, silently auto-recover the database from the mirror (and also expose a manual _Restore from automatic local backup_ button in Settings → Data).
-3. **Manual Save to iCloud / Export Backup (Settings → Data only, no popups):**
-   - In Settings → Data, show a manual **Save to iCloud / Export backup** button alongside the `lastBackupAt` status (`Last saved: Nov 6, 2026` or `Never saved to iCloud / Files`).
-   - When tapped: if `navigator.canShare({ files })` → `navigator.share` (iOS share sheet → _Save to Files / iCloud Drive_), else download link. Update `settings.lastBackupAt` after a successful share/download.
+3. **Manual Export Backup (Settings → Data only, no popups):**
+   - In Settings → Data, show a manual **Export backup** button alongside the `lastBackupAt` status (`Last exported: Nov 6, 2026` or `Never exported`).
+   - When tapped: if `navigator.canShare({ files })` → `navigator.share` (iOS share sheet → _Save to Files_), else download link. Update `settings.lastBackupAt` after a successful share/download.
    - Never show automatic popup modals or reminder banners on the main ledger screen.
 4. Import: file picker → parse JSON → migrate (`migrations[v]` functions, v1 is identity) → pure TypeScript validate including
    referential integrity → preview card ("214 entries from Nov 2026 to Oct 2027, 9 tags, 6 recurring items") →
@@ -50,7 +50,7 @@ safety snapshot (new store → **IndexedDB v2** with migration test), determinis
 - `undo import brings back the data from before the import`
 - `a version 1 backup still imports after the database moved to version 2`
 - `the database upgrades from version 1 to version 2 without losing anything`
-- `saving a backup in Settings updates the last saved timestamp on the Data screen`
+- `exporting a backup in Settings updates the last exported timestamp on the Data screen`
 - `erasing everything requires typing ERASE and returns the app to first-run setup`
 
 ## Acceptance criteria
