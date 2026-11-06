@@ -12,7 +12,7 @@ Built as an installable web app (PWA), designed first for the **iPhone Duo** fol
 
 ## Status
 
-Planning complete, implementation not started. See the [build plan](docs/plan/README.md).
+Foundation in progress (T01 complete: toolchain, test harness & CI). See the [build plan](docs/plan/README.md).
 
 ## Docs
 
@@ -23,4 +23,3 @@ Planning complete, implementation not started. See the [build plan](docs/plan/RE
 - [Developer setup](docs/developer-setup.md) — run it locally on Linux, view it on your phone
 - [Install on iPhone](docs/install-on-iphone.md) — free hosting + Add to Home Screen
 - [AGENTS.md](AGENTS.md) — onboarding for AI coding agents
-

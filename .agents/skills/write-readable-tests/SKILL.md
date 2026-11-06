@@ -33,7 +33,7 @@ The full style guide is `docs/testing.md`. Read it first; this is the checklist.
 
 ## Growing the driver
 
-When a journey needs a new user action, add a method to `e2e/support/budget-app.ts` (planned until T01):
+When a journey needs a new user action, add a method to `e2e/support/budget-app.ts`:
 
 1. Name it with a verb from the glossary (`changeMonthlyIncome`, `removeRecurringExpense`).
 2. Parameters are exactly what the user types/chooses (strings like `'$40.00'`, `'starting next month'`).

@@ -5,10 +5,10 @@ tested and how**. Tests are the specification of this app. If a test is hard to 
 
 ## The two kinds of tests
 
-| Kind | Where | Tool | What it proves |
-| --- | --- | --- | --- |
-| **Journey tests** (most important) | `e2e/journeys/*.spec.ts` (planned) | Playwright, real app in WebKit + Chromium, every device profile | A real user doing a real thing sees the right result on screen. |
-| **Rule tests** | `src/**/*.test.ts` next to the code (planned) | Vitest (+ fast-check) | A business rule (money, calendar, ledger math) is exactly right, including edge cases a UI test can't reach cheaply. |
+| Kind                               | Where                                         | Tool                                                            | What it proves                                                                                                       |
+| ---------------------------------- | --------------------------------------------- | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| **Journey tests** (most important) | `e2e/journeys/*.spec.ts` (planned)            | Playwright, real app in WebKit + Chromium, every device profile | A real user doing a real thing sees the right result on screen.                                                      |
+| **Rule tests**                     | `src/**/*.test.ts` next to the code (planned) | Vitest (+ fast-check)                                           | A business rule (money, calendar, ledger math) is exactly right, including edge cases a UI test can't reach cheaply. |
 
 Journey tests start from an empty app and go through the **same screens the user would**: setup,
 then the action, then read the number **off the screen**. No reaching into the database to arrange
@@ -39,9 +39,9 @@ And a ledger check reads like the screen itself:
 ```ts
 await expect(budgetApp.ledger).toShowLines([
   ['Carried over from October', '$0.00'],
-  ['Monthly income',            '+$5,000.00'],
-  ['Rent',                      '−$1,800.00'],
-  ['Groceries',                 '−$120.00'],
+  ['Monthly income', '+$5,000.00'],
+  ['Rent', '−$1,800.00'],
+  ['Groceries', '−$120.00'],
 ]);
 ```
 
@@ -71,7 +71,7 @@ describe('carrying the budget into the next month', () => {
    the real screens. Rule tests use builders named in plain English (`aRecurringExpense`, `monthlyIncome`).
 3. **Money is written the way a human writes it:** `'$5,000.00'`, never `500000` or `5000.0`.
 4. **Show the arithmetic** in a one-line comment above every money assertion.
-5. **One behavior per test.** Blank lines separate *given* / *when* / *then*. Add `// Given` etc. only if it helps.
+5. **One behavior per test.** Blank lines separate _given_ / _when_ / _then_. Add `// Given` etc. only if it helps.
 6. **Dates are explicit and fixed:** `budgetApp.openOn('2026-11-05')`, then `budgetApp.travelTo('2026-12-01')`.
    The clock is controlled (Playwright `page.clock`); timezone is fixed in the Playwright config.
 7. **No CSS selectors or test-ids in tests.** The driver finds things by role and accessible name
@@ -87,29 +87,34 @@ describe('carrying the budget into the next month', () => {
 12. **Property tests state their property in the name**:
     `for any sequence of expenses and deposits, the current budget equals carried over plus every line`.
 
-## The readable driver (`e2e/support/budget-app.ts`) (planned until T01)
+## The readable driver (`e2e/support/budget-app.ts`)
 
 The vocabulary grows with the plan. Each task adds the methods it needs and documents them here.
 
-| Method / locator | Does |
-| --- | --- |
-| `openOn(date)` | Sets the device clock to that local date and opens the app fresh (empty storage). |
-| `finishSetup({ monthlyIncome, recurringExpenses })` | Walks the first-run setup screens. |
-| `addExpense({ name, amount, date?, tags? })` | Taps *Expense*, fills the sheet, saves. |
-| `addDeposit({ name, amount, date?, tags? })` | Taps *Deposit*, fills the sheet, saves. |
-| `changeMonthlyIncome(to, { takesEffect: 'this month' \| 'starting next month' })` | Settings → income → choose when. |
-| `travelTo(date)` | Moves the clock forward and brings the app back to the foreground (triggers rollover). |
-| `reopenApp()` | Reloads the app, keeping its storage (proves data survives). |
-| `currentBudget` | Locator for the big current-budget number. |
-| `ledger` | Locator for the ledger; use with `toShowLines([...])`. |
+| Method / locator                                                                  | Does                                                                                   |
+| --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `openOn(date)`                                                                    | Sets the device clock to that local date and opens the app fresh (empty storage).      |
+| `reopenApp()`                                                                     | Reloads the app, keeping its storage (proves data survives).                           |
+| `appHeading`                                                                      | Locator for the top-level heading (`<h1>`).                                            |
+| `mainRegion`                                                                      | Locator for the `<main>` landmark.                                                     |
+| `finishSetup({ monthlyIncome, recurringExpenses })`                               | (planned until T05) Walks the first-run setup screens.                                 |
+| `addExpense({ name, amount, date?, tags? })`                                      | (planned until T06) Taps _Expense_, fills the sheet, saves.                            |
+| `addDeposit({ name, amount, date?, tags? })`                                      | (planned until T06) Taps _Deposit_, fills the sheet, saves.                            |
+| `changeMonthlyIncome(to, { takesEffect: 'this month' \| 'starting next month' })` | (planned until T08) Settings → income → choose when.                                   |
+| `travelTo(date)`                                                                  | (planned until T07) Moves the clock forward and brings the app back to the foreground. |
+| `currentBudget`                                                                   | (planned until T05) Locator for the big current-budget number.                         |
+| `ledger`                                                                          | (planned until T05) Locator for the ledger; use with `toShowLines([...])`.             |
 
 ## Device coverage
 
-Every journey runs on every profile in `config/devices.ts` (planned): iPhone Duo folded, iPhone Duo unfolded,
+Every journey runs on every profile in `config/devices.ts`: iPhone Duo folded, iPhone Duo unfolded,
 plus a regular iPhone and an Android phone, on WebKit (and Chromium for the Android profile).
 A test that only makes sense in one layout says so in its name: `when unfolded, the calendar sits beside the ledger`.
 
 ## Running tests
 
-See `docs/developer-setup.md` for the exact commands. The gate before every commit is
-`bash scripts/verify.sh`, which runs everything.
+- Full verification gate (required before every commit): `pnpm verify` (or `bash scripts/verify.sh`)
+- All rule/unit tests: `pnpm test`
+- All journey tests across all device profiles: `pnpm test:e2e`
+- Single journey file or device profile: `pnpm test:e2e e2e/journeys/app-opens.spec.ts --project=iphone-duo-folded`
+- Fast Chromium-only run on iPhone Duo folded: `pnpm test:e2e --project=chromium-iphone-duo-folded`

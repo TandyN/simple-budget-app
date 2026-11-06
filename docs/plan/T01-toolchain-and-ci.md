@@ -28,7 +28,7 @@ a smoke journey, git hooks, docs.
    and a rule (e.g. `no-restricted-imports`) forbidding `src/domain/**` from importing React, Dexie, or other layers.
 5. Prettier (+ `prettier-plugin-tailwindcss` can come in T04). `.prettierignore` for generated folders.
 6. Vitest config (node environment by default) with coverage (v8). Coverage threshold **100% lines/branches for
-   `src/domain/**`** (enforced from T02 onward — configure now, it trivially passes with no files).
+   `src/domain/**`\*\* (enforced from T02 onward — configure now, it trivially passes with no files).
 7. Create `config/devices.ts` exactly per `docs/design.md` (iphone-duo-folded, iphone-duo-unfolded, iphone-17,
    pixel-android) exporting typed profiles: `name`, `viewport`, `deviceScaleFactor`, `isMobile`, `hasTouch`,
    `userAgent` (use Playwright's iPhone UA for Apple profiles), `browser`.
@@ -51,7 +51,7 @@ a smoke journey, git hooks, docs.
     `verify` = `bash scripts/verify.sh`.
 12. Git hooks with **lefthook**: pre-commit runs `format:check`, `lint`, `typecheck`, `test` on staged scope (fast).
     The full gate remains the agent's responsibility via `verify-before-commit`.
-13. GitHub Actions `.github/workflows/ci.yml`: on push + PR → checkout, mise/pnpm setup with cache, `pnpm install --frozen-lockfile`,
+13. GitHub Actions `config/workflows/ci.yml`: on push + PR → checkout, mise/pnpm setup with cache, `pnpm install --frozen-lockfile`,
     `docs:check`, `format:check`, `lint`, `typecheck`, `test`, `playwright install --with-deps`, `test:e2e`, `build`.
     Upload `playwright-report/` on failure.
 14. Placeholder `App` renders an `<h1>Simple Budget</h1>` and a `<main>` landmark.
@@ -64,13 +64,13 @@ a smoke journey, git hooks, docs.
 
 ## Acceptance criteria
 
-- [ ] `mise install && pnpm install` works from a clean clone on the owner's CachyOS machine (document anything extra).
-- [ ] `pnpm verify` passes locally, including WebKit journeys via the container.
-- [ ] `pnpm test:e2e --project=chromium-iphone-duo-folded` runs natively without a container.
-- [ ] Lint fails if a file in `src/domain/` imports React or Dexie (prove once, then revert the probe).
-- [ ] CI workflow is valid YAML and mirrors the local gate (it will run once the repo is pushed).
-- [ ] `docs/developer-setup.md` §2 lists every script exactly; `bash scripts/check-docs.sh` passes.
-- [ ] `AGENTS.md` repository map includes all new top-level files/folders, "Commands" section updated.
+- [x] `mise install && pnpm install` works from a clean clone on the owner's CachyOS machine (document anything extra).
+- [x] `pnpm verify` passes locally, including WebKit journeys.
+- [x] `pnpm test:e2e --project=chromium-iphone-duo-folded` runs natively without a container.
+- [x] Lint fails if a file in `src/domain/` imports React or Dexie (prove once, then revert the probe).
+- [x] CI workflow is valid YAML and mirrors the local gate (it will run once the repo is pushed).
+- [x] `docs/developer-setup.md` §2 lists every script exactly; `bash scripts/check-docs.sh` passes.
+- [x] `AGENTS.md` repository map includes all new top-level files/folders, "Commands" section updated.
 
 ## Docs to update
 
@@ -79,5 +79,8 @@ a smoke journey, git hooks, docs.
 
 ## Completion notes
 
-_Filled in by the agent when done._
-
+- Pinned Node `22.14.0` and pnpm `10.6.1` in `mise.toml` and `package.json`.
+- Scaffolded React 19 + TypeScript (strict + `noUncheckedIndexedAccess` + `verbatimModuleSyntax`) + Vite 6 + Vitest 3 (with 100% coverage threshold configured for `src/domain/**`) + ESLint 9 flat config (strict-type-checked, stylistic-type-checked, jsx-a11y, react-hooks, and `no-restricted-imports` keeping `src/domain/` pure) + Prettier + lefthook + GitHub Actions CI.
+- Created `config/devices.ts` with `iphone-duo-folded` (`466×678 @3x`), `iphone-duo-unfolded` (`626×890 @3x`), `iphone-17`, and `pixel-android`, plus rule tests in `config/devices.test.ts`.
+- Created `e2e/support/budget-app.ts` (`openOn`, `reopenApp`, `appHeading`, `mainRegion`) and `e2e/journeys/app-opens.spec.ts`.
+- Added `scripts/setup-webkit-arch.py` and wired `scripts/run-e2e.sh` so Playwright's Ubuntu 24.04 WebKit binary runs natively on CachyOS/Arch Linux by unpacking the required Ubuntu 24.04 shared libraries directly into WebKit's `sys/lib` folder (with automatic Podman/Docker fallback).

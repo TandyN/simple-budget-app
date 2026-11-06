@@ -28,7 +28,7 @@ from the top — a fix for one step can break an earlier one.
 1. Build and serve: `pnpm build` then `pnpm preview` (run it as a background/daemon task).
 2. Exercise the exact feature you changed, as a user would, at **both** `iphone-duo-folded` and
    `iphone-duo-unfolded` sizes. Easiest: a throwaway Playwright script in your scratch directory that walks the
-   flow and saves screenshots (e.g. `npx playwright screenshot` or a small script using `config/devices.ts` (planned until T01)).
+   flow and saves screenshots (e.g. `npx playwright screenshot` or a small script using `config/devices.ts`).
 3. **Open and look at the screenshots.** Check: correct numbers, nothing clipped or overlapping, the hinge gutter
    is clear in unfolded mode, dark mode isn't broken if you touched styles.
 4. If you changed money math, write the expected numbers down **before** looking, then compare.

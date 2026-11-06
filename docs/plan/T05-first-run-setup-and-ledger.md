@@ -24,14 +24,14 @@ locator + `toShowLines` matcher, persistence across reloads.
 2. Setup flow (one screen per step in compact; side-by-side summary in expanded):
    1. Welcome — one sentence on privacy ("Your data stays on this phone").
    2. Monthly income — `MoneyField`, required, validation message from `parseMoneyInput`.
-   3. Recurring expenses — list of rows (name + amount), *Add expense* button, remove (×) per row. Zero expenses is allowed.
-   4. Summary — income, total recurring expenses, **purchase power**. *Start budgeting* → `completeSetup`.
+   3. Recurring expenses — list of rows (name + amount), _Add expense_ button, remove (×) per row. Zero expenses is allowed.
+   4. Summary — income, total recurring expenses, **purchase power**. _Start budgeting_ → `completeSetup`.
 3. Month screen:
    - Hero: "Current budget" label, big amount (`AmountText`, red if negative), month label in header.
-   - Ledger section **Starting point**: *Carried over from {previous month}*, *Monthly income*, each recurring expense.
+   - Ledger section **Starting point**: _Carried over from {previous month}_, _Monthly income_, each recurring expense.
      Collapsible in compact (expanded by default the first month).
    - Ledger section **Activity**: empty state "No expenses or deposits yet".
-   - Compact: bottom action bar with *Expense* / *Deposit* buttons (disabled placeholders until T06).
+   - Compact: bottom action bar with _Expense_ / _Deposit_ buttons (disabled placeholders until T06).
      Expanded: hero + actions in the left pane, ledger in the right.
 4. Driver: `finishSetup({ monthlyIncome, recurringExpenses })`, `currentBudget`, `ledger`, custom matcher
    `toShowLines([[label, amount], ...])` that reads visible rows in order. Document them in `docs/testing.md`.
@@ -63,4 +63,3 @@ locator + `toShowLines` matcher, persistence across reloads.
 ## Completion notes
 
 _Filled in by the agent when done._
-

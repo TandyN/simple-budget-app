@@ -66,4 +66,3 @@ components — plus dev tools to see every device size at once on Linux and to i
 ## Completion notes
 
 _Filled in by the agent when done._
-

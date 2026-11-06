@@ -28,22 +28,22 @@ Fix every failure. Prefer fixing the doc; if the doc is right and the code is wr
 
 ## 2. Walk the manual checklist for what you changed
 
-| If you changed… | Update… |
-| --- | --- |
-| Created a folder or key file | `AGENTS.md` "Where things are" table; remove its `(planned)` marker. Trees in `docs/architecture.md` §3. |
-| A package.json script or tool version | `docs/developer-setup.md` commands table (exact names, what they do). |
-| The data model, Dexie version, indexes | `docs/architecture.md` §4 (schema) and §7 (backup format), with the migration. |
-| A user-visible flow or rule | `docs/architecture.md` §5 flows; glossary in `AGENTS.md` if a term changed. |
-| The test driver `e2e/support/budget-app.ts` (planned until T01) | Driver table in `docs/testing.md`. |
-| Colors, tokens, layouts, device profiles | `docs/design.md`. |
-| Hosting, install, deploy workflow | `docs/install-on-iphone.md`. |
-| Task progress | `docs/plan/README.md` status + the task file's checkboxes and Completion notes. |
-| An agent workflow | The relevant `.agents/skills/*/SKILL.md`, and the skills table in `AGENTS.md`. |
+| If you changed…                             | Update…                                                                                                  |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Created a folder or key file                | `AGENTS.md` "Where things are" table; remove its `(planned)` marker. Trees in `docs/architecture.md` §3. |
+| A package.json script or tool version       | `docs/developer-setup.md` commands table (exact names, what they do).                                    |
+| The data model, Dexie version, indexes      | `docs/architecture.md` §4 (schema) and §7 (backup format), with the migration.                           |
+| A user-visible flow or rule                 | `docs/architecture.md` §5 flows; glossary in `AGENTS.md` if a term changed.                              |
+| The test driver `e2e/support/budget-app.ts` | Driver table in `docs/testing.md`.                                                                       |
+| Colors, tokens, layouts, device profiles    | `docs/design.md`.                                                                                        |
+| Hosting, install, deploy workflow           | `docs/install-on-iphone.md`.                                                                             |
+| Task progress                               | `docs/plan/README.md` status + the task file's checkboxes and Completion notes.                          |
+| An agent workflow                           | The relevant `.agents/skills/*/SKILL.md`, and the skills table in `AGENTS.md`.                           |
 
 ## 3. Truth test
 
-For each doc you touched (and each doc that describes what you changed), ask: *"If a new agent followed this
-literally right now, would it work?"* Run any command you documented. Remove anything that describes the past
+For each doc you touched (and each doc that describes what you changed), ask: _"If a new agent followed this
+literally right now, would it work?"_ Run any command you documented. Remove anything that describes the past
 or a future that isn't marked `(planned)`.
 
 ## 4. Re-run

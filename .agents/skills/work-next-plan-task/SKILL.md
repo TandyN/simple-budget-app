@@ -54,4 +54,3 @@ anything that now exists), `docs/developer-setup.md` commands, `docs/testing.md`
 
 Don't weaken a test, skip a check, or mark a criterion done to get unstuck. Write down what you tried in the
 task's Completion notes, leave the status `in-progress`, and ask the user.
-

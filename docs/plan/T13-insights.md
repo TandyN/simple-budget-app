@@ -55,4 +55,3 @@ drill-down list per tag, monthly trend chart (hand-rolled SVG, no chart library)
 ## Completion notes
 
 _Filled in by the agent when done._
-

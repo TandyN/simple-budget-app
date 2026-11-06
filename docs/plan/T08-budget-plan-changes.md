@@ -5,8 +5,8 @@
 ## Goal
 
 In Settings, change monthly income and add/edit/remove recurring expenses. Every change that affects money asks
-**"When should this change take effect?"** — *This month (November)* adds an adjustment line now;
-*Starting next month (December)* leaves this month alone.
+**"When should this change take effect?"** — _This month (November)_ adds an adjustment line now;
+_Starting next month (December)_ leaves this month alone.
 
 ## Read first
 
@@ -20,15 +20,15 @@ with a preview of its effect, adjustment ledger lines with clear labels, use-cas
 
 ## Steps
 
-1. Settings screen (list → detail across panes when expanded): *Budget plan* section with Monthly income, Recurring expenses
-   (name, amount, *Add recurring expense*), and Purchase power (live).
+1. Settings screen (list → detail across panes when expanded): _Budget plan_ section with Monthly income, Recurring expenses
+   (name, amount, _Add recurring expense_), and Purchase power (live).
 2. Edit sheet for income / an expense: amount + name. Remove action for expenses (confirm).
 3. If money is affected → timing prompt (`SegmentedControl` or two big buttons), each option with a one-line preview:
    - This month: "Adds a +\$500.00 adjustment to November."
    - Starting next month: "November stays the same. December uses \$5,500.00."
 4. Name-only edits apply immediately without the prompt (default decision — see `docs/plan/README.md`).
-5. Adjustment line labels, e.g. *Monthly income changed \$5,000.00 → \$5,500.00* `+$500.00`, *Gym added* `−$40.00`,
-   *Phone removed* `+$60.00`. They appear in **Activity** with today's date.
+5. Adjustment line labels, e.g. _Monthly income changed \$5,000.00 → \$5,500.00_ `+$500.00`, _Gym added_ `−$40.00`,
+   _Phone removed_ `+$60.00`. They appear in **Activity** with today's date.
 6. Driver: `changeMonthlyIncome(to, { takesEffect })`, `addRecurringExpense({ name, amount }, { takesEffect })`,
    `changeRecurringExpense(name, { amount?, name? }, { takesEffect? })`, `removeRecurringExpense(name, { takesEffect })`,
    `purchasePower` locator.
@@ -61,4 +61,3 @@ with a preview of its effect, adjustment ledger lines with clear labels, use-cas
 ## Completion notes
 
 _Filled in by the agent when done._
-

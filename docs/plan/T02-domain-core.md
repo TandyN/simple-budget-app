@@ -50,6 +50,7 @@ money, the calendar, and the month's ledger math (including plan changes). No UI
 ## Behaviors to prove
 
 Money
+
 - `typing 12.5 means twelve dollars and fifty cents`
 - `typing $1,234.56 with a dollar sign and comma is understood`
 - `amounts with three decimal places are rejected with a helpful message`
@@ -59,6 +60,7 @@ Money
 - `for any amount, formatting then parsing gives back the same cents`
 
 Calendar
+
 - `February 2028 has 29 days because 2028 is a leap year`
 - `February 2100 has 28 days because century years are not leap years`
 - `February 2000 had 29 days because years divisible by 400 are leap years`
@@ -71,6 +73,7 @@ Calendar
 - `for any month, adding then subtracting n months returns the same month`
 
 Ledger
+
 - `the very first month carries over zero`
 - `the current budget is carried over plus income minus expenses`
 - `whatever is left in November is carried over into December`
@@ -84,6 +87,7 @@ Ledger
 - `for any months, each month's carried over equals the previous month's current budget`
 
 Budget plan changes
+
 - `raising income this month adds a +$500.00 adjustment and changes the plan from next month`
 - `raising income starting next month changes the plan but adds no adjustment`
 - `lowering income this month adds a negative adjustment`
@@ -107,4 +111,3 @@ Budget plan changes
 ## Completion notes
 
 _Filled in by the agent when done._
-

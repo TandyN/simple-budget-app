@@ -1,0 +1,58 @@
+{
+  "name": "simple-budget",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.6.1",
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=10.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "lefthook"
+    ]
+  },
+  "scripts": {
+    "dev": "vite",
+    "dev:lan": "vite --host",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview --port 4173 --strictPort",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "bash scripts/run-e2e.sh",
+    "test:e2e:ui": "playwright test --ui --project=chromium-iphone-duo-folded --project=chromium-iphone-duo-unfolded --project=pixel-android",
+    "docs:check": "bash scripts/check-docs.sh",
+    "verify": "bash scripts/verify.sh",
+    "prepare": "lefthook install || true"
+  },
+  "dependencies": {
+    "react": "19.0.0",
+    "react-dom": "19.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.22.0",
+    "@playwright/test": "1.51.1",
+    "@types/node": "22.13.10",
+    "@types/react": "19.0.10",
+    "@types/react-dom": "19.0.4",
+    "@vitejs/plugin-react": "4.3.4",
+    "@vitest/coverage-v8": "3.0.8",
+    "eslint": "9.22.0",
+    "eslint-config-prettier": "10.1.1",
+    "eslint-plugin-jsx-a11y": "6.10.2",
+    "eslint-plugin-react-hooks": "5.2.0",
+    "globals": "16.0.0",
+    "lefthook": "1.11.4",
+    "prettier": "3.5.3",
+    "typescript": "5.8.2",
+    "typescript-eslint": "8.26.1",
+    "vite": "6.2.1",
+    "vitest": "3.0.8"
+  }
+}

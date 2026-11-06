@@ -21,12 +21,12 @@ safety snapshot (new table → **Dexie v2** with migration test), deterministic 
 ## Steps
 
 1. Backup file per `docs/architecture.md` §7; filename `simple-budget-backup-YYYY-MM-DD.json`.
-2. Export: if `navigator.canShare({ files })` → `navigator.share` (iOS share sheet → *Save to Files*), else download link.
+2. Export: if `navigator.canShare({ files })` → `navigator.share` (iOS share sheet → _Save to Files_), else download link.
    Update `settings.lastBackupAt` after a successful share/download.
 3. Import: file picker → parse JSON → migrate (`migrations[v]` functions, v1 is identity) → Zod validate including
    referential integrity → preview card ("214 entries from Nov 2026 to Oct 2027, 9 tags, 6 recurring items") →
-   *Replace all data* (confirm) → snapshot current data into `importSnapshots` (keep latest 3) → replace in **one transaction**.
-4. *Undo import* button (visible until the next import or 7 days) restores the snapshot.
+   _Replace all data_ (confirm) → snapshot current data into `importSnapshots` (keep latest 3) → replace in **one transaction**.
+4. _Undo import_ button (visible until the next import or 7 days) restores the snapshot.
 5. CSV export: date, name, amount, tags, source — one-way.
 6. Reminder banner on the month screen if `lastBackupAt` is null after the first month, or older than 30 days. Dismissable for 7 days.
 7. `scripts/generate-backup-fixture.ts` (planned until built) → `e2e/fixtures/backups/one-year-of-history.json` (seeded, deterministic).
@@ -62,4 +62,3 @@ safety snapshot (new table → **Dexie v2** with migration test), deterministic 
 ## Completion notes
 
 _Filled in by the agent when done._
-

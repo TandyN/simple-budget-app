@@ -27,7 +27,7 @@ activity list, edit by tapping a row, delete with Undo toast, guard for recurrin
 2. Use-cases in one transaction each; amounts signed (expense negative, deposit positive) — the sign comes from the
    button pressed, never from the user typing a minus.
 3. Activity rows: name, date ("Nov 5"), amount with sign/color. Newest first; same-day ties by creation time.
-4. Tap a manual row → same sheet in edit mode with *Delete*. Delete → row disappears + toast "Expense deleted · Undo" (5 s).
+4. Tap a manual row → same sheet in edit mode with _Delete_. Delete → row disappears + toast "Expense deleted · Undo" (5 s).
 5. Tap a recurring or adjustment row → small sheet explaining it comes from the budget plan, with a button to Settings.
 6. Driver: `addExpense`, `addDeposit`, `editEntry(name, changes)`, `deleteEntry(name)`, `undo()`.
 
@@ -58,4 +58,3 @@ activity list, edit by tapping a row, delete with Undo toast, guard for recurrin
 ## Completion notes
 
 _Filled in by the agent when done._
-

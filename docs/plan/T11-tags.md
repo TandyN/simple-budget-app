@@ -22,7 +22,7 @@ delete with usage count), propagation of recurring tags to this month's recurrin
 
 1. Domain: `normalizeTagName` (trim, collapse spaces), `nameKey` (lowercase), duplicate detection, next palette color.
 2. `TagPicker`: selected chips (tap × to remove) + input. Typing filters existing tags (recently used first); if no exact match,
-   first option is *Create "coffee"*. Enter adds; supports several tags quickly; accessible (combobox pattern).
+   first option is _Create "coffee"_. Enter adds; supports several tags quickly; accessible (combobox pattern).
 3. Wire into: entry sheet (T06 slot), recurring expense edit sheet (T08), setup expense rows (T05).
 4. Recurring tag edits: no timing prompt; update the item and this month's recurring line for it (adjustment lines inherit item tags).
 5. Ledger rows: up to 2 chips + "+N".
@@ -54,4 +54,3 @@ delete with usage count), propagation of recurring tags to this month's recurrin
 ## Completion notes
 
 _Filled in by the agent when done._
-

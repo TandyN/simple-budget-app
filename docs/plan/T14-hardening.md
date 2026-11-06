@@ -27,7 +27,7 @@ use-case level, final docs audit.
 3. Accessibility: axe on every screen × both layouts × light/dark; VoiceOver labels audit; Dynamic Type check (large text doesn't clip).
 4. Visual regression: `toHaveScreenshot` baselines for setup, month, entry sheet, settings, insights at every profile, generated
    **inside the Playwright container** for deterministic rendering.
-5. Error boundary: friendly screen with *Export backup* and *Reload* buttons; errors stored in a small local ring buffer, viewable
+5. Error boundary: friendly screen with _Export backup_ and _Reload_ buttons; errors stored in a small local ring buffer, viewable
    and exportable in Settings → Diagnostics. Never crash to a blank screen.
 6. Fuzz: fast-check model-based test driving use-cases (add/edit/delete/plan change/travel in time/export-import) against a simple
    reference model; the current budget and every carried over must match the model.
@@ -59,4 +59,3 @@ All of `docs/` as needed, `README.md` (screenshots, status → "1.0").
 ## Completion notes
 
 _Filled in by the agent when done._
-

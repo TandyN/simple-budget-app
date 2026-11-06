@@ -60,4 +60,3 @@ turns user intentions into domain calls + exactly one transaction.
 ## Completion notes
 
 _Filled in by the agent when done._
-

@@ -13,7 +13,7 @@ and expenses again — correctly across year boundaries, leap years, missed mont
 
 ## Scope
 
-**In:** triggering `openMonthsThrough` on startup / when the app becomes visible / at local midnight; *Carried over from {month}*
+**In:** triggering `openMonthsThrough` on startup / when the app becomes visible / at local midnight; _Carried over from {month}_
 line with sign/color; month navigation (previous/next) to view past months; driver `travelTo(date)`, `goToMonth(label)`.
 **Out:** calendar grid (T12), viewing future months (not planned).
 
@@ -22,7 +22,7 @@ line with sign/color; month navigation (previous/next) to view past months; driv
 1. App bootstrap runs `openMonthsThrough(today)` before rendering the month screen (show nothing/skeleton briefly, never a wrong number).
 2. Listen for `visibilitychange` → visible and `pageshow`; schedule a timer for the next local midnight while open.
 3. Month screen header: ‹ previous / next › month buttons. Next is disabled on the current month. Past months show their own
-   starting point, activity and *Current budget* labelled "Ended with" for closed months.
+   starting point, activity and _Current budget_ labelled "Ended with" for closed months.
 4. Carried-over line: "Carried over from October" with `+`/`−`; red when negative; `$0.00` neutral.
 5. Driver: `travelTo(date)` (advance `page.clock`, then fire visibility change / bring to foreground), `goToMonth('October 2026')`.
 
@@ -54,4 +54,3 @@ line with sign/color; month navigation (previous/next) to view past months; driv
 ## Completion notes
 
 _Filled in by the agent when done._
-

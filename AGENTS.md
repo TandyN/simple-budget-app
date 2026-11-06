@@ -15,19 +15,23 @@ expenses and deposits by hand. Whatever is left at the end of a month **rolls ov
 
 ## Where things are
 
-| Path | What it is |
-| --- | --- |
-| `AGENTS.md` | This file. |
-| `README.md` | Human-facing intro. |
-| `docs/plan/README.md` | **The build plan.** Ordered task list with status. Start here when asked to "do the next task". |
-| `docs/architecture.md` | Stack, layers, data model, key flows, and the reasons behind each decision. |
-| `docs/testing.md` | How tests must be written (human-readable, end-to-end first). **Mandatory reading before writing tests.** |
-| `docs/design.md` | Visual design system, layouts for folded/unfolded, device profiles. |
-| `docs/developer-setup.md` | Toolchain install, every `pnpm` command, viewing the app on Linux and on a real phone. |
-| `docs/install-on-iphone.md` | Free hosting + installing on the iPhone (and why not TestFlight). |
-| `scripts/verify.sh` | The one verification gate: docs, format, lint, types, unit, build, e2e. |
-| `scripts/check-docs.sh` | Mechanical docs-accuracy check (paths exist, scripts/skills/folders documented). |
-| `.agents/skills/` | Project skills for agents (see below). |
+| Path                        | What it is                                                                                                |
+| --------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `AGENTS.md`                 | This file.                                                                                                |
+| `README.md`                 | Human-facing intro.                                                                                       |
+| `docs/plan/README.md`       | **The build plan.** Ordered task list with status. Start here when asked to "do the next task".           |
+| `docs/architecture.md`      | Stack, layers, data model, key flows, and the reasons behind each decision.                               |
+| `docs/testing.md`           | How tests must be written (human-readable, end-to-end first). **Mandatory reading before writing tests.** |
+| `docs/design.md`            | Visual design system, layouts for folded/unfolded, device profiles.                                       |
+| `docs/developer-setup.md`   | Toolchain install, every `pnpm` command, viewing the app on Linux and on a real phone.                    |
+| `docs/install-on-iphone.md` | Free hosting + installing on the iPhone (and why not TestFlight).                                         |
+| `scripts/verify.sh`         | The one verification gate: docs, format, lint, types, unit, build, e2e.                                   |
+| `scripts/check-docs.sh`     | Mechanical docs-accuracy check (paths exist, scripts/skills/folders documented).                          |
+| `scripts/run-e2e.sh`        | Runs Playwright journeys natively (with Ubuntu 24.04 WebKit libs on Arch) or in the Playwright container. |
+| `config/devices.ts`         | Device viewport profiles shared by Playwright and the dev device wall.                                    |
+| `e2e/`                      | Playwright journeys (`e2e/journeys/`) and the readable test driver (`e2e/support/budget-app.ts`).         |
+| `config/workflows/ci.yml`  | GitHub Actions CI gate running on every push and pull request.                                            |
+| `.agents/skills/`           | Project skills for agents (see below).                                                                    |
 
 Target source layout (built by the plan; each folder gets a row in the table above once it exists):
 
@@ -36,8 +40,6 @@ Target source layout (built by the plan; each folder gets a row in the table abo
 - `src/app/` (planned) — use-cases (commands/queries) that combine domain + data; clock and id providers; React hooks.
 - `src/ui/` (planned) — theme tokens, layout primitives, components, screens.
 - `src/pwa/` (planned) — service worker registration, install guidance, storage persistence.
-- `config/devices.ts` (planned) — device viewport profiles shared by Playwright and the dev device wall.
-- `e2e/` (planned) — Playwright journeys (`e2e/journeys/`) and the readable test driver (`e2e/support/`).
 
 ## Golden rules
 
@@ -45,7 +47,7 @@ Target source layout (built by the plan; each folder gets a row in the table abo
 2. **Dates are plain strings.** `IsoDate` = `"YYYY-MM-DD"`, `MonthKey` = `"YYYY-MM"`, always in the device's local calendar. Never store timestamps for ledger dates. No `Temporal` (not in iOS Safari).
 3. **Ledger entry amounts are signed.** Positive adds to the budget, negative subtracts. `current budget = carried over + sum(entries in month)`.
 4. **The domain is pure.** Anything in `src/domain/` (planned until T02) must be deterministic and free of I/O so it can be tested exhaustively.
-5. **History is immutable-ish.** Recurring lines are snapshotted into a month when it opens. Mid-month config changes appear as *adjustment* lines, never by rewriting the snapshot.
+5. **History is immutable-ish.** Recurring lines are snapshotted into a month when it opens. Mid-month config changes appear as _adjustment_ lines, never by rewriting the snapshot.
 6. **Every behavior change ships with a readable test** following `docs/testing.md`. Journey tests drive the real UI.
 7. **Schema changes need a migration** (new Dexie version + backup-format migration + test). Never edit an existing Dexie version.
 8. **Never change the deploy origin** (URL) casually — IndexedDB is per-origin; users would "lose" their data.
@@ -54,34 +56,32 @@ Target source layout (built by the plan; each folder gets a row in the table abo
 
 ## Glossary (use these exact words in code, UI copy and test names)
 
-| Term | Meaning |
-| --- | --- |
-| **Monthly income** | The recurring income from the budget plan. |
-| **Recurring expense** | A named expense from the budget plan that is subtracted every month (rent, phone…). |
-| **Budget plan** | Monthly income + recurring expenses (the configuration). |
-| **Purchase power** | Monthly income − sum of recurring expenses. |
-| **Carried over** | Last month's final current budget, brought into this month as the first ledger line. Can be negative. |
-| **Expense** | A manual line that subtracts from the budget. |
-| **Deposit** | A manual line that adds to the budget. |
-| **Adjustment** | A system line created when the budget plan changes "this month". Shows the difference. |
-| **Current budget** | Carried over + every line this month. The big number on the main screen. |
-| **Opening a month** | Snapshotting recurring income/expenses into a month the first time the app sees it (rollover). |
-| **Starting point** | The carried over line + the month's recurring lines. |
+| Term                  | Meaning                                                                                               |
+| --------------------- | ----------------------------------------------------------------------------------------------------- |
+| **Monthly income**    | The recurring income from the budget plan.                                                            |
+| **Recurring expense** | A named expense from the budget plan that is subtracted every month (rent, phone…).                   |
+| **Budget plan**       | Monthly income + recurring expenses (the configuration).                                              |
+| **Purchase power**    | Monthly income − sum of recurring expenses.                                                           |
+| **Carried over**      | Last month's final current budget, brought into this month as the first ledger line. Can be negative. |
+| **Expense**           | A manual line that subtracts from the budget.                                                         |
+| **Deposit**           | A manual line that adds to the budget.                                                                |
+| **Adjustment**        | A system line created when the budget plan changes "this month". Shows the difference.                |
+| **Current budget**    | Carried over + every line this month. The big number on the main screen.                              |
+| **Opening a month**   | Snapshotting recurring income/expenses into a month the first time the app sees it (rollover).        |
+| **Starting point**    | The carried over line + the month's recurring lines.                                                  |
 
 ## Commands
 
-The toolchain does not exist until task T01 is done. After T01, the full command list lives in
-`docs/developer-setup.md`. The two you need most: `pnpm dev` (planned) and `pnpm verify` (planned).
-Until then, `bash scripts/verify.sh` runs the docs check only.
+The full command list lives in `docs/developer-setup.md`. The two you need most: `pnpm dev` and `pnpm verify` (or `bash scripts/verify.sh`).
 
 ## Skills (in `.agents/skills/`)
 
-| Skill | Use it when |
-| --- | --- |
-| `work-next-plan-task` | Asked to work on the plan / "do the next task". Picks the task, runs the full loop. |
-| `write-readable-tests` | Writing or changing any test. |
-| `verify-before-commit` | Before **every** commit. Runs the gate and a hands-on check of the feature. |
-| `keep-docs-accurate` | After any change to code, scripts, structure or behavior — and before committing. |
+| Skill                  | Use it when                                                                         |
+| ---------------------- | ----------------------------------------------------------------------------------- |
+| `work-next-plan-task`  | Asked to work on the plan / "do the next task". Picks the task, runs the full loop. |
+| `write-readable-tests` | Writing or changing any test.                                                       |
+| `verify-before-commit` | Before **every** commit. Runs the gate and a hands-on check of the feature.         |
+| `keep-docs-accurate`   | After any change to code, scripts, structure or behavior — and before committing.   |
 
 ## Commit style
 

@@ -5,26 +5,26 @@
 
 ## 1. Decisions at a glance
 
-| Question | Decision | Why |
-| --- | --- | --- |
-| Native app or web app? | **PWA** (installable web app) | Only way to install on an iPhone **for free, permanently, from Linux**. See ADR-1. |
-| UI framework | **React 19 + TypeScript (strict)**, built with **Vite** | Mature, fast, every agent knows it, huge ecosystem. |
-| Styling | **Tailwind CSS v4** with design tokens as CSS variables | Fast to iterate, tokens keep the look consistent. |
-| Local database | **Dexie 4** over **IndexedDB** | Indexed queries, transactions, reactive live queries, tiny. See ADR-2. |
-| Validation | **Zod** | Validates import files and form input with readable errors. |
-| Offline / install | **vite-plugin-pwa** (Workbox) | Precaches the app so it works with zero network. |
-| Routing | **wouter** with hash routes (`#/`, `#/insights`, `#/settings`) | Tiny; hash routes work on any static host with no rewrites. |
-| Bottom sheets | **vaul** | iOS-feeling drawers; render as dialogs on the unfolded screen. |
-| Icons | **lucide-react** | Clean, consistent line icons. |
-| Unit tests | **Vitest** + **fast-check** (property tests) + **fake-indexeddb** | Fast, readable, and property tests catch money edge cases. |
-| End-to-end | **Playwright** on **WebKit** (Safari's engine) and Chromium | WebKit is the closest thing to iPhone Safari on Linux. |
-| Hosting | **GitHub Pages** (or Cloudflare Pages) — static files only | Free, HTTPS (required for PWAs). The host never sees your data. |
-| Dates | Plain `"YYYY-MM-DD"` strings + a small tested calendar module | `Temporal` is not in iOS Safari; strings avoid timezone bugs. |
-| Money | Integer cents, branded `Cents` type | Floats can't represent 0.10 exactly. Budgets must be exact. |
+| Question               | Decision                                                          | Why                                                                                |
+| ---------------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Native app or web app? | **PWA** (installable web app)                                     | Only way to install on an iPhone **for free, permanently, from Linux**. See ADR-1. |
+| UI framework           | **React 19 + TypeScript (strict)**, built with **Vite**           | Mature, fast, every agent knows it, huge ecosystem.                                |
+| Styling                | **Tailwind CSS v4** with design tokens as CSS variables           | Fast to iterate, tokens keep the look consistent.                                  |
+| Local database         | **Dexie 4** over **IndexedDB**                                    | Indexed queries, transactions, reactive live queries, tiny. See ADR-2.             |
+| Validation             | **Zod**                                                           | Validates import files and form input with readable errors.                        |
+| Offline / install      | **vite-plugin-pwa** (Workbox)                                     | Precaches the app so it works with zero network.                                   |
+| Routing                | **wouter** with hash routes (`#/`, `#/insights`, `#/settings`)    | Tiny; hash routes work on any static host with no rewrites.                        |
+| Bottom sheets          | **vaul**                                                          | iOS-feeling drawers; render as dialogs on the unfolded screen.                     |
+| Icons                  | **lucide-react**                                                  | Clean, consistent line icons.                                                      |
+| Unit tests             | **Vitest** + **fast-check** (property tests) + **fake-indexeddb** | Fast, readable, and property tests catch money edge cases.                         |
+| End-to-end             | **Playwright** on **WebKit** (Safari's engine) and Chromium       | WebKit is the closest thing to iPhone Safari on Linux.                             |
+| Hosting                | **GitHub Pages** (or Cloudflare Pages) — static files only        | Free, HTTPS (required for PWAs). The host never sees your data.                    |
+| Dates                  | Plain `"YYYY-MM-DD"` strings + a small tested calendar module     | `Temporal` is not in iOS Safari; strings avoid timezone bugs.                      |
+| Money                  | Integer cents, branded `Cents` type                               | Floats can't represent 0.10 exactly. Budgets must be exact.                        |
 
 ### ADR-1: PWA instead of React Native / Expo / native Swift
 
-- **Free install on iPhone:** A PWA is added from Safari → Share → *Add to Home Screen* and stays
+- **Free install on iPhone:** A PWA is added from Safari → Share → _Add to Home Screen_ and stays
   forever. A native app needs either the **\$99/year Apple Developer Program** (TestFlight, App Store,
   and Expo EAS device builds all require it) or free-Apple-ID sideloading, which **expires every 7 days**
   and needs a native `.ipa` that can only be built with Xcode on a Mac.
@@ -98,57 +98,66 @@ Unit tests sit next to the code they test (`money.ts` + `money.test.ts`) (planne
 ## 4. Data model (Dexie schema v1)
 
 ```ts
-type Cents = number & { readonly __brand: 'Cents' };   // integer, may be negative in ledger entries
-type IsoDate = string;   // "2026-11-05" — local calendar date
-type MonthKey = string;  // "2026-11"
+type Cents = number & { readonly __brand: 'Cents' }; // integer, may be negative in ledger entries
+type IsoDate = string; // "2026-11-05" — local calendar date
+type MonthKey = string; // "2026-11"
 
-interface Settings {            // table: settings (single row, id = 'app')
+interface Settings {
+  // table: settings (single row, id = 'app')
   id: 'app';
   currency: 'USD';
-  locale: string;               // e.g. 'en-US'
-  weekStartsOn: 0 | 1;          // 0 = Sunday
+  locale: string; // e.g. 'en-US'
+  weekStartsOn: 0 | 1; // 0 = Sunday
   setupCompletedAt: string | null;
   lastBackupAt: string | null;
 }
 
-interface Tag {                 // table: tags
+interface Tag {
+  // table: tags
   id: string;
-  name: string;                 // display name, trimmed
-  nameKey: string;              // lower-cased name, unique (case-insensitive uniqueness)
-  color: string;                // token name from the tag palette
+  name: string; // display name, trimmed
+  nameKey: string; // lower-cased name, unique (case-insensitive uniqueness)
+  color: string; // token name from the tag palette
   createdAt: string;
 }
 
-interface RecurringItem {       // table: recurringItems — the budget plan
+interface RecurringItem {
+  // table: recurringItems — the budget plan
   id: string;
   kind: 'income' | 'expense';
   name: string;
-  amount: Cents;                // always positive; kind decides the sign
+  amount: Cents; // always positive; kind decides the sign
   tagIds: string[];
-  startMonth: MonthKey;         // first month it is snapshotted into
-  endMonth: MonthKey | null;    // last month (inclusive); null = ongoing
+  startMonth: MonthKey; // first month it is snapshotted into
+  endMonth: MonthKey | null; // last month (inclusive); null = ongoing
   createdAt: string;
   updatedAt: string;
 }
 
-interface LedgerEntry {         // table: entries
+interface LedgerEntry {
+  // table: entries
   id: string;
   date: IsoDate;
-  monthKey: MonthKey;           // always derived from date
-  amount: Cents;                // signed: + adds to budget, − subtracts
+  monthKey: MonthKey; // always derived from date
+  amount: Cents; // signed: + adds to budget, − subtracts
   name: string;
   note: string;
   tagIds: string[];
   source: 'manual' | 'recurring' | 'adjustment';
-  recurringItemId: string | null;     // set for 'recurring' and 'adjustment'
-  recurrenceKey?: string;             // `${monthKey}:${recurringItemId}`, only on 'recurring' → unique
-  adjustment?: { change: 'amount-changed' | 'added' | 'removed'; from: Cents | null; to: Cents | null };
+  recurringItemId: string | null; // set for 'recurring' and 'adjustment'
+  recurrenceKey?: string; // `${monthKey}:${recurringItemId}`, only on 'recurring' → unique
+  adjustment?: {
+    change: 'amount-changed' | 'added' | 'removed';
+    from: Cents | null;
+    to: Cents | null;
+  };
   createdAt: string;
   updatedAt: string;
 }
 
-interface OpenedMonth {         // table: months
-  monthKey: MonthKey;           // primary key
+interface OpenedMonth {
+  // table: months
+  monthKey: MonthKey; // primary key
   openedAt: string;
 }
 ```
@@ -177,7 +186,7 @@ db.version(1).stores({
 1. User enters monthly income and recurring expenses (each with optional tags).
 2. One transaction: write settings (`setupCompletedAt`), write recurring items with
    `startMonth = current month`, **open the current month**.
-3. The month screen shows: *Carried over from {previous month}* `$0.00`, *Monthly income* `+`,
+3. The month screen shows: _Carried over from {previous month}_ `$0.00`, _Monthly income_ `+`,
    each recurring expense `−`, and the **current budget**.
 
 ### 5.2 Opening months (rollover)
@@ -204,14 +213,14 @@ for each month m after last, up to and including target:          // fills gaps 
 Any change that affects money (income amount, expense amount, adding or removing a recurring expense)
 asks: **This month (November)** or **Starting next month (December)**.
 
-| Change | Starting next month | This month |
-| --- | --- | --- |
-| Amount changed | Item's `amount` updated; November untouched; December snapshots the new amount. | Same update **plus** an *Adjustment* line in November for the difference. |
-| Expense added | New item with `startMonth = December`. | Same **plus** an *Adjustment* line `−amount` in November. |
-| Expense removed | `endMonth = November` (stays this month, gone from December). | `endMonth = November` **plus** an *Adjustment* line `+amount` (refund) in November. |
+| Change          | Starting next month                                                             | This month                                                                          |
+| --------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Amount changed  | Item's `amount` updated; November untouched; December snapshots the new amount. | Same update **plus** an _Adjustment_ line in November for the difference.           |
+| Expense added   | New item with `startMonth = December`.                                          | Same **plus** an _Adjustment_ line `−amount` in November.                           |
+| Expense removed | `endMonth = November` (stays this month, gone from December).                   | `endMonth = November` **plus** an _Adjustment_ line `+amount` (refund) in November. |
 
 - The month's snapshot lines are never rewritten; the adjustment line tells the story
-  (e.g. *Monthly income changed \$5,000.00 → \$5,500.00* `+$500.00`).
+  (e.g. _Monthly income changed \$5,000.00 → \$5,500.00_ `+$500.00`).
 - The difference is always computed against the amount **in effect this month**
   (snapshot + earlier adjustments for that item), so changing an amount twice in one month nets out correctly.
 - Name and tag edits don't affect money: no prompt; they apply to the plan and to this month's
@@ -221,7 +230,7 @@ asks: **This month (November)** or **Starting next month (December)**.
 ### 5.4 Manual expenses & deposits
 
 Expense → negative amount, Deposit → positive amount. Date defaults to today; the month is derived from
-the date. Edits and deletes are allowed (delete has an *Undo* toast). Recurring and adjustment lines are
+the date. Edits and deletes are allowed (delete has an _Undo_ toast). Recurring and adjustment lines are
 not editable from the ledger — the UI points to Settings so the plan stays the source of truth.
 
 ## 6. Storage durability (your data must not vanish)
@@ -259,12 +268,12 @@ not editable from the ledger — the UI points to Settings so the plan stays the
 
 ## 8. Performance budget
 
-| Operation (10 years of data, ~25,000 entries, WebKit) | Budget |
-| --- | --- |
-| Month screen data (carried over + month lines) | < 30 ms |
-| Insights for "All time" | < 100 ms |
-| Add expense → current budget updated on screen | < 50 ms |
-| Cold start to interactive (installed, offline) | < 1 s |
+| Operation (10 years of data, ~25,000 entries, WebKit) | Budget   |
+| ----------------------------------------------------- | -------- |
+| Month screen data (carried over + month lines)        | < 30 ms  |
+| Insights for "All time"                               | < 100 ms |
+| Add expense → current budget updated on screen        | < 50 ms  |
+| Cold start to interactive (installed, offline)        | < 1 s    |
 
 All queries use indexes. If a budget is ever missed, add a `monthTotals` cache table maintained in the
 same transaction as writes — but only with a test proving it equals the derived value.
