@@ -9,13 +9,13 @@ an undo, migrate old backup versions forward, and get reminded to back up.
 
 ## Read first
 
-`docs/architecture.md` §6–7, Web Share API Level 2 (files) on iOS Safari, Zod docs.
+`docs/architecture.md` §6–7, Web Share API Level 2 (files) on iOS Safari.
 
 ## Scope
 
-**In:** `src/data/backup/` (serialize, Zod schema v1, migrations registry, validate), use-cases `exportBackup`, `importBackup`
+**In:** `src/data/backup/` (serialize, pure TypeScript schema v1 validator with zero external runtime packages, migrations registry, validate), use-cases `exportBackup`, `importBackup`
 (preview → replace), `undoImport`, CSV export, Settings → Data screen, backup reminder, `lastBackupAt`, a pre-import
-safety snapshot (new table → **Dexie v2** with migration test), deterministic fixture generator.
+safety snapshot (new store → **IndexedDB v2** with migration test), deterministic fixture generator.
 **Out:** merging two histories (not planned), cloud sync (not planned).
 
 ## Steps

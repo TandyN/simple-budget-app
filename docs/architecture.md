@@ -5,22 +5,23 @@
 
 ## 1. Decisions at a glance
 
-| Question               | Decision                                                          | Why                                                                                |
-| ---------------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| Native app or web app? | **PWA** (installable web app)                                     | Only way to install on an iPhone **for free, permanently, from Linux**. See ADR-1. |
-| UI framework           | **React 19 + TypeScript (strict)**, built with **Vite**           | Mature, fast, every agent knows it, huge ecosystem.                                |
-| Styling                | **Tailwind CSS v4** with design tokens as CSS variables           | Fast to iterate, tokens keep the look consistent.                                  |
-| Local database         | **Dexie 4** over **IndexedDB**                                    | Indexed queries, transactions, reactive live queries, tiny. See ADR-2.             |
-| Validation             | **Zod**                                                           | Validates import files and form input with readable errors.                        |
-| Offline / install      | **vite-plugin-pwa** (Workbox)                                     | Precaches the app so it works with zero network.                                   |
-| Routing                | **wouter** with hash routes (`#/`, `#/insights`, `#/settings`)    | Tiny; hash routes work on any static host with no rewrites.                        |
-| Bottom sheets          | **vaul**                                                          | iOS-feeling drawers; render as dialogs on the unfolded screen.                     |
-| Icons                  | **lucide-react**                                                  | Clean, consistent line icons.                                                      |
-| Unit tests             | **Vitest** + **fast-check** (property tests) + **fake-indexeddb** | Fast, readable, and property tests catch money edge cases.                         |
-| End-to-end             | **Playwright** on **WebKit** (Safari's engine) and Chromium       | WebKit is the closest thing to iPhone Safari on Linux.                             |
-| Hosting                | **GitHub Pages** (or Cloudflare Pages) — static files only        | Free, HTTPS (required for PWAs). The host never sees your data.                    |
-| Dates                  | Plain `"YYYY-MM-DD"` strings + a small tested calendar module     | `Temporal` is not in iOS Safari; strings avoid timezone bugs.                      |
-| Money                  | Integer cents, branded `Cents` type                               | Floats can't represent 0.10 exactly. Budgets must be exact.                        |
+| Question               | Decision                                                                  | Why                                                                                            |
+| ---------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Native app or web app? | **PWA** (installable web app)                                             | Only way to install on an iPhone **for free, permanently, from Linux**. See ADR-1.             |
+| Runtime dependencies   | **`react` and `react-dom` ONLY** (zero extra runtime packages)            | Smallest bundle, zero supply-chain bloat on the phone, total control.                          |
+| UI framework           | **React 19 + TypeScript (strict)**, built with **Vite**                   | Mature, fast, every agent knows it.                                                            |
+| Styling                | **Native CSS custom properties** (`tokens.css` (planned until T04) + CSS) | Fast, zero external CSS framework runtime, tokens keep the look consistent.                    |
+| Local database         | **Native browser IndexedDB API** + typed wrapper & `useSyncExternalStore` | Indexed queries, native `IDBTransaction`, reactive live queries, zero dependencies. See ADR-2. |
+| Validation             | **Pure TypeScript validators**                                            | Validates import files and form input with readable errors and zero dependencies.              |
+| Offline / install      | **Standard Service Worker** (`public/sw.js`) + `manifest.webmanifest`     | Precaches the app at build time so it works with zero network and zero library bloat.          |
+| Routing                | **Native hash routing** (`#/`, `#/insights`, `#/settings`)                | ~25 lines using `window.location.hash` + `hashchange`; works on any static host.               |
+| Bottom sheets          | **Native HTML `<dialog>`** + CSS transitions                              | Built-in accessibility, focus trap, and `Escape` handling; drawer in compact, modal unfolded.  |
+| Icons                  | **Inline SVG components**                                                 | Clean, crisp line icons with zero external icon package.                                       |
+| Unit tests             | **Vitest** + **fast-check** (property tests) + **fake-indexeddb**         | Dev-only packages; fast, readable, and property tests catch money edge cases.                  |
+| End-to-end             | **Playwright** on **WebKit** (Safari's engine) and Chromium               | Dev-only; WebKit is the closest thing to iPhone Safari on Linux.                               |
+| Hosting                | **GitHub Pages** (`https://tandyn.github.io/simple-budget-app/`)          | Free static hosting + free GitHub Actions runners on public repo; host never sees data.        |
+| Dates                  | Plain `"YYYY-MM-DD"` strings + a small tested calendar module             | `Temporal` is not in iOS Safari; strings avoid timezone bugs.                                  |
+| Money                  | Integer cents, branded `Cents` type                                       | Floats can't represent 0.10 exactly. Budgets must be exact.                                    |
 
 ### ADR-1: PWA instead of React Native / Expo / native Swift
 
@@ -31,7 +32,7 @@
 - **Linux development:** A PWA is developed and tested fully on Linux. iOS simulators require macOS.
 - **Android later:** Android has the best PWA support of any platform — same app, zero extra work.
 - **Escape hatch:** If App Store distribution is ever wanted, **Capacitor** can wrap this exact build
-  into native iOS/Android shells without a rewrite. Keep platform APIs behind `src/pwa/` (planned) so this stays easy.
+  into native iOS/Android shells without a rewrite. Keep platform APIs behind `src/pwa/` so this stays easy.
 - **Trade-offs accepted:** no home-screen widgets, no haptics in iOS Safari, Safari's storage rules
   (handled — see §6).
 

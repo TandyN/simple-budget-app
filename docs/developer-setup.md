@@ -26,23 +26,27 @@ via Podman/Docker if installed.
 
 ## 2. Everyday commands
 
-| Command             | What it does                                                                  |
-| ------------------- | ----------------------------------------------------------------------------- |
-| `pnpm dev`          | Dev server at http://localhost:5173 with hot reload.                          |
-| `pnpm dev:lan`      | Same, reachable from your phone on Wi-Fi at `http://<your-laptop-ip>:5173`.   |
-| `pnpm build`        | Production build into `dist/` (planned).                                      |
-| `pnpm preview`      | Serves the production build at http://localhost:4173 (service worker active). |
-| `pnpm typecheck`    | TypeScript, strict.                                                           |
-| `pnpm lint`         | ESLint.                                                                       |
-| `pnpm format`       | Prettier, writes changes.                                                     |
-| `pnpm format:check` | Prettier, check only.                                                         |
-| `pnpm test`         | Rule tests (Vitest), once.                                                    |
-| `pnpm test:watch`   | Rule tests in watch mode.                                                     |
-| `pnpm test:e2e`     | Journey tests on every device profile (WebKit + Chromium).                    |
-| `pnpm test:e2e:ui`  | Playwright UI mode (Chromium projects, native) for debugging journeys.        |
-| `pnpm docs:check`   | Runs `scripts/check-docs.sh`.                                                 |
-| `pnpm verify`       | Runs `scripts/verify.sh` — the full gate. Required before every commit.       |
-| `pnpm prepare`      | Installs git hooks via `lefthook` (runs automatically on `pnpm install`).     |
+| Command                 | What it does                                                                                    |
+| ----------------------- | ----------------------------------------------------------------------------------------------- |
+| `pnpm dev`              | Dev server at http://localhost:5173 with hot reload.                                            |
+| `pnpm dev:lan`          | Same, reachable from your phone on Wi-Fi at `http://<your-laptop-ip>:5173`.                     |
+| `pnpm build`            | Production build into `dist/` (planned).                                                        |
+| `pnpm preview`          | Serves the production build at http://localhost:4173 (service worker active).                   |
+| `pnpm typecheck`        | TypeScript, strict.                                                                             |
+| `pnpm lint`             | ESLint.                                                                                         |
+| `pnpm format`           | Prettier, writes changes.                                                                       |
+| `pnpm format:check`     | Prettier, check only.                                                                           |
+| `pnpm test`             | Rule tests (Vitest), once.                                                                      |
+| `pnpm test:watch`       | Rule tests in watch mode.                                                                       |
+| `pnpm test:e2e`         | Journey tests on every device profile (WebKit + Chromium).                                      |
+| `pnpm test:e2e:ui`      | Playwright UI mode (Chromium projects, native) for debugging journeys.                          |
+| `pnpm docs:check`       | Runs `scripts/check-docs.sh`.                                                                   |
+| `pnpm verify`           | Runs `scripts/verify.sh` — the full gate. Required before every commit.                         |
+| `pnpm verify:live`      | Runs `scripts/verify-live.mjs` — verifies the live GitHub Pages site + offline mode in WebKit.  |
+| `pnpm release:bump`     | Runs `scripts/release-version.mjs` — bumps SemVer in `package.json` and updates `CHANGELOG.md`. |
+| `pnpm release:deploy`   | Runs `scripts/deploy.sh` — deploys `dist/` to GitHub Pages and publishes the GitHub Release.    |
+| `pnpm release:rollback` | Runs `scripts/rollback.sh` — rolls back the live site to a specified `v*` release tag.          |
+| `pnpm prepare`          | Installs git hooks via `lefthook` (runs automatically on `pnpm install`).                       |
 
 ## 3. Seeing the app as an iPhone Duo — on Linux
 
