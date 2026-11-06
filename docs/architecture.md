@@ -240,7 +240,8 @@ not editable from the ledger — the UI points to Settings so the plan stays the
   The app detects when it is running in a Safari tab and shows an install guide.
 - Safari tabs and the Home Screen app have **separate storage**. Do setup inside the installed app.
 - The app calls `navigator.storage.persist()` and shows the result in Settings → Data.
-- **Backups are the real safety net:** a reminder appears if the last export is older than 30 days.
+- **Automatic Triple-Redundant Local Mirror (T09):** Every write to `IndexedDB` automatically mirrors a complete JSON backup into the browser's Origin Private File System (`navigator.storage.getDirectory()`) and `localStorage` (`simple-budget:auto-backup:latest`), plus freezes `simple-budget:auto-backup:pre-update` before any app version or database schema upgrade. If `IndexedDB` is ever cleared or corrupted, the app recovers from the mirror.
+- **Automatic iCloud Drive Backups (T09):** Whenever the app updates to a new version or rolls over to a new month, a 1-tap **"Save Auto-Backup to iCloud"** prompt opens the native iOS `Save to Files` sheet (`navigator.share({ files })`), and a `#auto-backup` hook lets an iPhone **Shortcuts** automation save backups to iCloud Drive automatically whenever the app closes.
 - Before an import replaces data, a safety snapshot is kept in the database so the import can be undone.
 
 ## 7. Backup format (export/import)
@@ -260,7 +261,7 @@ not editable from the ledger — the UI points to Settings so the plan stays the
 }
 ```
 
-- Validated with Zod (types, integer cents, valid dates, `monthKey` matches `date`, every `tagId` and
+- Validated with a pure TypeScript validator (types, integer cents, valid dates, `monthKey` matches `date`, every `tagId` and
   `recurringItemId` reference exists). Any problem → rejected with a clear message, nothing changes.
 - Older `schemaVersion`s are migrated forward step by step (`v1 → v2 → …`) before validation.
 - Import **replaces** all data in one transaction after showing a preview (counts and date range).
