@@ -44,5 +44,5 @@ so you can't lose a half-typed expense.
 ## Backups & Data Safety (built in T09)
 
 - **Silent Background Auto-Backup (Zero Taps, Zero Popups):** Every budget change silently saves a mirror copy in your phone's Origin Private File System and `localStorage`, and freezes a `pre-update` snapshot before any new app version runs.
-- **Manual Save to iCloud Drive:** In Settings → Data, tap **Save to iCloud / Export backup** anytime to save `simple-budget-backup-YYYY-MM-DD.json` (planned until T09) to **iCloud Drive** via the iOS share sheet. That screen shows when you last saved a backup, and the app never nags you with automatic popup messages.
-- **Restore:** On any new phone or fresh install, go to Settings → Data → **Import backup** and pick your latest iCloud Drive JSON file.
+- **Manual Export Backup:** In Settings → Data, tap **Export backup** anytime to save `simple-budget-backup-YYYY-MM-DD.json` (planned until T09) via the iOS share sheet (_Save to Files_). That screen shows when you last exported a backup, and the app never nags you with automatic popup messages.
+- **Restore:** On any new phone or fresh install, go to Settings → Data → **Import backup** and pick your latest exported JSON file.

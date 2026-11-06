@@ -18,16 +18,16 @@ Built as an installable web app (PWA), designed first for the **iPhone Duo** fol
 Simple Budget is 100% local — there is no cloud account or remote server. Here is how your budget history stays safe on your phone:
 
 - **Silent Background Auto-Backup (Zero Taps, No Popups):** Every time you add or edit an item, the app silently saves a redundant backup copy inside your phone's local storage (`IndexedDB`, Origin Private File System, and `localStorage`), and automatically freezes a `pre-update` snapshot before any new app version runs.
-- **Manual Save to iCloud Drive:** Under **Settings → Data**, you can manually tap **Save to iCloud / Export backup** whenever you want to save a backup file to your iCloud Drive / Files app. That page displays when you last saved a backup, and the app will **never** interrupt you with automatic backup popups.
+- **Manual Export Backup:** Under **Settings → Data**, you can manually tap **Export backup** whenever you want to save a backup file to your phone or computer. That page displays when you last exported a backup, and the app will **never** interrupt you with automatic backup popups.
 - **What Does NOT Affect Your Installed App's Data:**
   - App version updates (`v0.1.0` → `v0.2.0`, etc.)
   - Using the app offline or in Airplane Mode
   - Closing the app, restarting your iPhone, or updating iOS
   - Closing tabs or clearing regular browsing history inside the Safari app (because your Home Screen app runs in its own isolated container separate from Safari tabs)
-- **What WILL Clear Your Data (Save to iCloud First!):**
+- **What WILL Clear Your Data (Export Backup First!):**
   1. **Deleting the "Budget" app icon from your iPhone Home Screen** — iOS immediately deletes a Home Screen web app's isolated storage container when its icon is deleted.
   2. **Wiping Website Data in iOS Settings** — going into **iOS Settings → Apps → Safari → Advanced → Website Data** and deleting `tandyn.github.io` (or tapping the system-wide *"Clear History and Website Data"* in iOS Settings on some iOS versions) can wipe local WebKit storage.
-  3. **Factory-resetting or replacing your phone** — export a backup to iCloud Drive first, then import it on the new phone.
+  3. **Factory-resetting or replacing your phone** — export a backup file first, then import it on the new phone.
 
 ## Status
 
