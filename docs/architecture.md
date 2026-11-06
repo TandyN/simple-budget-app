@@ -240,8 +240,8 @@ not editable from the ledger — the UI points to Settings so the plan stays the
   The app detects when it is running in a Safari tab and shows an install guide.
 - Safari tabs and the Home Screen app have **separate storage**. Do setup inside the installed app.
 - The app calls `navigator.storage.persist()` and shows the result in Settings → Data.
-- **Automatic Triple-Redundant Local Mirror (T09):** Every write to `IndexedDB` automatically mirrors a complete JSON backup into the browser's Origin Private File System (`navigator.storage.getDirectory()`) and `localStorage` (`simple-budget:auto-backup:latest`), plus freezes `simple-budget:auto-backup:pre-update` before any app version or database schema upgrade. If `IndexedDB` is ever cleared or corrupted, the app recovers from the mirror.
-- **Automatic iCloud Drive Backups (T09):** Whenever the app updates to a new version or rolls over to a new month, a 1-tap **"Save Auto-Backup to iCloud"** prompt opens the native iOS `Save to Files` sheet (`navigator.share({ files })`), and a `#auto-backup` hook lets an iPhone **Shortcuts** automation save backups to iCloud Drive automatically whenever the app closes.
+- **Silent Background Local Auto-Backup (T09):** Every write to `IndexedDB` silently mirrors a complete JSON backup into the browser's Origin Private File System (`navigator.storage.getDirectory()`) and `localStorage` (`simple-budget:auto-backup:latest`), and silently freezes `simple-budget:auto-backup:pre-update` before any app version or database schema upgrade. If `IndexedDB` is ever empty or corrupted, the app auto-recovers silently from the mirror with zero popups.
+- **Manual Save to iCloud Drive (T09):** Settings → Data provides a manual **Save to iCloud / Export backup** button (`navigator.share({ files })`) and displays when a backup was last saved (`lastBackupAt`), without ever nagging the user with automatic popups or banners.
 - Before an import replaces data, a safety snapshot is kept in the database so the import can be undone.
 
 ## 7. Backup format (export/import)
