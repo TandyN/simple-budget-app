@@ -51,7 +51,7 @@ a smoke journey, git hooks, docs.
     `verify` = `bash scripts/verify.sh`.
 12. Git hooks with **lefthook**: pre-commit runs `format:check`, `lint`, `typecheck`, `test` on staged scope (fast).
     The full gate remains the agent's responsibility via `verify-before-commit`.
-13. GitHub Actions `config/workflows/ci.yml`: on push + PR → checkout, mise/pnpm setup with cache, `pnpm install --frozen-lockfile`,
+13. GitHub Actions `.github/workflows/ci.yml`: on push + PR → checkout, mise/pnpm setup with cache, `pnpm install --frozen-lockfile`,
     `docs:check`, `format:check`, `lint`, `typecheck`, `test`, `playwright install --with-deps`, `test:e2e`, `build`.
     Upload `playwright-report/` on failure.
 14. Placeholder `App` renders an `<h1>Simple Budget</h1>` and a `<main>` landmark.

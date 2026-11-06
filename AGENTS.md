@@ -38,7 +38,7 @@ expenses and deposits by hand. Whatever is left at the end of a month **rolls ov
 | `config/devices.ts`         | Device viewport profiles shared by Playwright and the dev device wall.                                     |
 | `src/pwa/`                  | Service worker registration and offline status hook (`public/sw.js` + `public/manifest.webmanifest`).      |
 | `e2e/`                      | Playwright journeys (`e2e/journeys/`) and the readable test driver (`e2e/support/budget-app.ts`).          |
-| `config/workflows/ci.yml`   | GitHub Actions CI gate template.                                                                           |
+| `.github/workflows/ci.yml`  | GitHub Actions CI gate (runs on every push and PR).                                                        |
 | `.agents/skills/`           | Project skills for agents (see below).                                                                     |
 
 Target source layout (built by the plan; each folder gets a row in the table above once it exists):
