@@ -102,6 +102,16 @@ function main() {
     : [];
 
   const parsedCommits = rawCommits.map(parseConventionalCommit);
+  if (parsedCommits.length === 0 && !explicitVersion) {
+    console.log(
+      `✓ No new commits since ${latestTag ?? 'initial commit'}; keeping version ${pkg.version}`,
+    );
+    return;
+  }
+  if (parsedCommits.length === 0 && !explicitVersion) {
+    console.log(`✓ No new commits since ${latestTag ?? 'initial commit'}; keeping version ${pkg.version}`);
+    return;
+  }
   const nextVersion = computeNextVersion(pkg.version, parsedCommits, explicitVersion);
 
   pkg.version = nextVersion;

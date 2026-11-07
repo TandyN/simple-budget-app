@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 # deploy.sh — Deploys the verified production bundle to the `gh-pages` branch of
-# TandyN/simple-budget-app.
+# TandyN/simple-budget-app and automates official SemVer releases.
 #
 # Modes:
-#   bash scripts/deploy.sh            — Builds `dist/` and deploys to `gh-pages` (post-merge deploy for Live QA)
-#   bash scripts/deploy.sh --release  — Cuts the official release: bumps SemVer & CHANGELOG.md from Conventional
-#                                       Commits, commits/pushes to `main`, deploys the stamped build to `gh-pages`,
-#                                       tags `vX.Y.Z`, and publishes the GitHub Release notes.
+#   bash scripts/deploy.sh                   — Deploys `dist/` to the root of `gh-pages` (preserving any `pr-*` folders)
+#   bash scripts/deploy.sh --pr <N>          — Deploys `dist/` to `gh-pages/pr-<N>/` for isolated PR preview QA
+#   bash scripts/deploy.sh --cleanup-pr <N>  — Removes `pr-<N>/` from `gh-pages` when a PR closes/merges
+#   bash scripts/deploy.sh --release         — Full automated release on `main`: bumps SemVer & CHANGELOG.md from
+#                                              Conventional Commits, builds & deploys `dist/` to `gh-pages`, runs
+#                                              Live WebKit + Offline PWA QA (`verify-live.mjs`), pushes the release
+#                                              commit + `vX.Y.Z` tag to `main`, and creates the GitHub Release.
 
 set -euo pipefail
 
@@ -22,30 +25,129 @@ if [[ "$remote_url" != *"${EXPECTED_REPO}"* ]]; then
   exit 1
 fi
 
-RELEASE_MODE=false
-for arg in "$@"; do
-  if [[ "$arg" == "--release" ]]; then
-    RELEASE_MODE=true
-  fi
+MODE="root"
+PR_NUMBER=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --release)
+      MODE="release"
+      shift
+      ;;
+    --pr)
+      MODE="pr"
+      PR_NUMBER="${2:-}"
+      if [[ -z "$PR_NUMBER" ]]; then
+        echo "✗ --pr requires a pull request number." >&2
+        exit 1
+      fi
+      shift 2
+      ;;
+    --cleanup-pr)
+      MODE="cleanup-pr"
+      PR_NUMBER="${2:-}"
+      if [[ -z "$PR_NUMBER" ]]; then
+        echo "✗ --cleanup-pr requires a pull request number." >&2
+        exit 1
+      fi
+      shift 2
+      ;;
+    *)
+      echo "✗ Unknown argument: $1" >&2
+      exit 1
+      ;;
+  esac
 done
 
-if [[ "$RELEASE_MODE" == "true" ]]; then
-  current_branch="$(git rev-parse --abbrev-ref HEAD)"
-  if [[ "$current_branch" != "main" ]]; then
-    echo "✗ Official releases (--release) must be cut from main (currently on ${current_branch})." >&2
-    exit 1
+ensure_git_identity() {
+  if [[ -z "$(git config user.name || true)" ]]; then
+    git config user.name "github-actions[bot]"
   fi
+  if [[ -z "$(git config user.email || true)" ]]; then
+    git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+  fi
+}
 
-  current_version="$(jq -r '.version' package.json)"
-  if git rev-parse "v${current_version}" >/dev/null 2>&1; then
-    echo "▶ Generating next SemVer version and release notes from Conventional Commits..."
-    node scripts/release-version.mjs
-    pnpm run format
-    new_version="$(jq -r '.version' package.json)"
-    git add package.json CHANGELOG.md
-    git commit -m "chore(release): v${new_version} (agent-generated)" \
+publish_to_gh_pages() {
+  local target_subdir="$1"
+  local commit_msg="$2"
+
+  for attempt in 1 2 3; do
+    local deploy_tmp
+    deploy_tmp="$(mktemp -d)"
+    if git fetch origin gh-pages >/dev/null 2>&1; then
+      git worktree add -f --detach "$deploy_tmp" origin/gh-pages >/dev/null
+    else
+      git worktree add -f --detach "$deploy_tmp" >/dev/null
+      find "$deploy_tmp" -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
+    fi
+
+    if [[ "$MODE" == "cleanup-pr" ]]; then
+      rm -rf "${deploy_tmp}/pr-${PR_NUMBER}"
+    elif [[ -n "$target_subdir" ]]; then
+      rm -rf "${deploy_tmp}/${target_subdir}"
+      mkdir -p "${deploy_tmp}/${target_subdir}"
+      cp -r dist/. "${deploy_tmp}/${target_subdir}/"
+      touch "${deploy_tmp}/.nojekyll"
+    else
+      find "$deploy_tmp" -mindepth 1 -maxdepth 1 ! -name '.git' ! -name 'pr-*' -exec rm -rf {} +
+      cp -r dist/. "$deploy_tmp/"
+      touch "${deploy_tmp}/.nojekyll"
+    fi
+
+    (
+      cd "$deploy_tmp"
+      ensure_git_identity
+      git add -A
+      if git diff --cached --quiet; then
+        echo "  ✓ gh-pages is already up to date."
+      else
+        git commit -q -m "$commit_msg"
+      fi
+    )
+
+    if git -C "$deploy_tmp" push origin HEAD:refs/heads/gh-pages; then
+      git worktree remove -f "$deploy_tmp" >/dev/null 2>&1 || rm -rf "$deploy_tmp"
+      return 0
+    fi
+
+    git worktree remove -f "$deploy_tmp" >/dev/null 2>&1 || rm -rf "$deploy_tmp"
+    echo "  … Retrying gh-pages push (attempt ${attempt}/3)..."
+    sleep 2
+  done
+
+  echo "✗ Failed to push to gh-pages after 3 attempts." >&2
+  return 1
+}
+
+if [[ "$MODE" == "cleanup-pr" ]]; then
+  echo "▶ Cleaning up PR #${PR_NUMBER} preview from gh-pages..."
+  publish_to_gh_pages "" "chore(preview): remove pr-${PR_NUMBER} preview [skip ci] (agent-generated)"
+  echo "✓ Cleaned up pr-${PR_NUMBER} preview."
+  exit 0
+fi
+
+if [[ "$MODE" == "pr" ]]; then
+  version="$(jq -r '.version' package.json)"
+  commit_sha="$(git rev-parse --short HEAD)"
+  echo "▶ Building PR #${PR_NUMBER} preview bundle for v${version} (${commit_sha})..."
+  pnpm run build
+  echo "▶ Publishing dist/ to gh-pages/pr-${PR_NUMBER}/ on ${EXPECTED_REPO}..."
+  publish_to_gh_pages "pr-${PR_NUMBER}" "chore(preview): deploy PR #${PR_NUMBER} (${commit_sha}) to GitHub Pages [skip ci] (agent-generated)"
+  echo "✓ Deployed PR #${PR_NUMBER} preview to https://tandyn.github.io/simple-budget-app/pr-${PR_NUMBER}/"
+  exit 0
+fi
+
+if [[ "$MODE" == "release" ]]; then
+  ensure_git_identity
+  echo "▶ Generating next SemVer version and release notes from Conventional Commits..."
+  node scripts/release-version.mjs
+  pnpm run format
+  new_version="$(jq -r '.version' package.json)"
+  git add package.json CHANGELOG.md
+  if ! git diff --cached --quiet; then
+    git commit -m "chore(release): v${new_version} [skip ci] (agent-generated)" \
       -m "Automated SemVer release and CHANGELOG.md generated from Conventional Commits. (agent-generated)"
-    git push origin main
   fi
 fi
 
@@ -55,40 +157,31 @@ tag="v${version}"
 
 echo "▶ Building production bundle for ${tag} (${commit_sha})..."
 pnpm run build
-touch dist/.nojekyll
 
-echo "▶ Publishing dist/ to gh-pages branch on ${EXPECTED_REPO}..."
-deploy_tmp="$(mktemp -d)"
-trap 'rm -rf "$deploy_tmp"' EXIT
-
-cp -r dist/. "$deploy_tmp/"
-(
-  cd "$deploy_tmp"
-  git init -q -b gh-pages
-  git config user.name "$(git -C "$repo_root" config user.name)"
-  git config user.email "$(git -C "$repo_root" config user.email)"
-  git add -A
-  git commit -q -m "chore(release): deploy ${tag} (${commit_sha}) to GitHub Pages (agent-generated)"
-  git remote add origin "https://github.com/${EXPECTED_REPO}.git"
-  git push -f origin gh-pages
-)
+echo "▶ Publishing dist/ to root of gh-pages branch on ${EXPECTED_REPO}..."
+publish_to_gh_pages "" "chore(release): deploy ${tag} (${commit_sha}) to GitHub Pages [skip ci] (agent-generated)"
 
 echo "▶ Ensuring GitHub Pages is enabled on ${EXPECTED_REPO} (branch: gh-pages)..."
 if ! gh api "repos/${EXPECTED_REPO}/pages" >/dev/null 2>&1; then
   gh api "repos/${EXPECTED_REPO}/pages" -X POST \
     -F "source[branch]=gh-pages" \
-    -F "source[path]=/" >/dev/null
+    -F "source[path]=/" >/dev/null || true
   echo "  ✓ Enabled GitHub Pages for ${EXPECTED_REPO}"
 else
   echo "  ✓ GitHub Pages is already active"
 fi
 
-if [[ "$RELEASE_MODE" == "true" ]]; then
+if [[ "$MODE" == "release" ]]; then
+  echo "▶ Running post-deploy Live WebKit & Offline PWA QA against https://tandyn.github.io/simple-budget-app/..."
+  node scripts/verify-live.mjs --expect-version "$version" --expect-commit "$commit_sha"
+
+  echo "▶ Pushing release commit and tag ${tag} to origin/main..."
+  git push origin HEAD:refs/heads/main
+
   if ! git rev-parse "$tag" >/dev/null 2>&1; then
-    echo "▶ Tagging and pushing ${tag}..."
     git tag -a "$tag" -m "Release ${tag} (agent-generated)"
-    git push origin "$tag"
   fi
+  git push origin "$tag"
 
   if ! gh release view "$tag" --repo "$EXPECTED_REPO" >/dev/null 2>&1; then
     notes="$(awk "/^## \\[${version}\\]/{flag=1; next} /^## \\[/{flag=0} flag" CHANGELOG.md)"
