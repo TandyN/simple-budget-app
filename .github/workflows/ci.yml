@@ -1,19 +1,32 @@
-name: CI & iOS Release
+name: PR Verification & Preview QA
 
 on:
   pull_request:
     branches: [main]
-  push:
-    tags: ['v*']
+    types: [opened, synchronize, reopened, closed]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   verify:
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    if: github.event.action != 'closed'
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify PR branch is up to date with main
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch origin main
+          if ! git merge-base --is-ancestor origin/main "${{ github.event.pull_request.head.sha }}"; then
+            echo "✗ This PR branch is behind origin/main. Rebase or merge origin/main so all changes are tested together." >&2
+            exit 1
+          fi
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
@@ -51,6 +64,15 @@ jobs:
       - name: Build production bundle
         run: pnpm run build
 
+      - name: Deploy isolated PR preview & run Live PWA QA
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LIVE_URL: https://tandyn.github.io/simple-budget-app/pr-${{ github.event.pull_request.number }}/
+        run: |
+          bash scripts/deploy.sh --pr "${{ github.event.pull_request.number }}"
+          node scripts/verify-live.mjs
+
       - name: Upload Playwright report on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -61,7 +83,7 @@ jobs:
 
   ios-simulator:
     needs: verify
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    if: github.event.action != 'closed'
     runs-on: macos-15
     steps:
       - name: Checkout repository
@@ -82,29 +104,23 @@ jobs:
       - name: Compile Native iOS App (Simulator)
         run: pnpm run ios:build -- --simulator
 
-  ios-testflight:
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: macos-15
+      - name: Upload compiled iOS Simulator .app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SimpleBudget-iOS-Simulator
+          path: ios/build/Build/Products/Debug-iphonesimulator/SimpleBudget.app
+          retention-days: 7
+
+  cleanup-pr-preview:
+    if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
         with:
-          node-version: '22.14.0'
-          cache: 'pnpm'
+          fetch-depth: 0
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Archive, Sign & Upload Native iOS .ipa to TestFlight
+      - name: Remove closed PR preview from gh-pages
         env:
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
-          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-          APP_STORE_CONNECT_API_KEY_P8: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
-        run: pnpm run ios:build -- --testflight
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/deploy.sh --cleanup-pr "${{ github.event.pull_request.number }}"
