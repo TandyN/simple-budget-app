@@ -47,9 +47,23 @@ export async function addLedgerEntry(tx: IDBTransaction, entry: LedgerEntry): Pr
   await requestToPromise(store.add(entry));
 }
 
+export async function getLedgerEntryById(
+  tx: IDBTransaction,
+  id: string,
+): Promise<LedgerEntry | null> {
+  const store = tx.objectStore('entries');
+  const record = await requestToPromise<LedgerEntry | undefined>(store.get(id));
+  return record ?? null;
+}
+
 export async function putLedgerEntry(tx: IDBTransaction, entry: LedgerEntry): Promise<void> {
   const store = tx.objectStore('entries');
   await requestToPromise(store.put(entry));
+}
+
+export async function removeLedgerEntry(tx: IDBTransaction, id: string): Promise<void> {
+  const store = tx.objectStore('entries');
+  await requestToPromise(store.delete(id));
 }
 
 export async function listOpenedMonths(tx: IDBTransaction): Promise<OpenedMonth[]> {

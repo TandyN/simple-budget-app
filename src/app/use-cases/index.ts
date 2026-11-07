@@ -10,22 +10,26 @@ import {
 import {
   monthStatement,
   recurringEntriesToOpen,
+  type LedgerEntry,
   type MonthStatement,
   type RecurringItem,
 } from '../../domain/ledger';
-import { cents, type Cents } from '../../domain/money';
+import { cents, negate, type Cents } from '../../domain/money';
 import type { SimpleBudgetDatabase } from '../../data/database';
 import {
   addLedgerEntry,
   getEntriesBeforeMonth,
   getEntriesForMonth,
   getLatestOpenedMonth,
+  getLedgerEntryById,
   getSettings,
   listOpenedMonths,
   listRecurringItems,
+  putLedgerEntry,
   putOpenedMonth,
   putRecurringItem,
   putSettings,
+  removeLedgerEntry,
 } from '../../data/repositories';
 import type { Clock, IdGenerator } from '../providers';
 
@@ -46,6 +50,26 @@ export interface CompleteSetupInput {
   readonly recurringExpenses: readonly SetupRecurringExpenseInput[];
   readonly weekStartsOn?: WeekStartsOn;
   readonly locale?: string;
+}
+
+export type ManualEntryKind = 'expense' | 'deposit';
+
+export interface AddEntryInput {
+  readonly kind: ManualEntryKind;
+  readonly amount: Cents;
+  readonly name?: string;
+  readonly date?: IsoDate;
+  readonly note?: string;
+  readonly tagIds?: readonly string[];
+}
+
+export interface UpdateEntryInput {
+  readonly id: string;
+  readonly amount?: Cents;
+  readonly name?: string;
+  readonly date?: IsoDate;
+  readonly note?: string;
+  readonly tagIds?: readonly string[];
 }
 
 export async function completeSetup(
@@ -143,6 +167,115 @@ export async function completeSetup(
       });
     },
   );
+}
+
+export async function addEntry(deps: AppDependencies, input: AddEntryInput): Promise<LedgerEntry> {
+  if (input.amount <= 0) {
+    throw new RangeError('Manual entry amount must be greater than zero.');
+  }
+  const date = assertIsoDate(input.date ?? deps.clock.today());
+  const monthKey = monthKeyOf(date);
+  const now = deps.clock.now();
+  const signedAmount = input.kind === 'expense' ? negate(input.amount) : cents(input.amount);
+  const defaultName = input.kind === 'expense' ? 'Expense' : 'Deposit';
+  const trimmedName = (input.name ?? '').trim();
+
+  const entry: LedgerEntry = {
+    id: deps.ids.nextId(),
+    date,
+    monthKey,
+    amount: signedAmount,
+    name: trimmedName.length > 0 ? trimmedName : defaultName,
+    note: (input.note ?? '').trim(),
+    tagIds: input.tagIds ? [...input.tagIds] : [],
+    source: 'manual',
+    recurringItemId: null,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  await deps.db.transaction('readwrite', ['entries'], async (tx) => {
+    await addLedgerEntry(tx, entry);
+  });
+
+  return entry;
+}
+
+export async function updateEntry(
+  deps: AppDependencies,
+  input: UpdateEntryInput,
+): Promise<LedgerEntry> {
+  const now = deps.clock.now();
+
+  return deps.db.transaction('readwrite', ['entries'], async (tx) => {
+    const existing = await getLedgerEntryById(tx, input.id);
+    if (!existing) {
+      throw new Error(`Ledger entry "${input.id}" was not found.`);
+    }
+    if (existing.source !== 'manual') {
+      throw new Error('Only manual entries can be edited from the ledger.');
+    }
+
+    const kind: ManualEntryKind = existing.amount < 0 ? 'expense' : 'deposit';
+    let nextAmount = existing.amount;
+    if (input.amount !== undefined) {
+      if (input.amount <= 0) {
+        throw new RangeError('Manual entry amount must be greater than zero.');
+      }
+      nextAmount = kind === 'expense' ? negate(input.amount) : cents(input.amount);
+    }
+
+    const nextDate = input.date !== undefined ? assertIsoDate(input.date) : existing.date;
+    const nextMonthKey = monthKeyOf(nextDate);
+    const defaultName = kind === 'expense' ? 'Expense' : 'Deposit';
+    const nextName =
+      input.name !== undefined
+        ? input.name.trim().length > 0
+          ? input.name.trim()
+          : defaultName
+        : existing.name;
+
+    const updated: LedgerEntry = {
+      ...existing,
+      date: nextDate,
+      monthKey: nextMonthKey,
+      amount: nextAmount,
+      name: nextName,
+      note: input.note !== undefined ? input.note.trim() : existing.note,
+      tagIds: input.tagIds !== undefined ? [...input.tagIds] : existing.tagIds,
+      updatedAt: now,
+    };
+
+    await putLedgerEntry(tx, updated);
+    return updated;
+  });
+}
+
+export async function deleteEntry(deps: AppDependencies, id: string): Promise<LedgerEntry> {
+  return deps.db.transaction('readwrite', ['entries'], async (tx) => {
+    const existing = await getLedgerEntryById(tx, id);
+    if (!existing) {
+      throw new Error(`Ledger entry "${id}" was not found.`);
+    }
+    if (existing.source !== 'manual') {
+      throw new Error('Only manual entries can be deleted from the ledger.');
+    }
+    await removeLedgerEntry(tx, id);
+    return existing;
+  });
+}
+
+export async function restoreEntry(
+  deps: Pick<AppDependencies, 'db'>,
+  entry: LedgerEntry,
+): Promise<LedgerEntry> {
+  if (entry.source !== 'manual') {
+    throw new Error('Only manual entries can be restored.');
+  }
+  await deps.db.transaction('readwrite', ['entries'], async (tx) => {
+    await putLedgerEntry(tx, entry);
+  });
+  return entry;
 }
 
 export async function openMonthsThrough(

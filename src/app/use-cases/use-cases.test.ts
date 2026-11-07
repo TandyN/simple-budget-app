@@ -12,7 +12,15 @@ import { formatMoney } from '../../domain/money';
 import { anExpense, money } from '../../domain/test-builders';
 import { observeMonthView } from '../hooks/useMonthView';
 import { createControllableClock, createSequentialIdGenerator } from '../providers';
-import { completeSetup, getMonthView, openMonthsThrough } from './index';
+import {
+  addEntry,
+  completeSetup,
+  deleteEntry,
+  getMonthView,
+  openMonthsThrough,
+  restoreEntry,
+  updateEntry,
+} from './index';
 
 function createTestApp(initialDate = '2026-11-05') {
   const db = createDatabase({ idbFactory: new IDBFactory() });
@@ -176,6 +184,65 @@ describe('setup, month opening and month view use-cases', () => {
     expect(observedBudgets.at(-1)).toBe('$3,080.00');
 
     unsubscribe();
+    await app.db.close();
+  });
+
+  test('adding, editing, deleting and restoring manual expenses and deposits updates the current budget and carry-over', async () => {
+    const app = createTestApp('2026-11-05');
+
+    await completeSetup(app, {
+      monthlyIncome: money('$5,000.00'),
+      recurringExpenses: [{ name: 'Rent', amount: money('$1,800.00') }],
+    });
+
+    const groceries = await addEntry(app, {
+      kind: 'expense',
+      name: 'Groceries',
+      amount: money('$120.00'),
+    });
+    await addEntry(app, {
+      kind: 'deposit',
+      name: 'Rebate',
+      amount: money('$45.00'),
+    });
+
+    let november = await getMonthView(app, '2026-11');
+    // $5,000.00 income − $1,800.00 rent − $120.00 groceries + $45.00 rebate = $3,125.00
+    expect(formatMoney(november.currentBudget)).toBe('$3,125.00');
+
+    await updateEntry(app, {
+      id: groceries.id,
+      amount: money('$150.00'),
+      name: 'Weekly groceries',
+    });
+
+    november = await getMonthView(app, '2026-11');
+    // $5,000.00 income − $1,800.00 rent − $150.00 weekly groceries + $45.00 rebate = $3,095.00
+    expect(formatMoney(november.currentBudget)).toBe('$3,095.00');
+
+    const deleted = await deleteEntry(app, groceries.id);
+    november = await getMonthView(app, '2026-11');
+    // $3,095.00 + $150.00 deleted groceries = $3,245.00
+    expect(formatMoney(november.currentBudget)).toBe('$3,245.00');
+
+    await restoreEntry(app, deleted);
+    november = await getMonthView(app, '2026-11');
+    // Restored back to $3,095.00
+    expect(formatMoney(november.currentBudget)).toBe('$3,095.00');
+
+    // Expense dated in October reduces October and carries over into November
+    await addEntry(app, {
+      kind: 'expense',
+      name: 'Late utility bill',
+      amount: money('$95.00'),
+      date: '2026-10-28',
+    });
+
+    november = await getMonthView(app, '2026-11');
+    // Carried over from October becomes −$95.00; November current budget becomes $3,095.00 − $95.00 = $3,000.00
+    expect(formatMoney(november.carriedOver)).toBe('−$95.00');
+    expect(formatMoney(november.currentBudget)).toBe('$3,000.00');
+
     await app.db.close();
   });
 });
