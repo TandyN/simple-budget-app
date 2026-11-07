@@ -8,7 +8,8 @@ html,
 body {
   margin: 0;
   padding: 0;
-  min-height: 100dvh;
+  height: 100vh;
+  height: 100dvh;
   background-color: var(--color-canvas);
   color: var(--color-ink);
   font-family: var(--font-sans);
@@ -16,12 +17,14 @@ body {
   line-height: 1.45;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  /* `clip` (not `hidden`) so the page doesn't become a scroll container, which would break the sticky header */
-  overflow-x: clip;
+  /* The app is a fixed frame: the document never scrolls, so the header and
+     status footer always stay pinned while the main area scrolls on its own. */
+  overflow: hidden;
 }
 
 #root {
-  min-height: 100dvh;
+  height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
 }
@@ -44,11 +47,14 @@ a:focus-visible,
   outline-offset: 2px;
 }
 
-/* App Shell */
+/* App Shell: a fixed-height frame where only the main area scrolls. */
 .sb-shell {
-  min-height: 100dvh;
+  height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
   padding-top: 0;
   padding-right: max(var(--safe-area-right), var(--space-4));
   padding-bottom: max(var(--safe-area-bottom), var(--space-3));
@@ -61,6 +67,7 @@ a:focus-visible,
   position: sticky;
   top: 0;
   z-index: 20;
+  flex: none;
   background: var(--color-canvas);
   display: flex;
   align-items: center;
@@ -103,10 +110,14 @@ a:focus-visible,
 
 .sb-main {
   flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   padding: var(--space-3) 0;
   gap: var(--space-3);
+  /* The one scroll region: header and footer stay fixed while this scrolls. */
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* TwoPane layout for unfolded / expanded screen (>= 600px) */
@@ -322,6 +333,15 @@ a:focus-visible,
   font-size: var(--text-body);
 }
 
+/* Date and time inputs have a larger intrinsic width in WebKit; force them to
+   the exact same box as the other fields so the form stays aligned. */
+.sb-input[type='date'],
+.sb-input[type='time'] {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
 .sb-field-error {
   margin: 0;
   font-size: var(--text-xs);
@@ -399,6 +419,7 @@ a:focus-visible,
 
 /* Status footer & Debug overlays */
 .sb-status-bar {
+  flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
