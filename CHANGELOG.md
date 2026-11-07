@@ -3,6 +3,12 @@
 All notable changes to Simple Budget are documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) (`0.y.z` during initial development until `1.0.0` at T14).
 
+## [0.9.1] - 2026-11-07
+
+### Documentation
+
+- **skills:** codify the trunk-based workflow with an independent reviewer subagent (`72f8a62`)
+
 ## [0.9.0] - 2026-11-07
 
 ### Features
