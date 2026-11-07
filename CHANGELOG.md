@@ -3,6 +3,20 @@
 All notable changes to Simple Budget are documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) (`0.y.z` during initial development until `1.0.0` at T14).
 
+## [0.9.2] - 2026-11-07
+
+### Documentation
+
+- **workflow:** fix two missed absolute-merge statements (`9754fbd`)
+- **workflow:** allow the tech lead to authorize an agent merge (`68d375a`)
+- **skills:** add cross-harness shims pointing at AGENTS.md (`f4198aa`)
+- **workflow:** act-or-ask onboarding and tech lead as the final merge gate (`4d80e0b`)
+
+### Tooling & Maintenance
+
+- **repo:** pin LF line endings across all platforms (`aec08b6`)
+- **docs:** align table padding to prettier's expectations (`0b36d3f`)
+
 ## [0.9.1] - 2026-11-07
 
 ### Documentation
