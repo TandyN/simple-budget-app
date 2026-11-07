@@ -1,0 +1,126 @@
+:root,
+:root[data-theme='light'] {
+  color-scheme: light;
+  --color-canvas: #fafaf9;
+  --color-surface: #ffffff;
+  --color-ink: #111111;
+  --color-ink-muted: #59595e;
+  --color-hairline: #e8e6e3;
+  --color-money-in: #1f7a4d;
+  --color-money-out: #9f3a4e;
+  --color-negative-budget: #c42b2b;
+  --color-accent: #111111;
+  --color-accent-contrast: #fafaf9;
+  --color-surface-subtle: #f3f2ef;
+
+  /* 8 desaturated tag palette hues */
+  --tag-sage-bg: #e7f0ea;
+  --tag-sage-fg: #234d36;
+  --tag-sand-bg: #f3ede0;
+  --tag-sand-fg: #5c4722;
+  --tag-slate-bg: #e8ecf2;
+  --tag-slate-fg: #2b3c52;
+  --tag-clay-bg: #f4e6e2;
+  --tag-clay-fg: #663126;
+  --tag-plum-bg: #efe7f2;
+  --tag-plum-fg: #4d2c59;
+  --tag-sky-bg: #e4eff5;
+  --tag-sky-fg: #1f485e;
+  --tag-moss-bg: #ebf0e2;
+  --tag-moss-fg: #3b4d21;
+  --tag-stone-bg: #ecebe8;
+  --tag-stone-fg: #42403c;
+
+  /* Typography */
+  --font-sans: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-hero: ui-rounded, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+
+  --text-xs: 13px;
+  --text-sm: 15px;
+  --text-body: 17px;
+  --text-lg: 22px;
+  --text-xl: 34px;
+  --text-hero: clamp(40px, 8vw, 56px);
+
+  /* Spacing (4 px grid) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* Radii */
+  --radius-row: 12px;
+  --radius-card: 20px;
+  --radius-pill: 999px;
+
+  /* Motion */
+  --motion-duration: 180ms;
+  --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Safe areas (overridable via CSS custom properties for testing) */
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-right: env(safe-area-inset-right, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-left: env(safe-area-inset-left, 0px);
+
+  /* Hinge gutter width in expanded mode */
+  --hinge-gutter: 24px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --color-canvas: #0b0b0c;
+    --color-surface: #151517;
+    --color-ink: #f4f4f5;
+    --color-ink-muted: #9a9aa2;
+    --color-hairline: #26262a;
+    --color-money-in: #4ade95;
+    --color-money-out: #f08aa0;
+    --color-negative-budget: #ff6b6b;
+    --color-accent: #f4f4f5;
+    --color-accent-contrast: #0b0b0c;
+    --color-surface-subtle: #1d1d20;
+
+    --tag-sage-bg: #1c2e24;
+    --tag-sage-fg: #a7d9bc;
+    --tag-sand-bg: #2e2618;
+    --tag-sand-fg: #e2c99c;
+    --tag-slate-bg: #1e2631;
+    --tag-slate-fg: #b4c7de;
+    --tag-clay-bg: #32201c;
+    --tag-clay-fg: #eab4a8;
+    --tag-plum-bg: #2b1f30;
+    --tag-plum-fg: #d7b7e3;
+    --tag-sky-bg: #1a2a33;
+    --tag-sky-fg: #a5d0e6;
+    --tag-moss-bg: #242b19;
+    --tag-moss-fg: #c2d6a0;
+    --tag-stone-bg: #252422;
+    --tag-stone-fg: #cac8c2;
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --color-canvas: #0b0b0c;
+  --color-surface: #151517;
+  --color-ink: #f4f4f5;
+  --color-ink-muted: #9a9aa2;
+  --color-hairline: #26262a;
+  --color-money-in: #4ade95;
+  --color-money-out: #f08aa0;
+  --color-negative-budget: #ff6b6b;
+  --color-accent: #f4f4f5;
+  --color-accent-contrast: #0b0b0c;
+  --color-surface-subtle: #1d1d20;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-duration: 0ms;
+  }
+}
