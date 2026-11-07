@@ -5,10 +5,10 @@ tested and how**. Tests are the specification of this app. If a test is hard to 
 
 ## The two kinds of tests
 
-| Kind                               | Where                                         | Tool                                                            | What it proves                                                                                                       |
-| ---------------------------------- | --------------------------------------------- | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| **Journey tests** (most important) | `e2e/journeys/*.spec.ts` (planned)            | Playwright, real app in WebKit + Chromium, every device profile | A real user doing a real thing sees the right result on screen.                                                      |
-| **Rule tests**                     | `src/**/*.test.ts` next to the code (planned) | Vitest (+ fast-check)                                           | A business rule (money, calendar, ledger math) is exactly right, including edge cases a UI test can't reach cheaply. |
+| Kind                               | Where                               | Tool                                                            | What it proves                                                                                                       |
+| ---------------------------------- | ----------------------------------- | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| **Journey tests** (most important) | `e2e/journeys/*.spec.ts`            | Playwright, real app in WebKit + Chromium, every device profile | A real user doing a real thing sees the right result on screen.                                                      |
+| **Rule tests**                     | `src/**/*.test.ts` next to the code | Vitest (+ fast-check)                                           | A business rule (money, calendar, ledger math) is exactly right, including edge cases a UI test can't reach cheaply. |
 
 Journey tests start from an empty app and go through the **same screens the user would**: setup,
 then the action, then read the number **off the screen**. No reaching into the database to arrange
@@ -97,7 +97,7 @@ The vocabulary grows with the plan. Each task adds the methods it needs and docu
 | `reopenApp()`                                                                     | Reloads the app, keeping its storage (proves data survives).                           |
 | `appHeading`                                                                      | Locator for the top-level heading (`<h1>`).                                            |
 | `mainRegion`                                                                      | Locator for the `<main>` landmark.                                                     |
-| `appStatus`                                                                       | Locator for the app version & offline status footer (`contentinfo`).                   |
+| `appStatus`                                                                       | Locator for the app version & offline status indicator (`status`).                     |
 | `goOffline()`                                                                     | Switches the browser context to offline mode (`context.setOffline(true)`).             |
 | `goOnline()`                                                                      | Restores network connectivity (`context.setOffline(false)`).                           |
 | `finishSetup({ monthlyIncome, recurringExpenses })`                               | (planned until T05) Walks the first-run setup screens.                                 |
@@ -107,6 +107,22 @@ The vocabulary grows with the plan. Each task adds the methods it needs and docu
 | `travelTo(date)`                                                                  | (planned until T07) Moves the clock forward and brings the app back to the foreground. |
 | `currentBudget`                                                                   | (planned until T05) Locator for the big current-budget number.                         |
 | `ledger`                                                                          | (planned until T05) Locator for the ledger; use with `toShowLines([...])`.             |
+
+## Readable domain test builders (`src/domain/test-builders.ts`)
+
+Rule tests in `src/domain/*.test.ts` arrange scenarios in plain English using human-formatted money strings:
+
+| Builder                                                 | Does                                                                                    |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `money('$5,000.00')`                                    | Parses a human-formatted positive or signed dollar string into integer `Cents`.         |
+| `aRecurringIncome({ amount, startMonth?, endMonth? })`  | Builds a `RecurringItem` of kind `'income'` for the budget plan.                        |
+| `aRecurringExpense({ name, amount, startMonth?, ... })` | Builds a `RecurringItem` of kind `'expense'` for the budget plan.                       |
+| `monthlyIncome('$5,000.00')`                            | Drafts a monthly income recurring statement line for `aMonthStatement(...)`.            |
+| `recurringExpense(name, amount)`                        | Drafts a recurring expense statement line for `aMonthStatement(...)`.                   |
+| `anExpense({ name, amount, date?, tagIds? })`           | Builds a negative manual `LedgerEntry`.                                                 |
+| `aDeposit({ name, amount, date?, tagIds? })`            | Builds a positive manual `LedgerEntry`.                                                 |
+| `aMonthStatement({ month, carriedOver?, lines })`       | Computes a full `MonthStatement` from a carried-over balance and month lines.           |
+| `openNextMonth(previousStatement, linesInNextMonth?)`   | Rolls the previous month's `currentBudget` into the next month's `carriedOver` balance. |
 
 ## Device coverage
 

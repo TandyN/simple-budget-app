@@ -70,10 +70,14 @@ flowchart LR
    `gh pr diff` against all golden rules and post a structured review on the PR.
 5. **Version Bump & Changelog:** Run `pnpm release:bump` (`scripts/release-version.mjs`) and commit the
    `package.json` + `CHANGELOG.md` update to the branch.
-6. **Merge:** Merge the PR into `main` (`gh pr merge --merge --delete-branch`) and pull `main`.
-7. **Deploy & Release:** Run `pnpm release:deploy` (`scripts/deploy.sh`), which builds `dist/`, pushes to
+6. **Wait for GitHub Actions CI & Troubleshoot Failures:** Run `gh pr checks <pr-number> --watch --repo TandyN/simple-budget-app`
+   and wait for both the Ubuntu `verify` job and the macOS `ios-simulator` Xcode build job to succeed. If any CI job fails,
+   inspect `gh run view <run-id> --repo TandyN/simple-budget-app --log-failed`, fix the issue on the branch, and re-verify
+   before merging.
+7. **Merge:** Merge the PR into `main` (`gh pr merge --merge --delete-branch`) and pull `main`.
+8. **Deploy & Release:** Run `pnpm release:deploy` (`scripts/deploy.sh`), which builds `dist/`, pushes to
    `gh-pages`, ensures GitHub Pages is active, tags `vX.Y.Z`, and creates the GitHub Release.
-8. **Post-Deploy Live & Offline QA:** Run `pnpm verify:live` (`scripts/verify-live.mjs`), which waits for
+9. **Post-Deploy Live & Offline QA:** Run `pnpm verify:live` (`scripts/verify-live.mjs`), which waits for
    `https://tandyn.github.io/simple-budget-app/version.json` to report the new version, opens the live site
    in Playwright WebKit at both `iphone-duo-folded` and `iphone-duo-unfolded` viewports, and reloads the live
    site in **offline mode** (`context.setOffline(true)`) to prove offline PWA functionality.

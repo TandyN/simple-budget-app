@@ -81,7 +81,7 @@ jobs:
 
   ios-testflight:
     needs: ios-simulator
-    if: startsWith(github.ref, 'refs/tags/v') && secrets.APPLE_TEAM_ID != ''
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: macos-15
     steps:
       - name: Checkout repository

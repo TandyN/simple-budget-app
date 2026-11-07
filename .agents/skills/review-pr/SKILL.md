@@ -28,6 +28,7 @@ Evaluate every item below against the diff:
 5. **Pure Domain:** Is `src/domain/` (planned until T02) free of React, DOM, and storage imports?
 6. **Readable Tests (`docs/testing.md`):** Can the owner read every new or changed test and immediately see what behavior is tested and how (human money strings like `'$5,000.00'`, arithmetic comments above assertions, role-based locators only)?
 7. **Documentation Accuracy:** Are `AGENTS.md`, `docs/`, and `docs/plan/` updated in the same PR so `bash scripts/check-docs.sh` passes?
+8. **GitHub Actions CI Green:** Check `gh pr checks <pr-number> --repo TandyN/simple-budget-app` (or `gh run list`). If CI failed, inspect `gh run view <run-id> --repo TandyN/simple-budget-app --log-failed` and block merging until fixed and green.
 
 ## 3. Post the Review on GitHub
 
@@ -40,6 +41,7 @@ gh pr comment <pr-number> --repo TandyN/simple-budget-app --body "## Automated A
 - [x] Zero extra runtime dependencies (react + react-dom only)
 - [x] Golden rules & readable tests verified
 - [x] Documentation 100% accurate
+- [x] GitHub Actions CI verified
 
 **Verdict:** Approved for release."
 ```

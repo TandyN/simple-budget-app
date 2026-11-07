@@ -37,14 +37,14 @@ expenses and deposits by hand. Whatever is left at the end of a month **rolls ov
 | `scripts/verify-live.mjs`   | Post-deploy live WebKit + offline PWA verification against `https://tandyn.github.io/simple-budget-app/`.  |
 | `scripts/rollback.sh`       | One-command rollback of the live site to any previous `v*` tag.                                            |
 | `config/devices.ts`         | Device viewport profiles shared by Playwright and the dev device wall.                                     |
+| `src/domain/`               | Pure TypeScript business rules: money, calendar, ledger math, budget plan changes, and domain rule tests.  |
 | `src/pwa/`                  | Service worker registration and offline status hook (`public/sw.js` + `public/manifest.webmanifest`).      |
 | `e2e/`                      | Playwright journeys (`e2e/journeys/`) and the readable test driver (`e2e/support/budget-app.ts`).          |
-| `config/workflows/ci.yml`   | GitHub Actions CI + macOS Xcode iOS Simulator & TestFlight release pipeline.                               |
+| `.github/workflows/ci.yml`  | GitHub Actions CI + macOS Xcode iOS Simulator & TestFlight release pipeline.                               |
 | `.agents/skills/`           | Project skills for agents (see below).                                                                     |
 
 Target source layout (built by the plan; each folder gets a row in the table above once it exists):
 
-- `src/domain/` (planned) — pure TypeScript business rules: money, calendar, ledger math, config changes, insights. No React, no storage, no DOM.
 - `src/data/` (planned) — Native browser IndexedDB schema, migrations, repositories, backup serialization (zero external packages).
 - `src/app/` (planned) — use-cases (commands/queries) that combine domain + data; clock and id providers; React hooks.
 - `src/ui/` (planned) — theme tokens, layout primitives, components, screens.
@@ -54,7 +54,7 @@ Target source layout (built by the plan; each folder gets a row in the table abo
 1. **Money is integer cents.** Never use floats for money. Parse user input with the money module; format with it too.
 2. **Dates are plain strings.** `IsoDate` = `"YYYY-MM-DD"`, `MonthKey` = `"YYYY-MM"`, always in the device's local calendar. Never store timestamps for ledger dates. No `Temporal` (not in iOS Safari).
 3. **Ledger entry amounts are signed.** Positive adds to the budget, negative subtracts. `current budget = carried over + sum(entries in month)`.
-4. **The domain is pure.** Anything in `src/domain/` (planned until T02) must be deterministic and free of I/O so it can be tested exhaustively.
+4. **The domain is pure.** Anything in `src/domain/` must be deterministic and free of I/O so it can be tested exhaustively.
 5. **History is immutable-ish.** Recurring lines are snapshotted into a month when it opens. Mid-month config changes appear as _adjustment_ lines, never by rewriting the snapshot.
 6. **Every behavior change ships with a readable test** following `docs/testing.md`. Journey tests drive the real UI.
 7. **Schema changes need a migration** (new IndexedDB version + backup-format migration + test). Never edit an existing IndexedDB version.

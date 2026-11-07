@@ -47,7 +47,7 @@ anything that now exists), `docs/developer-setup.md` commands, `docs/testing.md`
 2. Fill in the task's **Completion notes**: what was built, anything surprising, follow-ups.
 3. Set the status to `done` in `docs/plan/README.md`.
 4. Commit using the `agent-commit` skill (Conventional Commits + task id + mandatory `(agent-generated)` suffix, e.g. `feat(rollover): carry leftover budget into the next month [T07] (agent-generated)`). Never touch `# Human Description` in `README.md` and never add runtime dependencies outside `react` and `react-dom`.
-5. Ship and verify the release using the `ship-and-verify-release` skill: push the branch, open a PR on `TandyN/simple-budget-app`, run independent review (`review-pr`), bump SemVer (`pnpm release:bump`), merge to `main`, deploy to GitHub Pages (`pnpm release:deploy`), and run live WebKit + offline QA (`pnpm verify:live`).
+5. Ship and verify the release using the `ship-and-verify-release` skill: push the branch, open a PR on `TandyN/simple-budget-app`, run independent review (`review-pr`), bump SemVer (`pnpm release:bump`), **wait for GitHub Actions CI (`gh pr checks --watch`) to pass on the PR (and troubleshoot any failures via `gh run view --log-failed`)**, merge to `main`, deploy (`pnpm release:deploy`), and run live WebKit + offline QA (`pnpm verify:live`).
 6. Report to the user: what changed, the PR and release version, how it was verified locally and live (with screenshot paths), any follow-ups.
    **Do not start the next task** unless the user asked for several.
 

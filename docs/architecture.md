@@ -51,7 +51,7 @@ flowchart TD
 
 Rules:
 
-- `src/domain/` (planned) imports nothing from the other layers, has no I/O, and is where the money math lives.
+- `src/domain/` imports nothing from the other layers, has no I/O, and is where the money math lives.
   Everything in it is unit-tested, including property tests.
 - `src/data/` (planned) never contains business decisions — it stores and fetches.
 - `src/app/` (planned) is where a user intention ("add an expense", "change income starting next month") becomes
@@ -87,7 +87,7 @@ src/
   main.tsx
 ```
 
-Unit tests sit next to the code they test (`money.ts` + `money.test.ts`) (planned until T02).
+Unit tests sit next to the code they test (`src/domain/money.ts` + `src/domain/money.test.ts`).
 
 ## 4. Data model (Dexie schema v1)
 
@@ -219,7 +219,7 @@ asks: **This month (November)** or **Starting next month (December)**.
   (snapshot + earlier adjustments for that item), so changing an amount twice in one month nets out correctly.
 - Name and tag edits don't affect money: no prompt; they apply to the plan and to this month's
   recurring line for that item. Past months keep their history.
-- All of this is a pure function in `src/domain/` (planned) returning `{ planUpdates, entriesToAdd }`; the use-case just persists it.
+- All of this is a pure function in `src/domain/budget-plan-changes.ts` (`planChange`) returning `{ itemUpserts, entriesToAdd }`; the use-case just persists it.
 
 ### 5.4 Manual expenses & deposits
 
