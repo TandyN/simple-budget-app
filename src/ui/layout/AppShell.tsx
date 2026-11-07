@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { BackArrowIcon, Button, IconButton, InsightsIcon, SettingsIcon } from '../components';
+import { BudgetIcon, IconButton, InsightsIcon, SettingsIcon } from '../components';
 import { DebugOverlays } from './DebugOverlays';
 import type { AppRoute } from './router';
 import type { LayoutMode } from './useLayoutMode';
@@ -29,36 +29,25 @@ export function AppShell({
 
       <header className="sb-header">
         <div className="sb-header-title-group">
-          {route !== 'budget' ? (
-            <IconButton
-              label="Back to budget"
-              onClick={() => {
-                onNavigate('budget');
-              }}
-            >
-              <BackArrowIcon />
-            </IconButton>
-          ) : null}
           <h1 className="sb-header-brand">Simple Budget</h1>
           <span className="sb-header-subtitle">{monthTitle}</span>
         </div>
 
         <nav className="sb-header-nav" aria-label="Primary navigation">
-          {route !== 'budget' ? (
-            <Button
-              variant="quiet"
-              onClick={() => {
-                onNavigate('budget');
-              }}
-            >
-              Budget
-            </Button>
-          ) : null}
+          <IconButton
+            label="Budget"
+            aria-current={route === 'budget' ? 'page' : undefined}
+            onClick={() => {
+              onNavigate('budget');
+            }}
+          >
+            <BudgetIcon />
+          </IconButton>
           <IconButton
             label="Insights"
             aria-current={route === 'insights' ? 'page' : undefined}
             onClick={() => {
-              onNavigate(route === 'insights' ? 'budget' : 'insights');
+              onNavigate('insights');
             }}
           >
             <InsightsIcon />
@@ -67,7 +56,7 @@ export function AppShell({
             label="Settings"
             aria-current={route === 'settings' ? 'page' : undefined}
             onClick={() => {
-              onNavigate(route === 'settings' ? 'budget' : 'settings');
+              onNavigate('settings');
             }}
           >
             <SettingsIcon />
