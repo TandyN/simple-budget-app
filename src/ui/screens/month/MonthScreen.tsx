@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { formatLocalTime } from '../../../domain/instant';
 import { entryInstant, type LedgerEntry, type MonthStatement } from '../../../domain/ledger';
 import type { ManualEntryKind } from '../../../app/use-cases';
-import { AmountText, Button, EmptyState, ListRow, Toast } from '../../components';
+import { AmountText, EmptyState, IconButton, LeftArrowIcon, ListRow, RightArrowIcon, Toast } from '../../components';
 import { TwoPane, type LayoutMode } from '../../layout';
 
 const SHORT_MONTH_NAMES: Record<number, string> = {
@@ -206,27 +206,27 @@ export function MonthScreen({
       )}
       {pageCount > 1 ? (
         <nav className="sb-pager" aria-label="Activity pages">
-          <Button
-            variant="quiet"
+          <IconButton
+            label="Previous page"
             disabled={currentPage === 0}
             onClick={() => {
               setPage(currentPage - 1);
             }}
           >
-            Newer
-          </Button>
+            <LeftArrowIcon />
+          </IconButton>
           <span>
             Page {currentPage + 1} of {pageCount}
           </span>
-          <Button
-            variant="quiet"
+          <IconButton
+            label="Next page"
             disabled={currentPage >= pageCount - 1}
             onClick={() => {
               setPage(currentPage + 1);
             }}
           >
-            Older
-          </Button>
+            <RightArrowIcon />
+          </IconButton>
         </nav>
       ) : null}
     </section>
