@@ -10,6 +10,20 @@ export interface FinishSetupOptions {
   readonly recurringExpenses?: readonly SetupRecurringExpenseDraft[];
 }
 
+export interface ManualEntryDraft {
+  readonly name?: string;
+  readonly amount: string;
+  readonly date?: string;
+  readonly note?: string;
+}
+
+export interface EditEntryChanges {
+  readonly name?: string;
+  readonly amount?: string;
+  readonly date?: string;
+  readonly note?: string;
+}
+
 export class BudgetAppDriver {
   readonly page: Page;
   readonly appHeading: Locator;
@@ -69,6 +83,70 @@ export class BudgetAppDriver {
 
     await this.page.getByRole('button', { name: 'Review plan' }).click();
     await this.page.getByRole('button', { name: 'Start budgeting' }).click();
+  }
+
+  async addExpense(entry: ManualEntryDraft): Promise<void> {
+    await this.page.getByRole('button', { name: 'Add expense' }).click();
+    await this.fillAndSaveEntrySheet(entry);
+  }
+
+  async addDeposit(entry: ManualEntryDraft): Promise<void> {
+    await this.page.getByRole('button', { name: 'Add deposit' }).click();
+    await this.fillAndSaveEntrySheet(entry);
+  }
+
+  async editEntry(name: string, changes: EditEntryChanges): Promise<void> {
+    await this.ledger
+      .getByRole('button', { name: new RegExp(name) })
+      .first()
+      .click();
+    const dialog = this.page.getByRole('dialog');
+    if (changes.amount !== undefined) {
+      await dialog.getByLabel('Amount').fill(changes.amount);
+    }
+    if (changes.name !== undefined) {
+      await dialog.getByLabel('Name').fill(changes.name);
+    }
+    if (changes.date !== undefined) {
+      await dialog.getByLabel('Date').fill(changes.date);
+    }
+    if (changes.note !== undefined) {
+      const addNoteBtn = dialog.getByRole('button', { name: 'Add note' });
+      if ((await addNoteBtn.count()) > 0) {
+        await addNoteBtn.click();
+      }
+      await dialog.getByLabel('Note').fill(changes.note);
+    }
+    await dialog.getByRole('button', { name: 'Save' }).click();
+  }
+
+  async deleteEntry(name: string): Promise<void> {
+    await this.ledger
+      .getByRole('button', { name: new RegExp(name) })
+      .first()
+      .click();
+    const dialog = this.page.getByRole('dialog');
+    await dialog.getByRole('button', { name: 'Delete' }).click();
+  }
+
+  async undo(): Promise<void> {
+    await this.page.getByRole('button', { name: 'Undo' }).click();
+  }
+
+  private async fillAndSaveEntrySheet(entry: ManualEntryDraft): Promise<void> {
+    const dialog = this.page.getByRole('dialog');
+    await dialog.getByLabel('Amount').fill(entry.amount);
+    if (entry.name !== undefined) {
+      await dialog.getByLabel('Name').fill(entry.name);
+    }
+    if (entry.date !== undefined) {
+      await dialog.getByLabel('Date').fill(entry.date);
+    }
+    if (entry.note !== undefined) {
+      await dialog.getByRole('button', { name: 'Add note' }).click();
+      await dialog.getByLabel('Note').fill(entry.note);
+    }
+    await dialog.getByRole('button', { name: 'Save' }).click();
   }
 
   async foldScreen(): Promise<void> {
