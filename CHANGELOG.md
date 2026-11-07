@@ -3,6 +3,21 @@
 All notable changes to Simple Budget are documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) (`0.y.z` during initial development until `1.0.0` at T14).
 
+## [0.5.0] - 2026-11-07
+
+### Features
+
+- **shell:** add responsive AppShell, hinge-aware TwoPane, hash router and debug overlays [T04] (`94052c2`)
+- **ui:** add design tokens, global styles and base UI components [T04] (`0b66705`)
+
+### Tests & Quality
+
+- **shell:** add Playwright E2E journeys and axe audit for responsive app shell [T04] (`e9c8db6`)
+
+### Documentation
+
+- **ui:** update design, developer-setup, testing docs and complete T04 plan notes [T04] (`619a276`)
+
 ## [0.4.0] - 2026-11-07
 
 ### Features
