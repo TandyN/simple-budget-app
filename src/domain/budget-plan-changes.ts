@@ -219,4 +219,3 @@ export function planChange(params: PlanChangeParams): PlanChangeResult {
     entriesToAdd: [refundEntry],
   };
 }
-
