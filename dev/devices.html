@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Simple Budget — Device Wall</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --wall-bg: #121214;
+        --wall-fg: #f4f4f5;
+        --wall-muted: #9a9aa2;
+        --wall-border: #2c2c32;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 24px;
+        background: var(--wall-bg);
+        color: var(--wall-fg);
+        font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 24px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid var(--wall-border);
+      }
+      h1 {
+        margin: 0;
+        font-size: 20px;
+      }
+      .controls {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      button {
+        min-height: 38px;
+        padding: 0 14px;
+        border-radius: 10px;
+        border: 1px solid var(--wall-border);
+        background: #1d1d22;
+        color: var(--wall-fg);
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .wall-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 28px;
+        align-items: flex-start;
+      }
+      .device-card {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .device-meta {
+        display: flex;
+        justify-content: space-between;
+        font-size: 13px;
+        color: var(--wall-muted);
+      }
+      .device-meta strong {
+        color: var(--wall-fg);
+      }
+      .device-frame {
+        border: 2px solid var(--wall-border);
+        border-radius: 24px;
+        overflow: hidden;
+        background: #000;
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div>
+        <h1>Simple Budget — Multi-Device Wall</h1>
+        <p style="margin: 4px 0 0 0; font-size: 13px; color: var(--wall-muted)">
+          Live side-by-side preview of every profile in <code>config/devices.ts</code>
+        </p>
+      </div>
+      <div class="controls">
+        <button id="theme-toggle" type="button">Theme: Light</button>
+      </div>
+    </header>
+
+    <div id="wall" class="wall-grid"></div>
+
+    <script type="module">
+      import { DEVICE_PROFILES } from '../config/devices.ts';
+
+      const wall = document.getElementById('wall');
+      const themeToggle = document.getElementById('theme-toggle');
+      let currentTheme = 'light';
+
+      const iframes = DEVICE_PROFILES.map((profile) => {
+        const card = document.createElement('section');
+        card.className = 'device-card';
+
+        const meta = document.createElement('div');
+        meta.className = 'device-meta';
+        meta.innerHTML = `<strong>${profile.label}</strong><span>${profile.viewport.width}×${profile.viewport.height} @${profile.deviceScaleFactor}x</span>`;
+
+        const frame = document.createElement('iframe');
+        frame.className = 'device-frame';
+        frame.title = profile.label;
+        frame.width = String(profile.viewport.width);
+        frame.height = String(profile.viewport.height);
+        frame.src = '/?debug=layout';
+        frame.addEventListener('load', () => {
+          try {
+            frame.contentDocument.documentElement.dataset.theme = currentTheme;
+          } catch {
+            // Ignore cross-origin frame access if any
+          }
+        });
+
+        card.append(meta, frame);
+        wall.append(card);
+        return frame;
+      });
+
+      themeToggle.addEventListener('click', () => {
+        currentTheme = currentTheme === 'light' ? 'dark' : 'light';
+        themeToggle.textContent = `Theme: ${currentTheme === 'light' ? 'Light' : 'Dark'}`;
+        for (const frame of iframes) {
+          try {
+            frame.contentDocument.documentElement.dataset.theme = currentTheme;
+          } catch {
+            // Ignore
+          }
+        }
+      });
+    </script>
+  </body>
+</html>

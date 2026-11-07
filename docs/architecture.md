@@ -10,7 +10,7 @@
 | Native app or web app? | **Native iOS App (`ios/`)** via TestFlight/App Store + **Web/PWA preview**                   | Native iOS `Application Support` storage cannot be wiped by clearing Safari cache; fast Linux dev.   |
 | Runtime dependencies   | **`react` and `react-dom` ONLY** (zero extra runtime packages)                               | Smallest bundle, zero supply-chain bloat on the phone, total control.                                |
 | UI framework           | **React 19 + TypeScript (strict)**, built with **Vite**                                      | Mature, fast, every agent knows it.                                                                  |
-| Styling                | **Native CSS custom properties** (`tokens.css` (planned until T04) + CSS)                    | Fast, zero external CSS framework runtime, tokens keep the look consistent.                          |
+| Styling                | **Native CSS custom properties** (`src/ui/theme/tokens.css` + `src/ui/theme/global.css`)     | Fast, zero external CSS framework runtime, tokens keep the look consistent.                          |
 | Local database         | **Native iOS `Application Support` file bridge** + **browser `IndexedDB` API**               | Immune to Safari cache resets on iOS; indexed fast queries & transactions in `src/data/`.            |
 | Validation             | **Pure TypeScript validators**                                                               | Validates import files and form input with readable errors and zero dependencies.                    |
 | Offline / install      | **Embedded native iOS bundle (`simplebudget://app/`)** + **Service Worker (`public/sw.js`)** | 100% embedded inside `.ipa` on iOS, plus offline-ready web preview on GitHub Pages.                  |
@@ -57,7 +57,7 @@ Rules:
 - `src/app/` is where a user intention ("add an expense", "change income starting next month") becomes
   domain calls + one database transaction. **Every write is a single IndexedDB transaction** so a failure
   can never leave half-written data.
-- `src/ui/` (planned) reads through hooks (`useMonthView`) and writes only through `src/app/` use-cases.
+- `src/ui/` reads through hooks (`useMonthView`) and writes only through `src/app/` use-cases.
 - Time and ids are injected (`Clock`, `IdGenerator` in `src/app/providers.ts`) so tests are deterministic. Ids use
   `crypto.getRandomValues` (works over plain-HTTP LAN dev too; `crypto.randomUUID` does not).
 

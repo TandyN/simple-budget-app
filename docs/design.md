@@ -1,6 +1,6 @@
 # Design
 
-> Status: **target design**. Tokens and components are built in task T04 and refined after that.
+> Status: **active design system**. Tokens, responsive layout primitives, and base components live in `src/ui/`.
 
 ## Feel
 
@@ -13,14 +13,14 @@ notebook that happens to do the math. Nothing blinks, nothing nags, nothing is d
 - **Native-feeling:** system font (SF Pro on iPhone), iOS-style sheets, 44 pt minimum tap targets,
   respects Dark Mode, Reduce Motion and larger text.
 
-## Tokens (CSS variables in `src/ui/theme/tokens.css`) (planned until T04)
+## Tokens (CSS variables in `src/ui/theme/tokens.css`)
 
 | Token                     | Light     | Dark      | Use                                       |
 | ------------------------- | --------- | --------- | ----------------------------------------- |
 | `--color-canvas`          | `#FAFAF9` | `#0B0B0C` | App background                            |
 | `--color-surface`         | `#FFFFFF` | `#151517` | Cards, sheets                             |
 | `--color-ink`             | `#111111` | `#F4F4F5` | Primary text, hero number                 |
-| `--color-ink-muted`       | `#6B6B70` | `#9A9AA2` | Labels, dates, secondary text             |
+| `--color-ink-muted`       | `#59595E` | `#9A9AA2` | Labels, dates, secondary text (WCAG AA)   |
 | `--color-hairline`        | `#E8E6E3` | `#26262A` | Dividers (1 px / 0.5 pt on 3× screens)    |
 | `--color-money-in`        | `#1F7A4D` | `#4ADE95` | Income, deposits, positive adjustments    |
 | `--color-money-out`       | `#9F3A4E` | `#F08AA0` | Expenses, negative adjustments            |
@@ -84,8 +84,8 @@ device wall are both generated from it, so **adding a phone = adding one entry**
 
 ## Fixing a layout for a specific phone
 
-1. Add or adjust the profile in `config/devices.ts` (planned).
-2. Look at it in the device wall (`pnpm dev`, planned, then open `/dev/devices.html`).
+1. Add or adjust the profile in `config/devices.ts`.
+2. Look at it in the device wall (`pnpm dev`, then open `/dev/devices.html`).
 3. Prefer fixing the responsive rule (breakpoint, `clamp()`, container query) over a device-specific hack.
 4. Journey tests automatically run on the new profile; update screenshot baselines if intended.
 
