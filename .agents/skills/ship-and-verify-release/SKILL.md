@@ -9,6 +9,11 @@ description: >-
 
 # Ship and Verify Release
 
+> `gh pr checks --watch`, `gh run watch`, deploys, and the release pipeline all run for several minutes.
+> Follow `never-stop-mid-task`: state what you are waiting on and what you will do when it returns, set a
+> generous `timeout` on each `bash` call, re-poll on timeout, and never let a "watching CI" line be the last
+> thing in a turn.
+
 Simple Budget uses **Trunk-Based Development** with two separate GitHub Actions workflows:
 
 - **`.github/workflows/ci.yml` (on Pull Requests):** Verifies the branch is up-to-date with `main`, runs all unit + E2E tests, deploys an isolated preview to `https://tandyn.github.io/simple-budget-app/pr-<N>/`, runs live WebKit + offline QA on that preview, and uploads the `SimpleBudget-iOS-Simulator` `.app` artifact.
