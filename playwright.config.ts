@@ -33,6 +33,7 @@ const chromiumDuoProfiles = (['iphone-duo-folded', 'iphone-duo-unfolded'] as con
 export default defineConfig({
   testDir: './e2e/journeys',
   fullyParallel: true,
+  workers: process.env.CI ? undefined : 2,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
   reporter: [['list'], ['html', { open: 'never' }]],
