@@ -9,6 +9,10 @@ description: >-
 
 # Verify before commit
 
+> `bash scripts/verify.sh` and E2E suites can run for several minutes. Follow `never-stop-mid-task`:
+> name the command first, set a generous `timeout` on the `bash` tool call, **and never end the turn on a
+> description of the next verification step** — call the tool in the same turn.
+
 Every commit must be verified, and before opening a Pull Request you must both pass `bash scripts/verify.sh` **and** watch the feature work.
 
 ## 1. Intermediate Commits vs. Final Pre-PR Gate

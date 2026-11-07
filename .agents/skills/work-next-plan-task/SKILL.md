@@ -8,6 +8,9 @@ description: >-
 
 # Work the next plan task
 
+> **Read `never-stop-mid-task` before the first tool call.** It fixes the three ways agents stop a turn
+> mid-task (narration-only turn-ends, silent long waits, over-asked questions).
+
 ## 1. Pick the task
 
 1. Read `AGENTS.md` and `docs/plan/README.md`.
