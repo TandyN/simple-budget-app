@@ -83,19 +83,30 @@ expenses and deposits by hand. Whatever is left at the end of a month **rolls ov
 
 The full command list lives in `docs/developer-setup.md`. The ones you need most: `pnpm dev`, `pnpm verify`, `pnpm release:deploy`, and `pnpm verify:live`.
 
+## Agent workflow (trunk-based, independent review)
+
+Every feature ships through the same loop that a human trunk-based team would use:
+
+1. **Implement** on `feat/Txx-<slug>` — incremental Conventional-Commit commits, `(agent-generated)` suffix on every commit, tests-first per `write-readable-tests`, hands-on Duo check per `verify-before-commit`.
+2. **Open a PR** to `main`.
+3. **A fresh reviewer subagent** (a separate context, launched via the `task` tool as `agent_type: "general-purpose"`, `mode: "background"`) waits for CI to go green, reviews the diff against the golden rules, does **hands-on QA in the browser at both iPhone Duo layouts**, posts a structured review comment on the PR, and — **only if everything is green** — merges to `main` and watches the `.github/workflows/release.yml` run (SemVer bump, `CHANGELOG.md`, PWA deploy, live offline QA, `vX.Y.Z` tag). If anything is off, it requests changes, and the implementer fixes and re-dispatches a fresh reviewer.
+4. **The implementer does not review or merge its own work.** This is the boundary that keeps the review independent.
+
+This is a real-world dev workflow — implement locally, PR, CI gate, independent review + QA, merge only when everything passes. See `ship-and-verify-release` §3 for the exact `task` dispatch and `review-pr` for the checklist.
+
 ## Skills (in `.agents/skills/`)
 
-| Skill                     | Use it when                                                                                         |
-| ------------------------- | --------------------------------------------------------------------------------------------------- |
-| `work-next-plan-task`     | Asked to work on the plan / "do the next task". Picks the task, runs the full loop + release.       |
-| `write-readable-tests`    | Writing or changing any test.                                                                       |
-| `verify-before-commit`    | Before **every** commit. Runs the gate and a hands-on check of the feature.                         |
-| `keep-docs-accurate`      | After any change to code, scripts, structure or behavior — and before committing.                   |
-| `agent-commit`            | Making any git commit. Enforces the `(agent-generated)` suffix and human-README protection.         |
-| `review-pr`               | Reviewing a Pull Request on `TandyN/simple-budget-app` before merging.                              |
-| `ship-and-verify-release` | Opening a PR, running review, bumping SemVer, merging, deploying to GitHub Pages, and running QA.   |
-| `rollback-release`        | Rolling back the live deployment to a previous `v*` release tag.                                    |
-| `orchestrate-tasks`       | Coordinating multi-agent personas (`implementer`, `reviewer`, `release-qa`) or parallel plan tasks. |
+| Skill                     | Use it when                                                                                                                           |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `work-next-plan-task`     | Asked to work on the plan / "do the next task". Picks the task, runs the full loop + release.                                         |
+| `write-readable-tests`    | Writing or changing any test.                                                                                                         |
+| `verify-before-commit`    | Before **every** commit. Runs the gate and a hands-on check of the feature.                                                           |
+| `keep-docs-accurate`      | After any change to code, scripts, structure or behavior — and before committing.                                                     |
+| `agent-commit`            | Making any git commit. Enforces the `(agent-generated)` suffix and human-README protection.                                           |
+| `review-pr`               | The **reviewer subagent** runs this checklist on a PR — CI gate, hands-on QA, structured comment, merge.                              |
+| `ship-and-verify-release` | The implementer's side of the pipeline: open the PR, then dispatch the reviewer subagent to review, QA, merge, and watch release.yml. |
+| `rollback-release`        | Rolling back the live deployment to a previous `v*` release tag.                                                                      |
+| `orchestrate-tasks`       | Coordinating multi-agent personas (`implementer`, `reviewer`) or running independent plan tasks in parallel.                          |
 
 ## Commit style
 

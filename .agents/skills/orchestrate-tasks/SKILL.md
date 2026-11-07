@@ -10,23 +10,28 @@ description: >-
 Simple Budget supports a structured handoff workflow across specialized subagent personas, and parallel execution
 for tasks whose dependencies in `docs/plan/README.md` do not overlap.
 
-## 1. Define Subagent Personas
+## 1. Subagent Personas (launched with the `task` tool)
 
-Use `define_subagent` to register the three team personas when orchestrating:
+The `task` tool is the real spawning mechanism in this environment — `agent_type` is one of
+`explore`, `task`, `general-purpose`, `code-review`, `research`, or `security-review`, and
+`mode` is `sync` (wait) or `background` (fire-and-forget, notified on completion). The three
+team personas map to it as follows:
 
-1. **`implementer`** (`EnableWriteTools: true`, `Workspace: 'branch'` or `'share'`):
-   - System prompt: Follows `AGENTS.md`, `work-next-plan-task`, `write-readable-tests`, `keep-docs-accurate`,
-     `verify-before-commit`, and `agent-commit`. Never touches `# Human Description` in `README.md`. Never adds
-     runtime dependencies outside `react` and `react-dom`. Works on a feature branch `feat/Txx-<slug>` and returns
-     the branch name, test results, and Duo folded/unfolded screenshot paths.
-2. **`reviewer`** (`EnableWriteTools: true`, `Workspace: 'inherit'`):
-   - System prompt: Follows `.agents/skills/review-pr/SKILL.md`. Audits `gh pr diff` for a PR on
-     `TandyN/simple-budget-app`, verifies every checklist item, posts a review comment on the PR, and reports
-     `APPROVED` or `CHANGES_REQUESTED`.
-3. **`release-qa`** (`EnableWriteTools: true`, `Workspace: 'inherit'`):
-   - System prompt: Follows `.agents/skills/ship-and-verify-release/SKILL.md`. Bumps SemVer & `CHANGELOG.md`,
-     merges an approved PR to `main`, deploys to GitHub Pages (`pnpm release:deploy`), and verifies the live site
-     and offline PWA (`pnpm verify:live`).
+1. **`implementer`** — the main conversation itself (or a `general-purpose` background agent
+   when running tasks in parallel).
+   - Follows `AGENTS.md`, `work-next-plan-task`, `write-readable-tests`, `keep-docs-accurate`,
+     `verify-before-commit`, and `agent-commit`. Never touches `# Human Description` in `README.md`.
+     Never adds runtime dependencies outside `react` and `react-dom`. Works on a feature branch
+     `feat/Txx-<slug>` and returns the branch name, test results, and Duo folded/unfolded screenshot
+     paths. **Never merges its own PR.**
+2. **`reviewer`** — a **fresh** `general-purpose` background agent (see `ship-and-verify-release` §3).
+   - Follows `.agents/skills/review-pr/SKILL.md`. Waits for CI with `gh pr checks --watch`, audits
+     `gh pr diff`, does hands-on QA in the browser at both iPhone Duo layouts, posts a structured
+     review comment on the PR, and — **only if everything is green** — merges to `main` and watches
+     the `.github/workflows/release.yml` run. Reports `APPROVED` or `CHANGES_REQUESTED`.
+3. **`release-qa`** — folded into the `reviewer` persona (the same background agent, after merging,
+   watches `.github/workflows/release.yml` to completion and confirms the live site + offline PWA at
+   `https://tandyn.github.io/simple-budget-app/` before reporting done).
 
 ## 2. Parallelizable Task Groups in `docs/plan/README.md`
 
@@ -41,9 +46,17 @@ Check `docs/plan/README.md` before starting parallel subagents:
 
 ## 3. Handoff Protocol
 
-1. **Dispatch:** Launch `implementer` subagent(s) with `invoke_subagent` (`Model: 'inherit'`, `Workspace: 'share'`).
-2. **PR Creation:** Once an `implementer` finishes and passes `pnpm verify`, push its `feat/Txx-...` branch and open a PR.
-3. **Review Handoff:** Launch `reviewer` subagent on the PR number. If changes are requested, message the `implementer`
-   subagent to address them and re-verify.
-4. **Release & Live QA Handoff:** Once approved, run `release-qa` (sequentially, one PR merged and deployed at a time)
-   so each task gets its own clean SemVer release (`v0.2.0`, `v0.3.0`, …) and live offline verification.
+1. **Implement (sync or background):** Work the task on a `feat/Txx-<slug>` branch, committing
+   incrementally with `(agent-generated)`. Run `bash scripts/verify.sh` and the hands-on Duo check
+   locally before pushing.
+2. **PR Creation:** Push the branch and open a PR on `TandyN/simple-budget-app`.
+3. **Review Handoff:** Dispatch a **fresh `general-purpose` reviewer** (`mode: "background"`) per
+   `ship-and-verify-release` §3. The implementer keeps working (or reports to the user) while the
+   reviewer waits for CI, reviews, QAs, comments, and merges (or requests changes). If changes are
+   requested, fix them, re-run `bash scripts/verify.sh`, push, and re-dispatch a fresh reviewer.
+4. **Release & Live QA Handoff:** After the reviewer merges, it watches `.github/workflows/release.yml` to completion
+   (SemVer bump, `CHANGELOG.md`, PWA deploy, live offline QA, `vX.Y.Z` tag). Only then is the task
+   fully shipped.
+
+**Ordering rule:** tasks whose dependencies overlap in `docs/plan/README.md` must be sequential —
+each task ships its own clean SemVer release (`v0.2.0`, `v0.3.0`, …) and its own independent review.
