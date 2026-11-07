@@ -37,6 +37,7 @@ expenses and deposits by hand. Whatever is left at the end of a month **rolls ov
 | `scripts/verify-live.mjs`       | Post-deploy live WebKit + offline PWA verification against `https://tandyn.github.io/simple-budget-app/`.    |
 | `scripts/rollback.sh`           | One-command rollback of the live site to any previous `v*` tag.                                              |
 | `config/devices.ts`             | Device viewport profiles shared by Playwright and the dev device wall.                                       |
+| `dev/devices.html`              | Dev-only side-by-side device wall showing every profile from `config/devices.ts` with a dark-mode toggle.    |
 | `src/domain/`                   | Pure TypeScript business rules: money, calendar, ledger math, budget plan changes, and domain rule tests.    |
 | `src/data/`                     | Native browser IndexedDB schema v1, transactional wrapper, repositories, and iOS storage bridge sync.        |
 | `src/app/`                      | Application use-cases (`completeSetup`, `openMonthsThrough`, `getMonthView`), clock/id providers & hooks.    |
