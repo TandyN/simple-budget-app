@@ -3,6 +3,21 @@
 All notable changes to Simple Budget are documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) (`0.y.z` during initial development until `1.0.0` at T14).
 
+## [0.7.0] - 2026-11-07
+
+### Features
+
+- **entries:** add EntrySheet, interactive ledger rows, undo toast and plan guard [T06] (`aeda95c`)
+- **entries:** add manual entry use-cases and repository helpers [T06] (`74dc07c`)
+
+### Tests & Quality
+
+- **entries:** add E2E journeys for manual expenses, deposits, edits and undo [T06] (`8a2fcff`)
+
+### Documentation
+
+- **entries:** update testing and plan docs for manual expenses and deposits [T06] (`b095bd5`)
+
 ## [0.6.0] - 2026-11-07
 
 ### Features
