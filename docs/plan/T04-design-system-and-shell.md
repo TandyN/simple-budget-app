@@ -51,11 +51,11 @@ components — plus dev tools to see every device size at once on Linux and to i
 
 ## Acceptance criteria
 
-- [ ] Light and dark screenshots of the shell at Duo folded and unfolded look calm, aligned and uncluttered (agent attaches paths in the report).
-- [ ] No horizontal scrolling at any profile.
-- [ ] axe (via `@axe-core/playwright`) reports no violations on the shell.
-- [ ] The device wall works with hot reload; it is not present in `dist/`.
-- [ ] `pnpm verify` passes.
+- [x] Light and dark screenshots of the shell at Duo folded and unfolded look calm, aligned and uncluttered (agent attaches paths in the report).
+- [x] No horizontal scrolling at any profile.
+- [x] axe (via `@axe-core/playwright`) reports no violations on the shell.
+- [x] The device wall works with hot reload; it is not present in `dist/`.
+- [x] `pnpm verify` passes.
 
 ## Docs to update
 
@@ -64,4 +64,13 @@ components — plus dev tools to see every device size at once on Linux and to i
 
 ## Completion notes
 
-_Filled in by the agent when done._
+- Implemented design tokens (`src/ui/theme/tokens.css`) and global stylesheet (`src/ui/theme/global.css`) with light/dark mode (`prefers-color-scheme`), `prefers-reduced-motion`, safe-area insets (`env(safe-area-inset-*)`), `100dvh`, and sticky bottom action bar in compact layout.
+- Built zero-dependency base UI components (`src/ui/components/`): `AmountText` (tabular numerals, true `−`/`+`, accessible spoken labels via `<output aria-label>`), `Button`, `IconButton`, inline SVG `Icons`, `MoneyField` (`inputMode="decimal"`, wired to `parseMoneyInput`), `TextField`, `SegmentedControl`, `ListRow`, native `<dialog>` `Sheet` (bottom drawer in compact, centered dialog in expanded), `Toast`, and `EmptyState`.
+- Built responsive layout primitives (`src/ui/layout/`): `useLayoutMode` (`compact` < 600px <= `expanded`), `AppShell`, hinge-aware `TwoPane` (50/50 split with 24px hinge gutter and `@media (horizontal-viewport-segments: 2)` progressive enhancement), native hash router (`#/`, `#/insights`, `#/settings`), and `?debug=layout` + `?debug=console` overlays.
+- Created `dev/devices.html` side-by-side device wall rendering all 4 profiles from `config/devices.ts` with a dark-mode toggle (dev-only, excluded from `dist/`).
+- Added 7 Playwright E2E journeys in `e2e/journeys/app-shell.spec.ts` (including `@axe-core/playwright` accessibility audit with 0 violations across all 6 device projects) and 7 component rule tests in `src/ui/components/components.test.ts`.
+- Visual inspection screenshots captured at both iPhone Duo sizes in light and dark mode:
+  - `/home/tandy/.gemini/antigravity/brain/d2558615-9ffa-49ed-88e9-2c350ebacfb1/t04-duo-folded-light.png`
+  - `/home/tandy/.gemini/antigravity/brain/d2558615-9ffa-49ed-88e9-2c350ebacfb1/t04-duo-folded-dark.png`
+  - `/home/tandy/.gemini/antigravity/brain/d2558615-9ffa-49ed-88e9-2c350ebacfb1/t04-duo-unfolded-light.png`
+  - `/home/tandy/.gemini/antigravity/brain/d2558615-9ffa-49ed-88e9-2c350ebacfb1/t04-duo-unfolded-dark.png`

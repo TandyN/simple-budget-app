@@ -30,7 +30,7 @@ via Podman/Docker if installed.
 | ----------------------- | ----------------------------------------------------------------------------------------------- |
 | `pnpm dev`              | Dev server at http://localhost:5173 with hot reload.                                            |
 | `pnpm dev:lan`          | Same, reachable from your phone on Wi-Fi at `http://<your-laptop-ip>:5173`.                     |
-| `pnpm build`            | Production build into `dist/` (planned).                                                        |
+| `pnpm build`            | Production build into `dist/`.                                                                  |
 | `pnpm preview`          | Serves the production build at http://localhost:4173 (service worker active).                   |
 | `pnpm typecheck`        | TypeScript, strict.                                                                             |
 | `pnpm lint`             | ESLint.                                                                                         |
@@ -53,13 +53,13 @@ via Podman/Docker if installed.
 
 You can't run the iOS Simulator on Linux, so we use three complementary views:
 
-1. **Device wall (fastest feedback, planned until T04).** `pnpm dev`, then open http://localhost:5173/dev/devices.html.
+1. **Device wall (fastest feedback).** `pnpm dev`, then open http://localhost:5173/dev/devices.html.
    The app is shown side by side at every profile from `config/devices.ts`: Duo folded, Duo unfolded,
    regular iPhone, Android. Hot reload updates all of them at once.
 2. **Browser responsive mode.** In Chrome/Firefox DevTools add custom devices:
    _iPhone Duo folded_ 466×678 @3x and _iPhone Duo unfolded_ 626×890 @3x.
 3. **WebKit (Safari's engine).** `pnpm test:e2e` runs every journey in WebKit at both Duo sizes and
-   saves screenshots of failures in `test-results/` (planned). This is the closest thing to iPhone Safari available on Linux.
+   saves screenshots of failures when runs fail. This is the closest thing to iPhone Safari available on Linux.
 
 ## 4. Seeing the app on your real phone
 
