@@ -3,6 +3,17 @@
 All notable changes to Simple Budget are documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) (`0.y.z` during initial development until `1.0.0` at T14).
 
+## [0.3.1] - 2026-11-07
+
+### Bug Fixes
+
+- **deploy:** preserve previous hashed asset bundles and test version upgrades (`e4ed638`)
+- **pwa:** bypass stale HTTP cache on service worker install and navigation (`92b3482`)
+
+### Documentation
+
+- **readme:** document trunk-based development and automated release workflow (`3feb5ee`)
+
 ## [0.3.0] - 2026-11-07
 
 ### Features
