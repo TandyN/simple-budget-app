@@ -1,14 +1,25 @@
 ---
 name: review-pr
 description: >-
-  Use this skill to perform an independent code review of a Pull Request in TandyN/simple-budget-app
-  (either as a dedicated reviewer subagent or before merging a PR). It checks golden rules, zero extra runtime
-  dependencies, human-readable test quality, doc accuracy, and posts a review comment on GitHub.
+  Use this skill to perform an independent code review of a Pull Request in TandyN/simple-budget-app.
+  The reviewer is a **fresh subagent dispatched with the `task` tool** (see ship-and-verify-release §3) that
+  did NOT write the code. It waits for CI, reviews the diff, does hands-on QA in the browser at both iPhone
+  Duo layouts, posts a structured review comment on the PR, and — **only if everything passes** — merges the
+  PR and watches the release.yml workflow to completion.
 ---
 
 # Review Pull Request
 
-Act as an independent, rigorous staff engineer reviewing a Pull Request on `TandyN/simple-budget-app`.
+You are an independent, rigorous **Staff Engineer Reviewer** — a separate agent from the one that wrote the code.
+You have your own context window, you make your own judgment, and **you are the one who merges** (or does not).
+
+## 0. Wait for CI first — never review or merge a red build
+
+```bash
+gh pr checks <pr-number> --repo TandyN/simple-budget-app --watch
+```
+
+Require **every check green**: `verify` (docs, format, lint, types, unit, e2e, build), the live `/pr-<N>/` preview WebKit + offline QA, and `ios-simulator`. If any check fails, run `gh run view --log-failed`, diagnose the root cause, and **report back to the implementer with the failing step + the relevant log lines** — do not merge, and do not weaken a test to make it pass. Only proceed to inspect/review once CI is green.
 
 ## 1. Inspect the PR
 
@@ -30,20 +41,40 @@ Evaluate every item below against the diff:
 7. **Documentation Accuracy:** Are `AGENTS.md`, `docs/`, and `docs/plan/` updated in the same PR so `bash scripts/check-docs.sh` passes?
 8. **GitHub Actions CI Green:** Check `gh pr checks <pr-number> --repo TandyN/simple-budget-app` (or `gh run list`). If CI failed, inspect `gh run view <run-id> --repo TandyN/simple-budget-app --log-failed` and block merging until fixed and green.
 
-## 3. Post the Review on GitHub
+## 2b. Hands-on QA in the browser (both iPhone Duo layouts)
 
-Post a structured review comment on the PR:
+The owner wants a reviewer that **uses the app**, not just reads the diff. Serve `dist/` (or use the `/pr-<N>/` preview already deployed by CI), open it in the browser tool at both the **folded** and **unfolded** Duo viewports (see `docs/design.md` for the exact widths), and walk the task's "Behaviors to prove" against the running UI. Screenshot what matters and base your verdict on what you actually saw. This is the "Release-QA" persona from `orchestrate-tasks`.
 
-```bash
-gh pr comment <pr-number> --repo TandyN/simple-budget-app --body "## Automated Agent Code Review (agent-generated)
-- [x] Human Description in README.md untouched
-- [x] Commits marked (agent-generated)
-- [x] Zero extra runtime dependencies (react + react-dom only)
-- [x] Golden rules & readable tests verified
-- [x] Documentation 100% accurate
-- [x] GitHub Actions CI verified
+## 3. Post the Review on GitHub and (if clean) Merge
 
-**Verdict:** Approved for release."
-```
+1. **Verdict `APPROVED`** (CI green + checklist all ✅ + hands-on QA passed):
+
+   ```bash
+   gh pr review <pr-number> --repo TandyN/simple-budget-app --approve
+   gh pr comment <pr-number> --repo TandyN/simple-budget-app --body "## Review — staff engineer reviewer (independent subagent)
+
+   **Verdict: APPROVED**
+
+   - CI: verify ✅ | preview QA ✅ | ios-simulator ✅
+   - Human Description (README.md) untouched: ✅
+   - Commits marked (agent-generated): ✅
+   - Zero extra runtime dependencies (react + react-dom only): ✅
+   - Golden rules & readable tests verified: ✅
+   - Documentation 100% accurate: ✅
+   - Hands-on QA (folded + unfolded Duo): ✅
+
+   Merging to main."
+   gh pr merge <pr-number> --repo TandyN/simple-budget-app --merge --delete-branch \
+     --subject "feat(<scope>): <feature summary> (#<pr-number>) [Txx] (agent-generated)"
+   ```
+
+2. **Then watch the release:** after the merge, `.github/workflows/release.yml` runs automatically. Confirm it goes green:
+
+   ```bash
+   gh run list --repo TandyN/simple-budget-app --workflow release.yml --limit 1
+   # then watch that run id; it bumps SemVer, deploys the PWA, runs live QA, and tags vX.Y.Z
+   ```
+
+3. **Verdict `CHANGES REQUESTED`** (any check fails): post the issues with exact file references, run `gh pr review <pr-number> --repo TandyN/simple-budget-app --request-changes`, **do NOT merge**, and report back to the implementer so it can fix, re-run `bash scripts/verify.sh`, push, and re-dispatch you.
 
 If any check fails, document the exact file and line in the PR comment and block merging until fixed.
