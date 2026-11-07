@@ -1,4 +1,5 @@
 import { addMonths, firstDayOf, type IsoDate, type MonthKey } from './calendar';
+import { instantFromLocal } from './instant';
 import { signedAmount, type LedgerEntry, type RecurringItem } from './ledger';
 import { cents, formatMoney, negate, subtractCents, sumCents, type Cents } from './money';
 
@@ -99,6 +100,7 @@ export function planChange(params: PlanChangeParams): PlanChangeResult {
     const adjustmentEntry: LedgerEntry = {
       id: nextId(),
       date: entryDate,
+      occurredAt: instantFromLocal(entryDate, '00:00'),
       monthKey: currentMonth,
       amount: delta,
       name: `${item.name} changed ${formatMoney(currentMagnitude)} → ${formatMoney(change.newAmount)}`,
@@ -148,6 +150,7 @@ export function planChange(params: PlanChangeParams): PlanChangeResult {
     const adjustmentEntry: LedgerEntry = {
       id: nextId(),
       date: entryDate,
+      occurredAt: instantFromLocal(entryDate, '00:00'),
       monthKey: currentMonth,
       amount: negate(change.amount),
       name: `${change.name} added for this month`,
@@ -198,6 +201,7 @@ export function planChange(params: PlanChangeParams): PlanChangeResult {
   const refundEntry: LedgerEntry = {
     id: nextId(),
     date: entryDate,
+    occurredAt: instantFromLocal(entryDate, '00:00'),
     monthKey: currentMonth,
     amount: refundDelta,
     name: `${item.name} removed for this month`,

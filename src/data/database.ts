@@ -9,9 +9,10 @@
  */
 
 import type { IsoDate, MonthKey, WeekStartsOn } from '../domain/calendar';
+import { instantFromLocal, localDateOf } from '../domain/instant';
 import type { LedgerEntry, OpenedMonth, RecurringItem } from '../domain/ledger';
 
-export const CURRENT_SCHEMA_VERSION = 1;
+export const CURRENT_SCHEMA_VERSION = 2;
 export const DEFAULT_DATABASE_NAME = 'simple-budget';
 
 export type StoreName = 'settings' | 'tags' | 'recurringItems' | 'entries' | 'months';
@@ -74,7 +75,36 @@ export const SCHEMA_UPGRADES: Readonly<Record<number, SchemaUpgradeFn>> = {
 
     db.createObjectStore('months', { keyPath: 'monthKey' });
   },
+  /**
+   * v2: every ledger entry gets `occurredAt`, a UTC ISO-8601 timestamp.
+   * Old rows only knew their local day, so they get that day at local midnight (recurring and
+   * adjustment lines) or their creation time when that was on the same local day (manual lines).
+   */
+  2: (_db, transaction) => {
+    const entriesStore = transaction.objectStore('entries');
+    const cursorRequest = entriesStore.openCursor();
+    cursorRequest.onsuccess = () => {
+      const cursor = cursorRequest.result;
+      if (!cursor) {
+        return;
+      }
+      const entry = cursor.value as Omit<LedgerEntry, 'occurredAt'> & { occurredAt?: string };
+      if (entry.occurredAt === undefined) {
+        cursor.update({ ...entry, occurredAt: backfillOccurredAt(entry) });
+      }
+      cursor.continue();
+    };
+  },
 };
+
+export function backfillOccurredAt(
+  entry: Pick<LedgerEntry, 'date' | 'createdAt' | 'source'>,
+): string {
+  if (entry.source === 'manual' && localDateOf(entry.createdAt) === entry.date) {
+    return entry.createdAt;
+  }
+  return instantFromLocal(entry.date, '00:00');
+}
 
 export function requestToPromise<T = unknown>(request: IDBRequest): Promise<T> {
   return new Promise<T>((resolve, reject) => {

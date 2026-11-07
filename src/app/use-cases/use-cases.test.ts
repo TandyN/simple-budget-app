@@ -8,6 +8,7 @@ import {
   listOpenedMonths,
   listRecurringItems,
 } from '../../data/repositories';
+import { instantFromLocal } from '../../domain/instant';
 import { formatMoney } from '../../domain/money';
 import { anExpense, money } from '../../domain/test-builders';
 import { observeMonthView } from '../hooks/useMonthView';
@@ -242,6 +243,59 @@ describe('setup, month opening and month view use-cases', () => {
     // Carried over from October becomes −$95.00; November current budget becomes $3,095.00 − $95.00 = $3,000.00
     expect(formatMoney(november.carriedOver)).toBe('−$95.00');
     expect(formatMoney(november.currentBudget)).toBe('$3,000.00');
+
+    await app.db.close();
+  });
+
+  test('a new entry is stamped with a UTC time, which you can override and edit later', async () => {
+    const app = createTestApp('2026-11-05');
+    await completeSetup(app, { monthlyIncome: money('$1,000.00'), recurringExpenses: [] });
+
+    const automatic = await addEntry(app, {
+      kind: 'expense',
+      name: 'Coffee',
+      amount: money('$4.00'),
+    });
+    const overridden = await addEntry(app, {
+      kind: 'expense',
+      name: 'Lunch',
+      amount: money('$12.00'),
+      date: '2026-11-04',
+      time: '13:15',
+    });
+
+    // Automatic: the moment it was added (09:00 UTC on the fixed test clock), stored in UTC.
+    expect(automatic.occurredAt).toBe('2026-11-05T09:00:00.000Z');
+    // Overridden: exactly the local date and time that was typed, converted to UTC.
+    expect(overridden.occurredAt).toBe(instantFromLocal('2026-11-04', '13:15'));
+    expect(overridden.date).toBe('2026-11-04');
+
+    const moved = await updateEntry(app, { id: overridden.id, time: '18:45' });
+    expect(moved.occurredAt).toBe(instantFromLocal('2026-11-04', '18:45'));
+
+    const view = await getMonthView(app, '2026-11');
+    // Newest first: Coffee (Nov 5) then Lunch (Nov 4), with the recurring income at the very end.
+    expect(view.activity.map((entry) => entry.name)).toEqual(['Coffee', 'Lunch', 'Monthly income']);
+
+    await app.db.close();
+  });
+
+  test('recurring lines can be edited like any other transaction, but not deleted from the ledger', async () => {
+    const app = createTestApp('2026-11-05');
+    await completeSetup(app, {
+      monthlyIncome: money('$5,000.00'),
+      recurringExpenses: [{ name: 'Rent', amount: money('$1,800.00') }],
+    });
+    const before = await getMonthView(app, '2026-11');
+    const rent = before.activity.find((entry) => entry.name === 'Rent');
+    expect(rent).toBeDefined();
+
+    await updateEntry(app, { id: rent?.id ?? '', amount: money('$1,700.00') });
+    const after = await getMonthView(app, '2026-11');
+    // $5,000.00 income − $1,700.00 edited rent = $3,300.00 (the budget plan itself is unchanged)
+    expect(formatMoney(after.currentBudget)).toBe('$3,300.00');
+
+    await expect(deleteEntry(app, rent?.id ?? '')).rejects.toThrow(/budget plan/);
 
     await app.db.close();
   });

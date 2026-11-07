@@ -1,10 +1,11 @@
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { describe, expect, test, vi } from 'vitest';
+import { instantFromLocal } from '../domain/instant';
+import type { LedgerEntry } from '../domain/ledger';
 import { formatMoney } from '../domain/money';
 import { aRecurringExpense, anExpense, money } from '../domain/test-builders';
 import {
-  CURRENT_SCHEMA_VERSION,
   SCHEMA_UPGRADES,
   createDatabase,
   openDatabaseAtVersion,
@@ -20,6 +21,13 @@ import {
   putRecurringItem,
   putSettings,
 } from './repositories';
+
+/** A row as version 1 of the app saved it: no `occurredAt` yet. */
+function asLegacyEntry(entry: LedgerEntry): LedgerEntry {
+  const legacy: Record<string, unknown> = { ...entry };
+  delete legacy.occurredAt;
+  return legacy as unknown as LedgerEntry;
+}
 
 function createFreshTestDatabase() {
   return createDatabase({ idbFactory: new IDBFactory() });
@@ -72,6 +80,7 @@ describe('local IndexedDB schema, constraints and transactions', () => {
     const firstRentSnapshot = {
       id: 'entry-rent-nov-1',
       date: '2026-11-01',
+      occurredAt: '2026-11-01T12:00:00.000Z',
       monthKey: '2026-11',
       amount: money('-$1,800.00'),
       name: 'Rent',
@@ -199,7 +208,7 @@ describe('local IndexedDB schema, constraints and transactions', () => {
     const v1Db = openDatabaseAtVersion({
       name: dbName,
       idbFactory,
-      version: CURRENT_SCHEMA_VERSION,
+      version: 1,
       upgrades: SCHEMA_UPGRADES,
     });
 
@@ -246,6 +255,63 @@ describe('local IndexedDB schema, constraints and transactions', () => {
       setupCompletedAt: '2026-11-05T09:00:00.000Z',
       lastBackupAt: '2026-11-06T00:00:00.000Z',
     });
+
+    await v2Db.close();
+  });
+
+  test('upgrading from v1 gives every existing entry a UTC occurredAt without losing anything', async () => {
+    const idbFactory = new IDBFactory();
+    const dbName = 'occurred-at-upgrade-db';
+
+    const v1Db = openDatabaseAtVersion({
+      name: dbName,
+      idbFactory,
+      version: 1,
+      upgrades: SCHEMA_UPGRADES,
+    });
+    const coffeeWithoutInstant = asLegacyEntry(
+      anExpense({
+        id: 'coffee',
+        name: 'Coffee',
+        amount: '$5.50',
+        date: '2026-11-05',
+        createdAt: instantFromLocal('2026-11-05', '08:15'),
+      }),
+    );
+    const rentWithoutInstant = asLegacyEntry(
+      anExpense({
+        id: 'old-rent',
+        name: 'Rent',
+        amount: '$1,800.00',
+        date: '2026-11-01',
+        createdAt: instantFromLocal('2026-10-30', '22:00'),
+      }),
+    );
+    await v1Db.transaction('readwrite', ['entries'], async (tx) => {
+      await addLedgerEntry(tx, coffeeWithoutInstant);
+      await addLedgerEntry(tx, rentWithoutInstant);
+    });
+    await v1Db.close();
+
+    const v2Db = openDatabaseAtVersion({
+      name: dbName,
+      idbFactory,
+      version: 2,
+      upgrades: SCHEMA_UPGRADES,
+    });
+    const upgraded = await v2Db.transaction('readonly', ['entries'], (tx) =>
+      getEntriesForMonth(tx, '2026-11'),
+    );
+    const byName = Object.fromEntries(upgraded.map((entry) => [entry.name, entry]));
+
+    // Created the same local day it is dated: its creation time is kept as the moment it happened.
+    expect(byName.Coffee?.occurredAt).toBe(instantFromLocal('2026-11-05', '08:15'));
+    // Created on another day than it is dated: it falls back to that day at local midnight.
+    expect(byName.Rent?.occurredAt).toBe(instantFromLocal('2026-11-01', '00:00'));
+    expect(upgraded.map((entry) => formatMoney(entry.amount)).sort()).toEqual([
+      '−$1,800.00',
+      '−$5.50',
+    ]);
 
     await v2Db.close();
   });
