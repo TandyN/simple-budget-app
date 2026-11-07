@@ -130,17 +130,17 @@ reviewer checklist.
 
 ## Skills (in `.agents/skills/`)
 
-| Skill                     | Use it when                                                                                                                           |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `work-next-plan-task`     | Asked to work on the plan / "do the next task". Picks the task, runs the full loop + release.                                         |
-| `write-readable-tests`    | Writing or changing any test.                                                                                                         |
-| `verify-before-commit`    | Before **every** commit. Runs the gate and a hands-on check of the feature.                                                           |
-| `keep-docs-accurate`      | After any change to code, scripts, structure or behavior — and before committing.                                                     |
-| `agent-commit`            | Making any git commit. Enforces the `(agent-generated)` suffix and human-README protection.                                           |
-| `review-pr`               | The **reviewer subagent** runs this checklist on a PR — CI gate + hands-on QA + structured comment, and returns a verdict. It never merges.      |
+| Skill                     | Use it when                                                                                                                                         |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `work-next-plan-task`     | Asked to work on the plan / "do the next task". Picks the task, runs the full loop + release.                                                       |
+| `write-readable-tests`    | Writing or changing any test.                                                                                                                       |
+| `verify-before-commit`    | Before **every** commit. Runs the gate and a hands-on check of the feature.                                                                         |
+| `keep-docs-accurate`      | After any change to code, scripts, structure or behavior — and before committing.                                                                   |
+| `agent-commit`            | Making any git commit. Enforces the `(agent-generated)` suffix and human-README protection.                                                         |
+| `review-pr`               | The **reviewer subagent** runs this checklist on a PR — CI gate + hands-on QA + structured comment, and returns a verdict. It never merges.         |
 | `ship-and-verify-release` | The implementer's side of the pipeline: open the PR, then dispatch the reviewer subagent to review + QA, and hand the approved PR to the tech lead. |
-| `rollback-release`        | Rolling back the live deployment to a previous `v*` release tag.                                                                      |
-| `orchestrate-tasks`       | Coordinating multi-agent personas (`implementer`, `reviewer`) or running independent plan tasks in parallel.                          |
+| `rollback-release`        | Rolling back the live deployment to a previous `v*` release tag.                                                                                    |
+| `orchestrate-tasks`       | Coordinating multi-agent personas (`implementer`, `reviewer`) or running independent plan tasks in parallel.                                        |
 
 ## Commit style
 

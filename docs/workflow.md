@@ -84,7 +84,7 @@ flowchart LR
      `https://tandyn.github.io/simple-budget-app/`, runs `scripts/verify-live.mjs` against production, pushes the
      `chore(release): vX.Y.Z [skip ci] (agent-generated)` commit and `vX.Y.Z` tag to `main`, creates the official
      GitHub Release notes, and triggers `ios-testflight` on `macos-15`.
-    - After the tech lead merges, agents watch the automated `.github/workflows/release.yml` run to completion (`gh run watch`) and then pull `origin/main` locally.
+   - After the tech lead merges, agents watch the automated `.github/workflows/release.yml` run to completion (`gh run watch`) and then pull `origin/main` locally.
 
 ## 5. Instant Rollback
 
@@ -101,12 +101,12 @@ pnpm release:rollback v0.1.0
 
 Using the `orchestrate-tasks` skill, an orchestrator agent can define and coordinate three specialized subagent roles:
 
-| Persona       | Role                                                                                                                            |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `implementer` | Works on an isolated branch (`Workspace: 'branch'` or `'share'`), makes incremental commits, writes tests, verifies.            |
+| Persona       | Role                                                                                                                                                                                     |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `implementer` | Works on an isolated branch (`Workspace: 'branch'` or `'share'`), makes incremental commits, writes tests, verifies.                                                                     |
 | `reviewer`    | Read-only/review focus: waits for CI, audits `gh pr diff` against all golden rules, does hands-on QA, posts the review, and returns `APPROVED` or `CHANGES REQUESTED`. **Never merges.** |
-| `tech lead`   | The human final gate: does the final review, runs `gh pr merge --merge` to `main`, and owns the ship to production.               |
-| `release-qa`  | After the tech lead merges, monitors the automated `.github/workflows/release.yml` pipeline and confirms the live site + offline PWA. |
+| `tech lead`   | The human final gate: does the final review, runs `gh pr merge --merge` to `main`, and owns the ship to production.                                                                      |
+| `release-qa`  | After the tech lead merges, monitors the automated `.github/workflows/release.yml` pipeline and confirms the live site + offline PWA.                                                    |
 
 Tasks without shared dependencies in `docs/plan/README.md` can be developed in parallel on separate branches:
 
