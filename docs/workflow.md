@@ -105,7 +105,7 @@ Using the `orchestrate-tasks` skill, an orchestrator agent can define and coordi
 | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `implementer` | Works on an isolated branch (`Workspace: 'branch'` or `'share'`), makes incremental commits, writes tests, verifies.                                                                     |
 | `reviewer`    | Read-only/review focus: waits for CI, audits `gh pr diff` against all golden rules, does hands-on QA, posts the review, and returns `APPROVED` or `CHANGES REQUESTED`. **Never merges.** |
-| `tech lead`   | The human final gate: does the final review, runs `gh pr merge --merge` to `main`, and owns the ship to production.                                                                      |
+| `tech lead`   | The final gate: does the final review, then runs `gh pr merge --merge` to `main` (or explicitly authorizes the implementer to merge on their behalf), and owns the ship.                 |
 | `release-qa`  | After the tech lead merges, monitors the automated `.github/workflows/release.yml` pipeline and confirms the live site + offline PWA.                                                    |
 
 Tasks without shared dependencies in `docs/plan/README.md` can be developed in parallel on separate branches:

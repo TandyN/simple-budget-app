@@ -23,15 +23,15 @@ team personas map to it as follows:
      `verify-before-commit`, and `agent-commit`. Never touches `# Human Description` in `README.md`.
      Never adds runtime dependencies outside `react` and `react-dom`. Works on a feature branch
      `feat/Txx-<slug>` and returns the branch name, test results, and Duo folded/unfolded screenshot
-     paths. **Never merges its own PR.**
+     paths. **Does not merge its own PR by default** — only if the tech lead explicitly authorizes it.
 2. **`reviewer`** — a **fresh** `general-purpose` background agent (see `ship-and-verify-release` §3).
    - Follows `.agents/skills/review-pr/SKILL.md`. Waits for CI with `gh pr checks --watch`, audits
      `gh pr diff`, does hands-on QA in the browser at both iPhone Duo layouts, and posts a structured
      review comment. Returns `APPROVED` or `CHANGES REQUESTED`. **Never merges** — that is the
      tech lead's action.
-3. **`tech lead` (the human, not an agent)** — does the **final review**, runs `gh pr merge --merge`
-   with a feature merge subject, and owns the ship. Merges are always a human decision because they
-   put code into production.
+3. **`tech lead` (the human, not an agent)** — does the **final review**, then runs `gh pr merge --merge`
+   with a feature merge subject (or explicitly authorizes the implementer to merge on their behalf),
+   and owns the ship. Merges are always a tech-lead decision because they put code into production.
 4. **`release-qa`** — folded into the engineer personas: after the tech lead merges, we watch
    `.github/workflows/release.yml` to completion (SemVer bump, `CHANGELOG.md`, PWA deploy, `vX.Y.Z` tag)
    and confirm the live site + offline PWA at `https://tandyn.github.io/simple-budget-app/` for the tech lead.
@@ -58,8 +58,9 @@ Check `docs/plan/README.md` before starting parallel subagents:
    reviewer waits for CI, reviews, QAs, and comments — and returns a verdict. It **does not merge**.
    If changes are requested, fix them, re-run `bash scripts/verify.sh`, push, and re-dispatch a fresh reviewer.
 4. **Tech Lead Merge Handoff:** On `APPROVED`, the implementer hands the PR to the **tech lead** with a crisp
-   summary. The tech lead does the final review and runs `gh pr merge --merge` to `main`.
-   (The implementer never merges its own work, and neither does the reviewer.)
+   summary. The tech lead does the final review and runs `gh pr merge --merge` to `main` — unless they
+   explicitly authorize the implementer to merge on their behalf. (The reviewer subagent never merges, in any
+   case; only the tech lead or a tech-lead-authorized implementer may call `gh pr merge`.)
 5. **Release & Live QA Confirmation:** After the tech lead merges, we watch `.github/workflows/release.yml` to completion
    (SemVer bump, `CHANGELOG.md`, PWA deploy, live offline QA, `vX.Y.Z` tag) and confirm the live site + offline PWA
    for the tech lead. Only then is the task fully shipped.

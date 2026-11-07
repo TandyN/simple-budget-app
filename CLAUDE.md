@@ -8,9 +8,10 @@ The non-negotiables, in short:
 
 - Do the due diligence and **ship the full loop**: implement → test locally → open a PR →
   independent review → hand to the tech lead.
-- **Agents never merge their own work** (nor another agent's). An independent reviewer subagent
-  audits the PR, does hands-on QA on both iPhone Duo layouts, and returns a verdict; the **tech
-  lead** does the final review and is the one who merges to `main` and ships to production.
+- **Merging stays a tech-lead decision.** The independent reviewer subagent audits the PR, does
+  hands-on QA on both iPhone Duo layouts, and returns a verdict — it never merges. By default the
+  **tech lead** does the final review and merges to `main` and ships to production; they may also
+  explicitly authorize an agent to run `gh pr merge` on their behalf.
 - Ask only on genuine blockers; otherwise state your interpretation, pick the plan default, and proceed.
 
 For the complete list of golden rules, the glossary, the command list, and the review/ship

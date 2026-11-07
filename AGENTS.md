@@ -29,8 +29,10 @@ diligence and **ship** — you don't hand-hold. This maps to how you expect an e
   leaning on, then proceed to build, test, troubleshoot, review and hand off. We never silently
   guess on money or on the owner-visible UI.
 - **You own the final gate:** review the PR with fresh eyes, do the final hands-on QA at real
-  device widths, then **you merge to `main` and you ship** to production. Agents never merge their
-  own work, and never another agent's. See the `## Agent workflow` section for the exact handoff.
+  device widths, then **you merge to `main` and you ship** to production. By default agents do not
+  merge their own work — but **if you (the tech lead) explicitly authorize it in the conversation,
+  the agent may run `gh pr merge` on your behalf**, including in the original task prompt. See the
+  `## Agent workflow` section for the exact handoff.
 
 ## Where things are
 
@@ -82,7 +84,7 @@ diligence and **ship** — you don't hand-hold. This maps to how you expect an e
 11. **NEVER touch `# Human Description` in `README.md`.** Everything in `README.md` above `# Simple Budget` is strictly human-authored and mechanically protected by `scripts/check-docs.sh`.
 12. **Zero extra runtime dependencies.** `package.json` `"dependencies"` may contain **only** `react` and `react-dom` (enforced by `scripts/check-docs.sh`). Use native browser APIs (`indexedDB`, `<dialog>`, hash routing, inline SVGs, CSS variables, standard Service Worker). Well-tested dev tools belong in `"devDependencies"` only.
 13. **Every agent commit ends with `(agent-generated)`** on both the subject line and the commit body, and every completed task ships through a PR, independent review, SemVer bump, GitHub Pages deploy, and live offline QA (`docs/workflow.md`).
-14. **Agents never merge their own work.** The independent reviewer does the CI gate + review + hands-on QA and returns `APPROVED`, but **the tech lead merges to `main` and ships** — that is the final production gate, and it always sits with a human.
+14. **Agents never merge their own work without the tech lead's explicit permission.** The independent reviewer does the CI gate + review + hands-on QA and returns `APPROVED`; **the tech lead owns the final production gate**. By default the tech lead runs `gh pr merge` themselves, but they may explicitly authorize an agent to merge on their behalf (in the original prompt or after the review) — in that case, and only in that case, the agent may run `gh pr merge` after CI is green and the review is `APPROVED`.
 
 ## Glossary (use these exact words in code, UI copy and test names)
 
@@ -116,17 +118,21 @@ tech lead; the agents below are engineers you delegate to:**
    the diff against the golden rules, does **hands-on QA in the browser at both iPhone Duo
    layouts**, and posts a structured `gh pr review` + comment on the PR. It returns a verdict —
    `APPROVED` or `CHANGES REQUESTED` — and **does not merge**.
-4. **You (the tech lead) do the final review and ship:** re-verify on real device widths yourself,
-   then **you merge to `main` and you ship**. Merging triggers `.github/workflows/release.yml`
-   (SemVer bump, `CHANGELOG.md`, PWA deploy, live offline QA, `vX.Y.Z` tag), which we watch to a
-   green finish after you merge.
+4. **The final review and ship is the tech lead's gate:** with fresh eyes, do the final hands-on
+   QA at real device widths, then **merge to `main` and ship**. Merging triggers
+   `.github/workflows/release.yml` (SemVer bump, `CHANGELOG.md`, PWA deploy, live offline QA,
+   `vX.Y.Z` tag), which we watch to a green finish after the merge. By default **the tech lead
+   runs `gh pr merge`** — but if they **explicitly authorize an agent to merge on their behalf**
+   (in the original prompt or after the review), that agent may run `gh pr merge` instead, once
+   CI is green and the independent review returned `APPROVED`.
 
-The line in the sand: **agents build, test, and review each other's work — they never merge.**
-Merging is a human decision, because it is what puts code into production and the owner's rent.
-The implementer does not review or merge its own work; the reviewer does not merge either. That
-two-agent plus human boundary is what keeps the review honest and keeps the final ship in a human's
-hands. See `ship-and-verify-release` §3 for the exact `task` dispatch and `review-pr` for the
-reviewer checklist.
+The line in the sand: **agents build, test, and review each other's work; merging stays a
+tech-lead decision.** By default no agent merges its own or another's work — but the tech lead may
+explicitly authorize a merge on their behalf, which keeps the final ship accountable to a human.
+The implementer does not review its own work, and the reviewer never merges; that independent
+review plus the explicit-authorization boundary is what keeps both the review honest and the
+final ship accountable. See `ship-and-verify-release` §3 for the exact `task` dispatch and
+`review-pr` for the reviewer checklist.
 
 ## Skills (in `.agents/skills/`)
 

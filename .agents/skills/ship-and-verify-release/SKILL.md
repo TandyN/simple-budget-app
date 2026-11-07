@@ -31,7 +31,7 @@ gh pr create --repo TandyN/simple-budget-app \
 
 ## 3. Dispatch the Independent Reviewer & QA Agent
 
-**The implementer conversation does NOT review or merge the PR.** Instead, spawn a **fresh `general-purpose` subagent** in **background mode** using the `task` tool. This agent is the Staff Engineer Reviewer — it has its own context and makes its own judgment. It waits for CI, audits the diff, does hands-on QA on both iPhone Duo layouts, posts the review, and **returns a verdict (`APPROVED` or `CHANGES REQUESTED`). It does not merge; only the tech lead merges.**
+**The implementer conversation does NOT review the PR.** Instead, spawn a **fresh `general-purpose` subagent** in **background mode** using the `task` tool. This agent is the Staff Engineer Reviewer — it has its own context and makes its own judgment. It waits for CI, audits the diff, does hands-on QA on both iPhone Duo layouts, posts the review, and **returns a verdict (`APPROVED` or `CHANGES REQUESTED`). It does not merge — only the tech lead merges (directly, or by explicitly authorizing the implementer to merge on their behalf).**
 
 The `task` call looks like this (adjust the PR number, scope, and feature summary):
 
@@ -125,9 +125,9 @@ gh pr checks <pr-number> --watch --repo TandyN/simple-budget-app
   2. Diagnose and fix the root cause on the branch, run `bash scripts/verify.sh` locally, commit with `(agent-generated)`, push, and re-run `gh pr checks <pr-number> --watch --repo TandyN/simple-budget-app` until every check is green.
   3. **Never merge a PR with a failing or cancelled GitHub Actions check.**
 
-## 5. The Tech Lead Merges — Neither Agent Does
+## 5. The Tech Lead Merges (or Authorizes an Agent to Merge) — the Reviewer Never Does
 
-Merging to `main` (and therefore shipping to production) is a **human** action, always done by the **tech lead**. Neither the implementer nor the reviewer ever calls `gh pr merge` — that boundary keeps the review independent and keeps the final ship in a human's hands. On `APPROVED`, the implementer hands the PR to the tech lead with a crisp summary (what shipped, CI status, QA highlights, preview URL, and a suggested merge subject). If the reviewer reports `CHANGES REQUESTED`, fix the named issues, re-run `bash scripts/verify.sh`, push, and re-dispatch a fresh reviewer.
+Merging to `main` (and therefore shipping to production) is a **tech-lead decision**. By default the **tech lead** runs `gh pr merge --merge` themselves; this keeps the final ship accountable to a human. The tech lead may also **explicitly authorize** the implementer to merge on their behalf (in the original task prompt or right after the review) — in that case, and only in that case, the implementer may run `gh pr merge --merge` after CI is green and the review is `APPROVED`. The **reviewer subagent never merges**, under any circumstances: it returns `APPROVED` or `CHANGES REQUESTED` and stops, which is what keeps the review independent. On `APPROVED`, the implementer either hands the PR to the tech lead with a crisp summary (what shipped, CI status, QA highlights, preview URL, and a suggested merge subject) or — with the tech lead's explicit authorization — merges it. If the reviewer reports `CHANGES REQUESTED`, fix the named issues, re-run `bash scripts/verify.sh`, push, and re-dispatch a fresh reviewer.
 
 ## 6. After the Tech Lead Merges: Watch the Release (`.github/workflows/release.yml`) & Confirm
 
