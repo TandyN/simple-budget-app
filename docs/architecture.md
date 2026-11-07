@@ -5,23 +5,23 @@
 
 ## 1. Decisions at a glance
 
-| Question               | Decision                                                                                     | Why                                                                                                           |
-| ---------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| Native app or web app? | **Native iOS App (`ios/`)** via TestFlight/App Store + **Web/PWA preview**                   | Native iOS `Application Support` storage cannot be wiped by clearing Safari cache; fast Linux dev.            |
-| Runtime dependencies   | **`react` and `react-dom` ONLY** (zero extra runtime packages)                               | Smallest bundle, zero supply-chain bloat on the phone, total control.                                         |
-| UI framework           | **React 19 + TypeScript (strict)**, built with **Vite**                                      | Mature, fast, every agent knows it.                                                                           |
-| Styling                | **Native CSS custom properties** (`tokens.css` (planned until T04) + CSS)                    | Fast, zero external CSS framework runtime, tokens keep the look consistent.                                   |
-| Local database         | **Native iOS `Application Support` file bridge** + **browser `IndexedDB` API**               | Immune to Safari cache resets on iOS; indexed fast queries & transactions in `src/data/` (planned until T03). |
-| Validation             | **Pure TypeScript validators**                                                               | Validates import files and form input with readable errors and zero dependencies.                             |
-| Offline / install      | **Embedded native iOS bundle (`simplebudget://app/`)** + **Service Worker (`public/sw.js`)** | 100% embedded inside `.ipa` on iOS, plus offline-ready web preview on GitHub Pages.                           |
-| Routing                | **Native hash routing** (`#/`, `#/insights`, `#/settings`)                                   | ~25 lines using `window.location.hash` + `hashchange`; works in both native iOS `WKWebView` and web.          |
-| Bottom sheets          | **Native HTML `<dialog>`** + CSS transitions                                                 | Built-in accessibility, focus trap, and `Escape` handling; drawer in compact, modal unfolded.                 |
-| Icons                  | **Inline SVG components**                                                                    | Clean, crisp line icons with zero external icon package.                                                      |
-| Unit tests             | **Vitest** + **fast-check** (property tests) + **fake-indexeddb**                            | Dev-only packages; fast, readable, and property tests catch money edge cases.                                 |
-| End-to-end             | **Playwright** on **WebKit** (Safari's engine) and Chromium                                  | Dev-only; WebKit is the closest thing to iPhone WebKit on Linux.                                              |
-| Release & Hosting      | **GitHub Actions `macos-15` → TestFlight/App Store** + **GitHub Pages preview**              | Compiles native `.ipa` in Xcode on free public macOS runners from Linux; hosts web preview for free.          |
-| Dates                  | Plain `"YYYY-MM-DD"` strings + a small tested calendar module                                | `Temporal` is not in iOS Safari; strings avoid timezone bugs.                                                 |
-| Money                  | Integer cents, branded `Cents` type                                                          | Floats can't represent 0.10 exactly. Budgets must be exact.                                                   |
+| Question               | Decision                                                                                     | Why                                                                                                  |
+| ---------------------- | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Native app or web app? | **Native iOS App (`ios/`)** via TestFlight/App Store + **Web/PWA preview**                   | Native iOS `Application Support` storage cannot be wiped by clearing Safari cache; fast Linux dev.   |
+| Runtime dependencies   | **`react` and `react-dom` ONLY** (zero extra runtime packages)                               | Smallest bundle, zero supply-chain bloat on the phone, total control.                                |
+| UI framework           | **React 19 + TypeScript (strict)**, built with **Vite**                                      | Mature, fast, every agent knows it.                                                                  |
+| Styling                | **Native CSS custom properties** (`tokens.css` (planned until T04) + CSS)                    | Fast, zero external CSS framework runtime, tokens keep the look consistent.                          |
+| Local database         | **Native iOS `Application Support` file bridge** + **browser `IndexedDB` API**               | Immune to Safari cache resets on iOS; indexed fast queries & transactions in `src/data/`.            |
+| Validation             | **Pure TypeScript validators**                                                               | Validates import files and form input with readable errors and zero dependencies.                    |
+| Offline / install      | **Embedded native iOS bundle (`simplebudget://app/`)** + **Service Worker (`public/sw.js`)** | 100% embedded inside `.ipa` on iOS, plus offline-ready web preview on GitHub Pages.                  |
+| Routing                | **Native hash routing** (`#/`, `#/insights`, `#/settings`)                                   | ~25 lines using `window.location.hash` + `hashchange`; works in both native iOS `WKWebView` and web. |
+| Bottom sheets          | **Native HTML `<dialog>`** + CSS transitions                                                 | Built-in accessibility, focus trap, and `Escape` handling; drawer in compact, modal unfolded.        |
+| Icons                  | **Inline SVG components**                                                                    | Clean, crisp line icons with zero external icon package.                                             |
+| Unit tests             | **Vitest** + **fast-check** (property tests) + **fake-indexeddb**                            | Dev-only packages; fast, readable, and property tests catch money edge cases.                        |
+| End-to-end             | **Playwright** on **WebKit** (Safari's engine) and Chromium                                  | Dev-only; WebKit is the closest thing to iPhone WebKit on Linux.                                     |
+| Release & Hosting      | **GitHub Actions `macos-15` → TestFlight/App Store** + **GitHub Pages preview**              | Compiles native `.ipa` in Xcode on free public macOS runners from Linux; hosts web preview for free. |
+| Dates                  | Plain `"YYYY-MM-DD"` strings + a small tested calendar module                                | `Temporal` is not in iOS Safari; strings avoid timezone bugs.                                        |
+| Money                  | Integer cents, branded `Cents` type                                                          | Floats can't represent 0.10 exactly. Budgets must be exact.                                          |
 
 ### ADR-1: Native iOS Wrapper (`ios/`) + Web Core (Developed on Linux, Built on GitHub Actions `macos-15`)
 
@@ -29,12 +29,12 @@
 - **How we build for iOS from Linux:** The owner develops on Linux (`pnpm dev`, `pnpm verify`). Because the repository is public on GitHub, GitHub Actions provides **unlimited free `macos-15` (macOS + Xcode) runner minutes** that run `scripts/build-ios.sh` (`xcodegen` + `xcodebuild`), compile the native iOS app on every commit, and sign + upload the `.ipa` binary to **TestFlight / App Store Connect** on every `v*` release tag.
 - **Zero extra npm dependencies:** Unlike Capacitor (which adds runtime npm dependencies), `ios/` is ~150 lines of pure Swift using `WKURLSchemeHandler` (`simplebudget://app/`) and `WKScriptMessageHandlerWithReply` (`window.webkit.messageHandlers.nativeStorage`), keeping `package.json` `"dependencies"` strictly `react` and `react-dom`.
 
-### ADR-2: Dexie/IndexedDB instead of SQLite-in-WebAssembly
+### ADR-2: Native IndexedDB Wrapper instead of SQLite-in-WebAssembly
 
-The dataset is tiny (≈100–200 entries/month → ~2,400/year). IndexedDB with the right indexes answers
-every query in single-digit milliseconds, and Dexie adds transactions, compound/multi-entry indexes and
-live queries that re-render React automatically. SQLite WASM would add ~1 MB of WebAssembly and OPFS
-complexity on iOS for no user-visible gain. The repository layer in `src/data/` (planned) isolates storage, so
+The dataset is tiny (≈100–200 entries/month → ~2,400/year). Native IndexedDB (`src/data/database.ts`) with the right indexes answers
+every query in single-digit milliseconds, and `SimpleBudgetDatabase` adds typed single-transaction writes, compound/multi-entry indexes,
+change subscriptions that re-render React automatically (`useMonthView`), and automatic mirroring to the native iOS `Application Support` file bridge. SQLite WASM would add ~1 MB of WebAssembly and OPFS
+complexity on iOS for no user-visible gain. The repository layer in `src/data/repositories/` isolates storage, so
 switching later is contained.
 
 ## 2. Layers
@@ -43,9 +43,9 @@ switching later is contained.
 flowchart TD
   UI["src/ui — screens, components, layout"] --> APP["src/app — use-cases + React hooks"]
   APP --> DOMAIN["src/domain — pure rules: money, calendar, ledger, config changes, insights"]
-  APP --> DATA["src/data — Dexie schema, repositories, backup format"]
+  APP --> DATA["src/data — IndexedDB schema, repositories, backup format"]
   DATA --> DOMAIN
-  DATA --> IDB[("IndexedDB on the device")]
+  DATA --> IDB[("IndexedDB + iOS Application Support")]
   PWA["src/pwa — service worker, install, storage persistence"] --> UI
 ```
 
@@ -53,12 +53,12 @@ Rules:
 
 - `src/domain/` imports nothing from the other layers, has no I/O, and is where the money math lives.
   Everything in it is unit-tested, including property tests.
-- `src/data/` (planned) never contains business decisions — it stores and fetches.
-- `src/app/` (planned) is where a user intention ("add an expense", "change income starting next month") becomes
-  domain calls + one database transaction. **Every write is a single Dexie transaction** so a failure
+- `src/data/` never contains business decisions — it stores and fetches.
+- `src/app/` is where a user intention ("add an expense", "change income starting next month") becomes
+  domain calls + one database transaction. **Every write is a single IndexedDB transaction** so a failure
   can never leave half-written data.
-- `src/ui/` (planned) reads through hooks (`useLiveQuery`) and writes only through `src/app/` use-cases.
-- Time and ids are injected (`Clock`, `IdGenerator`) so tests are deterministic. Ids use
+- `src/ui/` (planned) reads through hooks (`useMonthView`) and writes only through `src/app/` use-cases.
+- Time and ids are injected (`Clock`, `IdGenerator` in `src/app/providers.ts`) so tests are deterministic. Ids use
   `crypto.getRandomValues` (works over plain-HTTP LAN dev too; `crypto.randomUUID` does not).
 
 ## 3. Folder structure (target)

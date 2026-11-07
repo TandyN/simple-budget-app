@@ -47,10 +47,10 @@ dependencies) and the `src/app/` use-case layer skeleton that turns user intenti
 
 ## Acceptance criteria
 
-- [ ] Schema in code equals `docs/architecture.md` §4 exactly.
-- [ ] Every use-case writes in a single transaction (code review + the failure test).
-- [ ] No business logic in `src/data/` (only storage); rules live in `src/domain/`.
-- [ ] `pnpm verify` passes.
+- [x] Schema in code equals `docs/architecture.md` §4 exactly.
+- [x] Every use-case writes in a single transaction (code review + the failure test).
+- [x] No business logic in `src/data/` (only storage); rules live in `src/domain/`.
+- [x] `pnpm verify` passes.
 
 ## Docs to update
 
@@ -58,4 +58,9 @@ dependencies) and the `src/app/` use-case layer skeleton that turns user intenti
 
 ## Completion notes
 
-_Filled in by the agent when done._
+- **Built:**
+  - `src/data/database.ts`: Zero-dependency `SimpleBudgetDatabase` wrapping native `indexedDB.open('simple-budget', 1)` with all 5 stores (`settings`, `tags`, `recurringItems`, `entries`, `months`) and indexes (`nameKey` unique, `kind`, `startMonth`, `endMonth`, `monthKey`, `date`, `monthKey_date`, `source`, `recurringItemId`, `recurrenceKey` unique, `tagIds` multiEntry), transactional `transaction()` wrapper with automatic rollback on mid-transaction failure, change listener subscriptions (`subscribe()`), native iOS `Application Support` bridge mirroring (`window.webkit?.messageHandlers?.nativeStorage`), and `openDatabaseAtVersion()` helper for migration tests.
+  - `src/data/repositories/index.ts`: Thin typed repository functions (`getSettings`, `putSettings`, `listRecurringItems`, `putRecurringItem`, `getEntriesForMonth` and `getEntriesBeforeMonth` using `IDBKeyRange` on the `monthKey` index, `addLedgerEntry`, `putLedgerEntry`, `listOpenedMonths`, `getLatestOpenedMonth`, `putOpenedMonth`, `listTags`, `putTag`).
+  - `src/app/providers.ts`: `Clock` (`createSystemClock`, `createFixedClock`, `createControllableClock`) and `IdGenerator` (`createCryptoIdGenerator` using `crypto.getRandomValues` instead of `crypto.randomUUID` so IDs work over plain-HTTP LAN dev without a secure context, plus `createSequentialIdGenerator`).
+  - `src/app/use-cases/index.ts` & `src/app/hooks/useMonthView.ts`: `completeSetup`, idempotent gap-filling `openMonthsThrough`, `getMonthView`, and reactive `useMonthView` / `observeMonthView`.
+  - Rule tests in `src/data/database.test.ts`, `src/app/providers.test.ts`, and `src/app/use-cases/use-cases.test.ts` proving all 8 required behaviors plus schema structure, version upgrades, and reactive month view updates.
