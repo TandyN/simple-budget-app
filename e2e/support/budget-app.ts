@@ -66,6 +66,30 @@ export class BudgetAppDriver {
       window.dispatchEvent(new Event('online'));
     });
   }
+
+  async simulateStaleCachedHtmlFromPreviousRelease(): Promise<void> {
+    await this.page.evaluate(async () => {
+      const keys = await caches.keys();
+      const budgetCacheKey = keys.find((k) => k.startsWith('simple-budget-'));
+      if (!budgetCacheKey) {
+        return;
+      }
+      const cache = await caches.open(budgetCacheKey);
+      const staleHtml = [
+        '<!doctype html>',
+        '<html><head><title>Simple Budget</title></head>',
+        '<body><div id="root"></div>',
+        '<script type="module" crossorigin src="./assets/index-stale000.js"></script>',
+        '</body></html>',
+      ].join('');
+      const response = new Response(staleHtml, {
+        status: 200,
+        headers: { 'Content-Type': 'text/html' },
+      });
+      await cache.put('./index.html', response.clone());
+      await cache.put('./', response);
+    });
+  }
 }
 
 interface BudgetAppFixtures {

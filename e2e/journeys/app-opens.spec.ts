@@ -18,3 +18,16 @@ test('the app keeps working offline after the first visit', async ({ budgetApp }
   await expect(budgetApp.appHeading).toHaveText('Simple Budget');
   await expect(budgetApp.appStatus).toContainText('Working offline');
 });
+
+test('the app recovers cleanly without a blank page after a release upgrade', async ({
+  budgetApp,
+}) => {
+  await budgetApp.openOn('2026-11-05');
+  await expect(budgetApp.appStatus).toContainText('Offline ready');
+
+  await budgetApp.simulateStaleCachedHtmlFromPreviousRelease();
+  await budgetApp.reopenApp();
+
+  await expect(budgetApp.appHeading).toHaveText('Simple Budget');
+  await expect(budgetApp.mainRegion).toBeVisible();
+});
