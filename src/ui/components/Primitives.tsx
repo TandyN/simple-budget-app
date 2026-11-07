@@ -10,6 +10,7 @@ export interface TextFieldProps {
   readonly error?: string | null;
   readonly inputMode?: 'text' | 'decimal' | 'numeric';
   readonly focusOnMount?: boolean;
+  readonly type?: 'text' | 'date' | 'time';
 }
 
 export function TextField({
@@ -20,6 +21,7 @@ export function TextField({
   error,
   inputMode = 'text',
   focusOnMount = false,
+  type = 'text',
 }: TextFieldProps) {
   const inputId = useId();
   const errorId = `${inputId}-error`;
@@ -40,8 +42,8 @@ export function TextField({
         ref={inputRef}
         id={inputId}
         className="sb-input"
-        type="text"
-        inputMode={inputMode}
+        type={type}
+        inputMode={type === 'text' ? inputMode : undefined}
         value={value}
         placeholder={placeholder}
         aria-invalid={Boolean(error)}
