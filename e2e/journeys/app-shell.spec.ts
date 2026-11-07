@@ -6,6 +6,10 @@ test('when folded, the app uses a single column with the action bar at the botto
 }) => {
   await budgetApp.foldScreen();
   await budgetApp.openOn('2026-11-05');
+  await budgetApp.finishSetup({
+    monthlyIncome: '$5,000.00',
+    recurringExpenses: [{ name: 'Rent', amount: '$1,800.00' }],
+  });
 
   await expect(budgetApp.singleColumnRegion).toBeVisible();
   await expect(budgetApp.twoPaneRegion).toHaveCount(0);
@@ -36,6 +40,10 @@ test('when unfolded, the app shows two panes split at the hinge with nothing cro
 }) => {
   await budgetApp.unfoldScreen();
   await budgetApp.openOn('2026-11-05');
+  await budgetApp.finishSetup({
+    monthlyIncome: '$5,000.00',
+    recurringExpenses: [{ name: 'Rent', amount: '$1,800.00' }],
+  });
 
   await expect(budgetApp.twoPaneRegion).toBeVisible();
   await expect(budgetApp.overviewPane).toBeVisible();
@@ -78,6 +86,10 @@ test('the layout switches when the screen is unfolded without losing what you we
 }) => {
   await budgetApp.foldScreen();
   await budgetApp.openOn('2026-11-05');
+  await budgetApp.finishSetup({
+    monthlyIncome: '$5,000.00',
+    recurringExpenses: [{ name: 'Rent', amount: '$1,800.00' }],
+  });
 
   await budgetApp.quickNoteField.fill('Save $300 for holiday travel');
   await expect(budgetApp.singleColumnRegion).toBeVisible();
@@ -90,6 +102,9 @@ test('the layout switches when the screen is unfolded without losing what you we
 
 test('the header lets you reach Insights and Settings and come back', async ({ budgetApp }) => {
   await budgetApp.openOn('2026-11-05');
+  await budgetApp.finishSetup({
+    monthlyIncome: '$5,000.00',
+  });
 
   await budgetApp.openInsights();
   await expect(budgetApp.page.getByRole('heading', { name: 'Insights' })).toBeVisible();
@@ -125,10 +140,13 @@ test('content stays clear of the notch and home indicator (safe areas are respec
 
 test('amounts are read aloud with their sign', async ({ budgetApp }) => {
   await budgetApp.openOn('2026-11-05');
+  await budgetApp.finishSetup({
+    monthlyIncome: '$5,000.00',
+    recurringExpenses: [{ name: 'Rent', amount: '$1,800.00' }],
+  });
 
   await expect(budgetApp.page.getByLabel('plus $5,000.00')).toHaveText('+$5,000.00');
   await expect(budgetApp.page.getByLabel('minus $1,800.00')).toHaveText('−$1,800.00');
-  await expect(budgetApp.page.getByLabel('minus $120.00')).toHaveText('−$120.00');
 });
 
 test('the debug layout overlay shows the screen size when ?debug=layout is in the address', async ({

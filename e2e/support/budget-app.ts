@@ -1,4 +1,14 @@
-import { test as base, expect, type Locator, type Page } from '@playwright/test';
+import { test as base, expect as baseExpect, type Locator, type Page } from '@playwright/test';
+
+export interface SetupRecurringExpenseDraft {
+  readonly name: string;
+  readonly amount: string;
+}
+
+export interface FinishSetupOptions {
+  readonly monthlyIncome: string;
+  readonly recurringExpenses?: readonly SetupRecurringExpenseDraft[];
+}
 
 export class BudgetAppDriver {
   readonly page: Page;
@@ -15,6 +25,8 @@ export class BudgetAppDriver {
   readonly backToBudgetButton: Locator;
   readonly debugLayoutOverlay: Locator;
   readonly quickNoteField: Locator;
+  readonly currentBudget: Locator;
+  readonly ledger: Locator;
   private isWebKitOffline = false;
 
   constructor(page: Page) {
@@ -32,12 +44,31 @@ export class BudgetAppDriver {
     this.backToBudgetButton = page.getByRole('button', { name: 'Back to budget' });
     this.debugLayoutOverlay = page.getByRole('region', { name: 'Debug layout overlay' });
     this.quickNoteField = page.getByRole('textbox', { name: 'Quick note' });
+    this.currentBudget = page
+      .getByRole('region', { name: 'Current budget summary' })
+      .locator('[data-current-budget="true"] output');
+    this.ledger = page.getByRole('region', { name: 'Month ledger' });
   }
 
   async openOn(isoDate: string, options: { readonly query?: string } = {}): Promise<void> {
     await this.page.clock.install({ time: new Date(`${isoDate}T09:00:00-08:00`) });
     const suffix = options.query ? `?${options.query.replace(/^\?/, '')}` : '';
     await this.page.goto(`/${suffix}`);
+  }
+
+  async finishSetup(options: FinishSetupOptions): Promise<void> {
+    await this.page.getByRole('button', { name: 'Get started' }).click();
+    await this.page.getByLabel('Monthly income').fill(options.monthlyIncome);
+    await this.page.getByRole('button', { name: 'Continue' }).click();
+
+    for (const expense of options.recurringExpenses ?? []) {
+      await this.page.getByLabel('Expense name').fill(expense.name);
+      await this.page.getByLabel('Expense amount').fill(expense.amount);
+      await this.page.getByRole('button', { name: 'Add recurring expense' }).click();
+    }
+
+    await this.page.getByRole('button', { name: 'Review plan' }).click();
+    await this.page.getByRole('button', { name: 'Start budgeting' }).click();
   }
 
   async foldScreen(): Promise<void> {
@@ -77,9 +108,6 @@ export class BudgetAppDriver {
 
   async reopenApp(): Promise<void> {
     if (this.isWebKitOffline) {
-      // Playwright's Linux WebKit setOffline() protocol hook aborts navigation above
-      // the ServiceWorker process; verify CacheStorage integrity directly in WebKit
-      // while Chromium projects run full context.setOffline(true) + page.reload().
       const cacheVerified = await this.page.evaluate(async () => {
         if (!navigator.serviceWorker.controller) {
           return false;
@@ -94,7 +122,7 @@ export class BudgetAppDriver {
         const cachedManifest = await cache.match('./manifest.webmanifest');
         return Boolean(cachedIndex?.ok && cachedManifest?.ok);
       });
-      expect(cacheVerified).toBe(true);
+      baseExpect(cacheVerified).toBe(true);
       await this.page.evaluate(() => {
         window.dispatchEvent(new Event('offline'));
       });
@@ -148,6 +176,43 @@ export class BudgetAppDriver {
   }
 }
 
+export const expect = baseExpect.extend({
+  async toShowLines(ledgerLocator: Locator, expectedLines: readonly (readonly [string, string])[]) {
+    let actualLines: [string, string][] = [];
+    let pass = false;
+
+    try {
+      await baseExpect
+        .poll(
+          async () => {
+            actualLines = await ledgerLocator.evaluate((ledgerEl) => {
+              const rows = Array.from(ledgerEl.querySelectorAll('[data-ledger-row="true"]'));
+              return rows.map((row) => {
+                const label =
+                  row.querySelector('[data-ledger-label="true"]')?.textContent?.trim() ?? '';
+                const amount =
+                  row.querySelector('[data-ledger-amount="true"]')?.textContent?.trim() ?? '';
+                return [label, amount] as [string, string];
+              });
+            });
+            return actualLines;
+          },
+          { timeout: 5000 },
+        )
+        .toEqual(expectedLines.map(([label, amount]) => [label, amount]));
+      pass = true;
+    } catch {
+      pass = false;
+    }
+
+    return {
+      pass,
+      message: () =>
+        `Expected ledger lines:\n${JSON.stringify(expectedLines, null, 2)}\nReceived:\n${JSON.stringify(actualLines, null, 2)}`,
+    };
+  },
+});
+
 interface BudgetAppFixtures {
   budgetApp: BudgetAppDriver;
 }
@@ -157,5 +222,3 @@ export const test = base.extend<BudgetAppFixtures>({
     await use(new BudgetAppDriver(page));
   },
 });
-
-export { expect };
