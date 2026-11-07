@@ -3,7 +3,7 @@ name: work-next-plan-task
 description: >-
   Use this skill when asked to work on the Simple Budget build plan, "do the next task", "continue the plan",
   or implement a specific plan task (T01–T14). It picks the correct task from docs/plan/README.md and runs the
-  full loop: read → mark in progress → readable tests → implement → see it work → update docs → verify → commit → mark done.
+  full loop: read → mark in progress → incremental story-telling commits → see it work → update docs → verify → PR → merge → deploy & live QA → official release.
 ---
 
 # Work the next plan task
@@ -18,37 +18,44 @@ description: >-
 ## 2. Start
 
 1. Make sure the working tree is clean (`git status`) and `origin` is `TandyN/simple-budget-app`.
-2. Create a feature branch from `main` (e.g. `git checkout -b feat/T02-domain-core`).
+2. Create a feature branch from `main` (e.g. `git checkout -b feat/T03-local-database`).
 3. In `docs/plan/README.md` set the task's status to `in-progress`.
 
-## 3. Build it, tests first
+## 3. Build it in small, story-telling commits (tests first)
 
 1. Use the `write-readable-tests` skill. Turn **every bullet in the task's "Behaviors to prove"** into a test
    whose name matches the bullet (wording may be polished, meaning may not change). Add more tests if you find more behaviors.
-2. Run them and watch them fail for the right reason.
-3. Implement until they pass. Follow the golden rules in `AGENTS.md` (integer cents, string dates, pure domain, one transaction per write).
+2. **Commit incrementally as each logical sub-piece is completed** (3–6 commits per task using `agent-commit`) instead of waiting until the end for one giant commit:
+   - Run the fast checks (`pnpm docs:check && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test`) before each intermediate commit.
+   - Write clear Conventional Commit subjects (`feat(db): ... [T03] (agent-generated)`, `test(db): ... [T03] (agent-generated)`) that will read naturally in the generated release notes.
+3. Follow the golden rules in `AGENTS.md` (integer cents, string dates, pure domain, one transaction per write).
 4. Stay inside the task's scope. If you discover necessary work outside it, write it under
    "Follow-ups" in the task file instead of doing it — unless it blocks the task.
 
 ## 4. See it work
 
-Use the `verify-before-commit` skill. It runs the full gate **and** requires a hands-on check of the feature
-in both iPhone Duo layouts (screenshots you actually look at).
+Use the `verify-before-commit` skill. It runs the full gate (`bash scripts/verify.sh`) **and** requires a hands-on check of the feature in both iPhone Duo layouts (screenshots you actually look at).
 
-## 5. Docs
+## 5. Docs & Task Completion Commit
 
-Use the `keep-docs-accurate` skill. Typical updates: `AGENTS.md` repository map (remove "(planned)" from
-anything that now exists), `docs/developer-setup.md` commands, `docs/testing.md` driver vocabulary,
-`docs/architecture.md` if a decision changed.
+1. Use the `keep-docs-accurate` skill. Typical updates: `AGENTS.md` repository map (remove "(planned)" from
+   anything that now exists), `docs/developer-setup.md` commands, `docs/testing.md` driver vocabulary,
+   `docs/architecture.md` if a decision changed.
+2. Tick every acceptance-criteria checkbox in the task file that is truly met. If one isn't met, the task isn't done.
+3. Fill in the task's **Completion notes**: what was built, anything surprising, follow-ups.
+4. Set the status to `done` in `docs/plan/README.md`.
+5. Run `bash scripts/verify.sh` and commit the docs/plan completion using `agent-commit` (e.g. `docs(db): document src/data layer and complete T03 plan notes [T03] (agent-generated)`).
 
-## 6. Finish
+## 6. PR → CI & Review → Merge → Deploy & Live QA → Official Release
 
-1. Tick every acceptance-criteria checkbox in the task file that is truly met. If one isn't met, the task isn't done.
-2. Fill in the task's **Completion notes**: what was built, anything surprising, follow-ups.
-3. Set the status to `done` in `docs/plan/README.md`.
-4. Commit using the `agent-commit` skill (Conventional Commits + task id + mandatory `(agent-generated)` suffix, e.g. `feat(rollover): carry leftover budget into the next month [T07] (agent-generated)`). Never touch `# Human Description` in `README.md` and never add runtime dependencies outside `react` and `react-dom`.
-5. Ship and verify the release using the `ship-and-verify-release` skill: push the branch, open a PR on `TandyN/simple-budget-app`, run independent review (`review-pr`), bump SemVer (`pnpm release:bump`), **wait for GitHub Actions CI (`gh pr checks --watch`) to pass on the PR (and troubleshoot any failures via `gh run view --log-failed`)**, merge to `main`, deploy (`pnpm release:deploy`), and run live WebKit + offline QA (`pnpm verify:live`).
-6. Report to the user: what changed, the PR and release version, how it was verified locally and live (with screenshot paths), any follow-ups.
+Use the `ship-and-verify-release` skill:
+
+1. **Open PR (Verification Only):** Push the branch and open a PR on `TandyN/simple-budget-app`. Do **not** bump the version or deploy on the PR.
+2. **Wait for GitHub Actions CI & Independent Review:** Run `gh pr checks <pr> --watch --repo TandyN/simple-budget-app` (troubleshooting any failure via `gh run view --log-failed`) and run `review-pr`.
+3. **Merge with a Clean Feature Title:** Merge to `main` using `--merge` and `--subject "feat(<scope>): <feature summary> (#<pr>) [Txx] (agent-generated)"`.
+4. **Deploy to GitHub Pages & Run Live QA:** On `main`, run `pnpm run release:deploy` (deploys `dist/` to `gh-pages`) followed by `pnpm run verify:live` to verify the live PWA in WebKit (`iphone-duo-folded` + `iphone-duo-unfolded`) and offline mode.
+5. **Cut the Official Release:** Once Live QA passes, run `pnpm run release:deploy -- --release` to automatically bump SemVer (`package.json`), generate structured release notes in `CHANGELOG.md` from the Conventional Commits, tag `vX.Y.Z`, and publish the official GitHub Release.
+6. Report to the user: the incremental commit story, PR link, release version, and local + live verification results.
    **Do not start the next task** unless the user asked for several.
 
 ## If you get stuck

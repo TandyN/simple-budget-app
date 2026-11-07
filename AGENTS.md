@@ -101,6 +101,6 @@ The full command list lives in `docs/developer-setup.md`. The ones you need most
 
 ## Commit style
 
-Conventional Commits with the plan task id and mandatory `(agent-generated)` suffix, e.g.:
+Commit **frequently as each logical sub-step is completed** (3–6 commits per task) so the commit log tells a clear story — never dump an entire feature into one giant commit. Use Conventional Commits with the plan task id and mandatory `(agent-generated)` suffix, e.g.:
 `feat(ledger): subtract manual expenses from the current budget [T06] (agent-generated)`.
-One logical change per commit. Never commit generated folders (`dist/`, `test-results/`, `playwright-report/`).
+When merging a PR (`gh pr merge --merge`), rename the merge commit subject to summarize the shipped feature (`feat(scope): ... (#PR) [Txx] (agent-generated)`). Never commit generated folders (`dist/`, `test-results/`, `playwright-report/`).

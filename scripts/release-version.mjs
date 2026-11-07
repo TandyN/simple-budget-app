@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// release-version.mjs — Automated SemVer (0.y.z pre-1.0) version bump & CHANGELOG.md generator.
-//Zero external dependencies (uses Node built-ins only).
+// release-version.mjs — Automated SemVer (0.y.z pre-1.0) version bump & CHANGELOG.md generator
+// from Conventional Commits. Zero external dependencies (uses Node built-ins only).
 
 import { execSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -23,7 +23,36 @@ function getLatestTag() {
   }
 }
 
-function computeNextVersion(currentVersion, commits, explicitVersion) {
+function parseConventionalCommit(commit) {
+  const cleanedSubject = commit.subject.replace(/\s*\(agent-generated\)\s*$/i, '').trim();
+  const match = /^([a-z]+)(?:\(([^)]+)\))?(!)?:\s*(.+)$/.exec(cleanedSubject);
+  if (!match) {
+    return {
+      hash: commit.hash,
+      type: 'other',
+      scope: null,
+      breaking: commit.subject.includes('BREAKING CHANGE'),
+      description: cleanedSubject,
+      raw: commit.subject,
+    };
+  }
+  const [, type = 'other', scope = null, bang = '', description = cleanedSubject] = match;
+  return {
+    hash: commit.hash,
+    type,
+    scope,
+    breaking: Boolean(bang) || commit.subject.includes('BREAKING CHANGE'),
+    description,
+    raw: commit.subject,
+  };
+}
+
+function formatCommitBullet(parsed) {
+  const scopePrefix = parsed.scope ? `**${parsed.scope}:** ` : '';
+  return `- ${scopePrefix}${parsed.description} (\`${parsed.hash}\`)`;
+}
+
+function computeNextVersion(currentVersion, parsedCommits, explicitVersion) {
   if (explicitVersion) {
     return explicitVersion.replace(/^v/, '');
   }
@@ -32,10 +61,8 @@ function computeNextVersion(currentVersion, commits, explicitVersion) {
   const minor = parts[1] ?? 1;
   const patch = parts[2] ?? 0;
 
-  const hasBreaking = commits.some(
-    (c) => c.includes('BREAKING CHANGE') || /^[a-z]+(\([^)]+\))?!:/.test(c),
-  );
-  const hasFeat = commits.some((c) => /^feat(\([^)]+\))?!?:/.test(c));
+  const hasBreaking = parsedCommits.some((c) => c.breaking);
+  const hasFeat = parsedCommits.some((c) => c.type === 'feat');
 
   if (major === 0) {
     // Pre-1.0 SemVer: features and breaking changes bump minor (0.x.0); fixes/chores bump patch (0.y.z)
@@ -63,51 +90,62 @@ function main() {
   const latestTag = getLatestTag();
 
   const range = latestTag ? `${latestTag}..HEAD` : 'HEAD';
-  const rawLog = sh(`git log ${range} --pretty=format:"%h|%s"`);
-  const commits = rawLog
-    ? rawLog.split('\n').map((line) => {
-        const [hash, ...rest] = line.split('|');
-        return { hash, subject: rest.join('|') };
-      })
+  const rawLog = sh(`git log ${range} --no-merges --pretty=format:"%h|%s"`);
+  const rawCommits = rawLog
+    ? rawLog
+        .split('\n')
+        .map((line) => {
+          const [hash, ...rest] = line.split('|');
+          return { hash, subject: rest.join('|') };
+        })
+        .filter((c) => !/^chore\(release\):/i.test(c.subject))
     : [];
 
-  const nextVersion = computeNextVersion(
-    pkg.version,
-    commits.map((c) => c.subject),
-    explicitVersion,
-  );
+  const parsedCommits = rawCommits.map(parseConventionalCommit);
+  const nextVersion = computeNextVersion(pkg.version, parsedCommits, explicitVersion);
 
   pkg.version = nextVersion;
   fs.writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, 'utf8');
 
   const today = new Date().toISOString().slice(0, 10);
-  const features = commits.filter((c) => /^feat(\([^)]+\))?!?:/.test(c.subject));
-  const fixes = commits.filter((c) => /^fix(\([^)]+\))?!?:/.test(c.subject));
-  const others = commits.filter(
-    (c) => !/^feat(\([^)]+\))?!?:/.test(c.subject) && !/^fix(\([^)]+\))?!?:/.test(c.subject),
-  );
+  const sections = [
+    {
+      title: '### Features',
+      items: parsedCommits.filter((c) => c.type === 'feat'),
+    },
+    {
+      title: '### Bug Fixes',
+      items: parsedCommits.filter((c) => c.type === 'fix'),
+    },
+    {
+      title: '### Refactoring & Performance',
+      items: parsedCommits.filter((c) => c.type === 'refactor' || c.type === 'perf'),
+    },
+    {
+      title: '### Tests & Quality',
+      items: parsedCommits.filter((c) => c.type === 'test'),
+    },
+    {
+      title: '### Documentation',
+      items: parsedCommits.filter((c) => c.type === 'docs'),
+    },
+    {
+      title: '### Tooling & Maintenance',
+      items: parsedCommits.filter(
+        (c) => !['feat', 'fix', 'refactor', 'perf', 'test', 'docs'].includes(c.type),
+      ),
+    },
+  ];
 
   const lines = [`## [${nextVersion}] - ${today}`, ''];
-  if (features.length > 0) {
-    lines.push('### Features', '');
-    for (const c of features) {
-      lines.push(`- ${c.subject} (\`${c.hash}\`)`);
+  for (const section of sections) {
+    if (section.items.length > 0) {
+      lines.push(section.title, '');
+      for (const item of section.items) {
+        lines.push(formatCommitBullet(item));
+      }
+      lines.push('');
     }
-    lines.push('');
-  }
-  if (fixes.length > 0) {
-    lines.push('### Fixes', '');
-    for (const c of fixes) {
-      lines.push(`- ${c.subject} (\`${c.hash}\`)`);
-    }
-    lines.push('');
-  }
-  if (others.length > 0) {
-    lines.push('### Other Changes', '');
-    for (const c of others) {
-      lines.push(`- ${c.subject} (\`${c.hash}\`)`);
-    }
-    lines.push('');
   }
 
   const existing = fs.existsSync(changelogPath) ? fs.readFileSync(changelogPath, 'utf8') : '';

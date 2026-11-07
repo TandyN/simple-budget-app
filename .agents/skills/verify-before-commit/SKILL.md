@@ -1,29 +1,37 @@
 ---
 name: verify-before-commit
 description: >-
-  Use this skill before EVERY git commit in Simple Budget. It runs the full verification gate (docs, format, lint,
-  types, unit tests, build, end-to-end journeys on all device profiles) and requires a hands-on check that the changed
-  feature actually works in both iPhone Duo layouts. Never commit without completing it.
+  Use this skill before committing in Simple Budget. For intermediate commits on a feature branch, run the fast
+  local gate (docs, format, lint, types, unit tests). Before the final commit / opening a PR, run the full
+  verification gate (scripts/verify.sh including E2E journeys on all device profiles) and a hands-on check in both
+  iPhone Duo layouts.
 ---
 
 # Verify before commit
 
-A commit means: "all tests pass **and** I watched this feature work." Both halves are required.
+Every commit must be verified, and before opening a Pull Request you must both pass `bash scripts/verify.sh` **and** watch the feature work.
 
-## 1. Run the gate
+## 1. Intermediate Commits vs. Final Pre-PR Gate
 
-```bash
-bash scripts/verify.sh
-```
+- **Intermediate commits while building a feature (encouraged!):**
+  Commit each logical step as you finish it (see `agent-commit`). Before each intermediate commit, run the fast local checks:
+  ```bash
+  pnpm docs:check && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test
+  ```
+- **Final commit before pushing / opening a Pull Request:**
+  Run the full verification gate:
 
-(Equivalent to `pnpm verify` once T01 exists.) It stops at the first failure. Fix the cause and re-run
-from the top — a fix for one step can break an earlier one.
+  ```bash
+  bash scripts/verify.sh
+  ```
+
+  It stops at the first failure. Fix the cause and re-run from the top — a fix for one step can break an earlier one.
 
 - Never weaken, skip or delete a test to get green. If a test is genuinely wrong, fix it **and** say so in the commit message.
 - Never `git commit --no-verify`.
-- If WebKit can't run (no container engine), stop and tell the user; don't commit with WebKit skipped.
+- If WebKit can't run, stop and tell the user; don't commit with WebKit skipped.
 
-## 2. See the feature work (skip only for docs-only or tooling-only changes)
+## 2. See the feature work (before opening a PR; skip only for docs-only or non-UI changes)
 
 1. Build and serve: `pnpm build` then `pnpm preview` (run it as a background/daemon task).
 2. Exercise the exact feature you changed, as a user would, at **both** `iphone-duo-folded` and
@@ -41,8 +49,8 @@ git status
 git diff --staged
 ```
 
-- Only files related to this change. No `dist/`, `test-results/`, `playwright-report/`, scratch files, or secrets.
-- Docs updated in the same commit (`keep-docs-accurate` skill). `bash scripts/check-docs.sh` already passed in step 1.
+- Only files related to this logical step. No `dist/`, `test-results/`, `playwright-report/`, scratch files, or secrets.
+- Docs updated (`keep-docs-accurate` skill). `bash scripts/check-docs.sh` passed.
 
 ## 4. Commit (using the `agent-commit` skill)
 

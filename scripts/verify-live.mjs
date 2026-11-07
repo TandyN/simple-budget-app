@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 // verify-live.mjs — Post-deploy QA script that verifies the live GitHub Pages site
-// (https://tandyn.github.io/simple-budget-app/) serves the expected version, renders
+// (https://tandyn.github.io/simple-budget-app/) serves the expected commit/version, renders
 // on both iPhone Duo folded and unfolded viewports in WebKit, and works 100% offline
 // (verified via CacheStorage in WebKit and full offline reload in Chromium).
 
+import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -20,8 +21,15 @@ const LIVE_URL = process.env.LIVE_URL ?? 'https://tandyn.github.io/simple-budget
 
 const args = process.argv.slice(2);
 const expectVersionIdx = args.indexOf('--expect-version');
+const expectCommitIdx = args.indexOf('--expect-commit');
 const pkg = JSON.parse(fs.readFileSync(path.join(rootDir, 'package.json'), 'utf8'));
 const expectedVersion = expectVersionIdx >= 0 ? args[expectVersionIdx + 1] : pkg.version;
+const headShortSha = execSync('git rev-parse --short HEAD', {
+  cwd: rootDir,
+  encoding: 'utf8',
+}).trim();
+const expectedCommit =
+  expectCommitIdx >= 0 ? args[expectCommitIdx + 1] : expectVersionIdx >= 0 ? null : headShortSha;
 
 const DUO_VIEWPORTS = [
   { name: 'iphone-duo-folded', width: 466, height: 678 },
@@ -31,7 +39,10 @@ const DUO_VIEWPORTS = [
 async function waitForLiveVersion(timeoutMs = 120_000) {
   const start = Date.now();
   const versionUrl = new URL('version.json', LIVE_URL).toString();
-  console.log(`▶ Waiting for ${versionUrl} to report v${expectedVersion}...`);
+  const targetDesc = expectedCommit
+    ? `v${expectedVersion} (${expectedCommit})`
+    : `v${expectedVersion}`;
+  console.log(`▶ Waiting for ${versionUrl} to report ${targetDesc}...`);
 
   while (Date.now() - start < timeoutMs) {
     try {
@@ -40,18 +51,22 @@ async function waitForLiveVersion(timeoutMs = 120_000) {
       });
       if (response.ok) {
         const body = await response.json();
-        if (body.version === expectedVersion) {
+        const versionMatches = body.version === expectedVersion;
+        const commitMatches = !expectedCommit || body.commit === expectedCommit;
+        if (versionMatches && commitMatches) {
           console.log(`  ✓ Live version.json matched: v${body.version} (commit ${body.commit})`);
           return body;
         }
-        console.log(`  … Currently serving v${body.version}, waiting for v${expectedVersion}`);
+        console.log(
+          `  … Currently serving v${body.version} (${body.commit}), waiting for ${targetDesc}`,
+        );
       }
     } catch {
       // Site may still be building on first deploy
     }
     await new Promise((r) => setTimeout(r, 4000));
   }
-  throw new Error(`Timed out waiting for ${versionUrl} to serve v${expectedVersion}`);
+  throw new Error(`Timed out waiting for ${versionUrl} to serve ${targetDesc}`);
 }
 
 async function verifyLiveInWebKitAndChromium() {
