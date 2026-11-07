@@ -91,29 +91,29 @@ describe('carrying the budget into the next month', () => {
 
 The vocabulary grows with the plan. Each task adds the methods it needs and documents them here.
 
-| Method / locator                                                                  | Does                                                                                   |
-| --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `openOn(date)`                                                                    | Sets the device clock to that local date and opens the app fresh (empty storage).      |
-| `reopenApp()`                                                                     | Reloads the app, keeping its storage (proves data survives).                           |
-| `appHeading`                                                                      | Locator for the top-level heading (`<h1>`).                                            |
-| `mainRegion`                                                                      | Locator for the `<main>` landmark.                                                     |
-| `appStatus`                                                                       | Locator for the app version & offline status indicator (`status`).                     |
-| `goOffline()`                                                                     | Switches the browser context to offline mode (`context.setOffline(true)`).             |
-| `goOnline()`                                                                      | Restores network connectivity (`context.setOffline(false)`).                           |
-| `openOnWithQuery(date, query)`                                                    | Sets the device clock and opens the app with a query string (e.g. `'?debug=layout'`).  |
-| `resizeViewport(width, height)`                                                   | Resizes the browser viewport mid-session to simulate folding/unfolding the device.     |
+| Method / locator                                                                  | Does                                                                                                |
+| --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `openOn(date)`                                                                    | Sets the device clock to that local date and opens the app fresh (empty storage).                   |
+| `reopenApp()`                                                                     | Reloads the app, keeping its storage (proves data survives).                                        |
+| `appHeading`                                                                      | Locator for the top-level heading (`<h1>`).                                                         |
+| `mainRegion`                                                                      | Locator for the `<main>` landmark.                                                                  |
+| `appStatus`                                                                       | Locator for the app version & offline status indicator (`status`).                                  |
+| `goOffline()`                                                                     | Switches the browser context to offline mode (`context.setOffline(true)`).                          |
+| `goOnline()`                                                                      | Restores network connectivity (`context.setOffline(false)`).                                        |
+| `openOnWithQuery(date, query)`                                                    | Sets the device clock and opens the app with a query string (e.g. `'?debug=layout'`).               |
+| `resizeViewport(width, height)`                                                   | Resizes the browser viewport mid-session to simulate folding/unfolding the device.                  |
 | `openInsights()` / `openSettings()` / `returnToBudget()`                          | Navigates the three icon tabs: Budget (`#/`), Insights (`#/insights`), and Settings (`#/settings`). |
-| `debugLayoutOverlay`                                                              | Locator for the `?debug=layout` viewport/hinge overlay region.                         |
-| `finishSetup({ monthlyIncome, recurringExpenses })`                               | Walks the first-run setup screens and taps _Start budgeting_.                          |
-| `currentBudget`                                                                   | Locator for the big Available funds number (`output`).                                 |
-| `ledger`                                                                          | Locator for the month ledger region; use with `toShowLines([[label, amount], ...])`.   |
-| `addExpense({ name, amount, date?, time?, note? })`                               | Taps _Add expense_, fills the entry sheet, and saves.                                  |
-| `addDeposit({ name, amount, date?, time?, note? })`                               | Taps _Add deposit_, fills the entry sheet, and saves.                                  |
-| `editEntry(name, changes)`                                                        | Taps a ledger row, edits its fields (incl. `time`) in the sheet, and saves.            |
-| `deleteEntry(name)`                                                               | Taps a manual ledger row and deletes it from the edit sheet.                           |
-| `undo()`                                                                          | Taps the _Undo_ action in the deletion toast to restore the deleted entry.             |
-| `changeMonthlyIncome(to, { takesEffect: 'this month' \| 'starting next month' })` | (planned until T08) Settings → income → choose when.                                   |
-| `travelTo(date)`                                                                  | (planned until T07) Moves the clock forward and brings the app back to the foreground. |
+| `debugLayoutOverlay`                                                              | Locator for the `?debug=layout` viewport/hinge overlay region.                                      |
+| `finishSetup({ monthlyIncome, recurringExpenses })`                               | Walks the first-run setup screens and taps _Start budgeting_.                                       |
+| `currentBudget`                                                                   | Locator for the big Available funds number (`output`).                                              |
+| `ledger`                                                                          | Locator for the month ledger region; use with `toShowLines([[label, amount], ...])`.                |
+| `addExpense({ name, amount, date?, time?, note? })`                               | Taps _Add expense_, fills the entry sheet, and saves.                                               |
+| `addDeposit({ name, amount, date?, time?, note? })`                               | Taps _Add deposit_, fills the entry sheet, and saves.                                               |
+| `editEntry(name, changes)`                                                        | Taps a ledger row, edits its fields (incl. `time`) in the sheet, and saves.                         |
+| `deleteEntry(name)`                                                               | Taps a manual ledger row and deletes it from the edit sheet.                                        |
+| `undo()`                                                                          | Taps the _Undo_ action in the deletion toast to restore the deleted entry.                          |
+| `changeMonthlyIncome(to, { takesEffect: 'this month' \| 'starting next month' })` | (planned until T08) Settings → income → choose when.                                                |
+| `travelTo(date)`                                                                  | (planned until T07) Moves the clock forward and brings the app back to the foreground.              |
 
 ## Readable domain test builders (`src/domain/test-builders.ts`)
 
