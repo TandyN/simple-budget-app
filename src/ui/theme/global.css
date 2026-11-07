@@ -246,6 +246,7 @@ a:focus-visible,
 .sb-amount {
   font-variant-numeric: tabular-nums;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .sb-amount-in {

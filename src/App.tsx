@@ -1,75 +1,30 @@
-import { useState } from 'react';
-import { cents } from './domain/money';
+import { useMemo } from 'react';
+import { monthKeyOf, monthLabel } from './domain/calendar';
+import { useAppSettings, getDefaultAppDependencies } from './app/hooks/useAppSettings';
+import { useMonthView } from './app/hooks/useMonthView';
+import { completeSetup, type CompleteSetupInput } from './app/use-cases';
 import { usePwaStatus } from './pwa/register-sw';
-import { AmountText, Button, EmptyState, ListRow, TextField } from './ui/components';
-import { AppShell, TwoPane, useHashRoute, useLayoutMode } from './ui/layout';
-
-const SAMPLE_CURRENT_BUDGET = cents(308000);
-const SAMPLE_CARRIED_OVER = cents(0);
-const SAMPLE_INCOME = cents(500000);
-const SAMPLE_RENT = cents(-180000);
-const SAMPLE_GROCERIES = cents(-12000);
+import { Button, EmptyState } from './ui/components';
+import { AppShell, useHashRoute, useLayoutMode } from './ui/layout';
+import { MonthScreen } from './ui/screens/month/MonthScreen';
+import { SetupScreen } from './ui/screens/setup/SetupScreen';
 
 export function App() {
+  const deps = useMemo(() => getDefaultAppDependencies(), []);
+  const { status, settings } = useAppSettings(deps);
   const { isOffline, isOfflineReady } = usePwaStatus();
   const layoutMode = useLayoutMode();
   const [route, navigate] = useHashRoute();
-  const [draftNote, setDraftNote] = useState('');
 
-  const heroSection = (
-    <section className="sb-card" aria-label="Current budget summary">
-      <p className="sb-hero-label">Current budget</p>
-      <AmountText amount={SAMPLE_CURRENT_BUDGET} variant="hero" />
-      <p
-        style={{
-          margin: 'var(--space-2) 0 0 0',
-          fontSize: 'var(--text-xs)',
-          color: 'var(--color-ink-muted)',
-        }}
-      >
-        Quiet ledger · Your data stays on this phone
-      </p>
-    </section>
-  );
+  const currentMonth = monthKeyOf(deps.clock.today());
+  const currentMonthTitle = monthLabel(currentMonth);
+  const statement = useMonthView(deps.db, currentMonth);
+  const isSetupCompleted = Boolean(settings?.setupCompletedAt);
 
-  const draftSection = (
-    <section className="sb-card" aria-label="Quick memo">
-      <TextField
-        label="Quick note"
-        placeholder="What are you planning for?"
-        value={draftNote}
-        onChange={setDraftNote}
-      />
-    </section>
-  );
-
-  const ledgerSection = (
-    <section className="sb-card" aria-label="Month ledger">
-      <h2 className="sb-section-heading">Starting point</h2>
-      <div className="sb-list">
-        <ListRow
-          title="Carried over from October"
-          trailing={<AmountText amount={SAMPLE_CARRIED_OVER} sign="auto" />}
-        />
-        <ListRow
-          title="Monthly income"
-          trailing={<AmountText amount={SAMPLE_INCOME} sign="always" />}
-        />
-        <ListRow title="Rent" trailing={<AmountText amount={SAMPLE_RENT} sign="always" />} />
-      </div>
-
-      <h2 className="sb-section-heading" style={{ marginTop: 'var(--space-5)' }}>
-        Activity
-      </h2>
-      <div className="sb-list">
-        <ListRow
-          title="Groceries"
-          subtitle="Nov 5"
-          trailing={<AmountText amount={SAMPLE_GROCERIES} sign="always" />}
-        />
-      </div>
-    </section>
-  );
+  const handleCompleteSetup = async (input: CompleteSetupInput) => {
+    await completeSetup(deps, input);
+    navigate('budget');
+  };
 
   const actionButtons = (
     <div
@@ -77,8 +32,12 @@ export function App() {
       role="toolbar"
       aria-label="Budget actions"
     >
-      <Button variant="primary">Add expense</Button>
-      <Button variant="secondary">Add deposit</Button>
+      <Button variant="primary" disabled>
+        Add expense
+      </Button>
+      <Button variant="secondary" disabled>
+        Add deposit
+      </Button>
     </div>
   );
 
@@ -103,12 +62,12 @@ export function App() {
 
   return (
     <AppShell
-      monthTitle="November 2026"
+      monthTitle={isSetupCompleted ? currentMonthTitle : 'Set up your budget'}
       route={route}
       onNavigate={navigate}
       layoutMode={layoutMode}
       statusFooter={statusFooter}
-      bottomBar={route === 'budget' ? actionButtons : undefined}
+      bottomBar={isSetupCompleted && route === 'budget' ? actionButtons : undefined}
     >
       {route === 'insights' ? (
         <section className="sb-card" aria-labelledby="insights-heading">
@@ -130,30 +89,15 @@ export function App() {
             description="Configure your monthly income, recurring expenses, and local JSON backups."
           />
         </section>
-      ) : layoutMode === 'expanded' ? (
-        <TwoPane
-          leftLabel="Overview pane"
-          rightLabel="Ledger pane"
-          left={
-            <>
-              {heroSection}
-              {draftSection}
-              {actionButtons}
-            </>
-          }
-          right={ledgerSection}
-        />
-      ) : (
-        <div
-          role="region"
-          aria-label="Single column layout"
-          style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}
-        >
-          {heroSection}
-          {draftSection}
-          {ledgerSection}
-        </div>
-      )}
+      ) : status === 'loading' ? (
+        <section className="sb-card" aria-label="Loading budget">
+          <p style={{ margin: 0, color: 'var(--color-ink-muted)' }}>Loading your budget…</p>
+        </section>
+      ) : !isSetupCompleted ? (
+        <SetupScreen layoutMode={layoutMode} onCompleteSetup={handleCompleteSetup} />
+      ) : statement ? (
+        <MonthScreen statement={statement} layoutMode={layoutMode} actionButtons={actionButtons} />
+      ) : null}
     </AppShell>
   );
 }
