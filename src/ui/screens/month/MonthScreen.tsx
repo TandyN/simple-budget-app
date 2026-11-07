@@ -2,7 +2,15 @@ import { useEffect, useState } from 'react';
 import { formatLocalTime } from '../../../domain/instant';
 import { entryInstant, type LedgerEntry, type MonthStatement } from '../../../domain/ledger';
 import type { ManualEntryKind } from '../../../app/use-cases';
-import { AmountText, EmptyState, IconButton, LeftArrowIcon, ListRow, RightArrowIcon, Toast } from '../../components';
+import {
+  AmountText,
+  EmptyState,
+  IconButton,
+  LeftArrowIcon,
+  ListRow,
+  RightArrowIcon,
+  Toast,
+} from '../../components';
 import { TwoPane, type LayoutMode } from '../../layout';
 
 const SHORT_MONTH_NAMES: Record<number, string> = {
