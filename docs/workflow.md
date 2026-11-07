@@ -72,7 +72,10 @@ flowchart LR
      and compiles + uploads the `SimpleBudget-iOS-Simulator` `.app` artifact.
    - Run the `review-pr` skill (via the `reviewer` subagent) and wait for `gh pr checks <pr> --watch --repo TandyN/simple-budget-app` to turn green.
 4. **Tech Lead Merges to `main` with a Descriptive Feature Merge Subject:**
-   Merging to `main` is a **human** action — the tech lead's — never an agent's. On `APPROVED`, the implementer hands the PR to the tech lead, who does the final review and runs:
+   Merging to `main` is a **tech-lead decision** — by default the tech lead runs `gh pr merge --merge`
+   themselves, or explicitly authorizes the implementer to merge on their behalf; the reviewer never
+   merges, under any circumstances. On `APPROVED`, the implementer hands the PR to the tech lead (or
+   merges with their authorization), who does the final review and runs:
    ```bash
    gh pr merge <pr-number> --repo TandyN/simple-budget-app --merge --delete-branch \
      --subject "feat(<scope>): <feature summary> (#<pr-number>) [Txx] (agent-generated)"

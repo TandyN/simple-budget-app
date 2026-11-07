@@ -4,8 +4,9 @@ description: >-
   Use this skill to perform an independent code review of a Pull Request in TandyN/simple-budget-app.
   The reviewer is a **fresh subagent dispatched with the `task` tool** (see ship-and-verify-release §3) that
   did NOT write the code. It waits for CI, reviews the diff, does hands-on QA in the browser at both iPhone
-  Duo layouts, posts a structured review comment, and returns a verdict (**`APPROVED`** or
-  **`CHANGES REQUESTED`**). It does **not** merge — only the tech lead merges to `main` and ships.
+   Duo layouts, posts a structured review comment, and returns a verdict (**`APPROVED`** or
+   **`CHANGES REQUESTED`**). It does **not** merge — the tech lead runs the merge to `main` and ships, either
+   directly or by explicitly authorizing the implementer to merge on their behalf.
 ---
 
 # Review Pull Request
