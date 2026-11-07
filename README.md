@@ -1,6 +1,8 @@
 # Human Description
 My First Slopped Project. I wanted a basic budget app that runs purely locally because everyone decided a subscription was required to use their budget app.
 
+This is also a project for me to observe how AI agents interact with the github repo.
+
 # Simple Budget
 
 A free, private, manual budget app. No subscription, no bank logins, no server.
