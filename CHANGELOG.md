@@ -3,6 +3,27 @@
 All notable changes to Simple Budget are documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) (`0.y.z` during initial development until `1.0.0` at T14).
 
+## [0.9.0] - 2026-11-07
+
+### Features
+
+- **activity:** replace Newer/Older text buttons with arrow icons (`5f91fc6`)
+- **shell:** make the header a stable three-tab Budget/Insights/Settings nav (`05fcece`)
+- **components:** add Budget, LeftArrow and RightArrow icons (`759d551`)
+
+### Bug Fixes
+
+- **layout:** pin the header and status bar with a fixed app frame (`d71b6ca`)
+
+### Tests & Quality
+
+- **ui:** point the driver and tests at the new nav and pager, update docs (`dfea5cf`)
+
+### Tooling & Maintenance
+
+- **activity:** wrap the MonthScreen import list within the print width (`aa92e59`)
+- **docs:** let prettier pad the design and testing tables (`73b2716`)
+
 ## [0.8.0] - 2026-11-07
 
 ### Features
