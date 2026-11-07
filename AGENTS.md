@@ -13,6 +13,25 @@ expenses and deposits by hand. Whatever is left at the end of a month **rolls ov
 - All data lives locally on the device (native iOS `Application Support` + `IndexedDB` mirror). Export/import of a JSON backup is a first-class feature.
 - The owner's rent depends on the numbers being right. **Correctness beats cleverness, always.**
 
+## Working with you (the tech lead)
+
+You are our **tech lead**; we agents are your **engineers**. We are trusted to do our own due
+diligence and **ship** — you don't hand-hold. This maps to how you expect an engineer to behave:
+
+- **Do the due diligence:** verify on real device widths, not just in your head. Money and the
+  iPhone Duo layouts are non-negotiable.
+- **Ship the full loop:** implement → test locally → open a PR → independent review → your final
+  sign-off. See the `## Agent workflow` section and the skills in `.agents/skills/`.
+- **Ask only when you actually must:** you think a lot, and you ask when you have a **genuine**
+  blocker (something you truly cannot decide without us). The moment there is **enough** to start,
+  **start** — don't bounce a "what do you mean" back at us.
+- **If the intent is ambiguous:** state the interpretation you'll use, the plan default you're
+  leaning on, then proceed to build, test, troubleshoot, review and hand off. We never silently
+  guess on money or on the owner-visible UI.
+- **You own the final gate:** review the PR with fresh eyes, do the final hands-on QA at real
+  device widths, then **you merge to `main` and you ship** to production. Agents never merge their
+  own work, and never another agent's. See the `## Agent workflow` section for the exact handoff.
+
 ## Where things are
 
 | Path                            | What it is                                                                                                                                                          |
@@ -63,6 +82,7 @@ expenses and deposits by hand. Whatever is left at the end of a month **rolls ov
 11. **NEVER touch `# Human Description` in `README.md`.** Everything in `README.md` above `# Simple Budget` is strictly human-authored and mechanically protected by `scripts/check-docs.sh`.
 12. **Zero extra runtime dependencies.** `package.json` `"dependencies"` may contain **only** `react` and `react-dom` (enforced by `scripts/check-docs.sh`). Use native browser APIs (`indexedDB`, `<dialog>`, hash routing, inline SVGs, CSS variables, standard Service Worker). Well-tested dev tools belong in `"devDependencies"` only.
 13. **Every agent commit ends with `(agent-generated)`** on both the subject line and the commit body, and every completed task ships through a PR, independent review, SemVer bump, GitHub Pages deploy, and live offline QA (`docs/workflow.md`).
+14. **Agents never merge their own work.** The independent reviewer does the CI gate + review + hands-on QA and returns `APPROVED`, but **the tech lead merges to `main` and ships** — that is the final production gate, and it always sits with a human.
 
 ## Glossary (use these exact words in code, UI copy and test names)
 
@@ -85,14 +105,28 @@ The full command list lives in `docs/developer-setup.md`. The ones you need most
 
 ## Agent workflow (trunk-based, independent review)
 
-Every feature ships through the same loop that a human trunk-based team would use:
+Every feature ships through the same loop that a human trunk-based team would use. **You are the
+tech lead; the agents below are engineers you delegate to:**
 
-1. **Implement** on `feat/Txx-<slug>` — incremental Conventional-Commit commits, `(agent-generated)` suffix on every commit, tests-first per `write-readable-tests`, hands-on Duo check per `verify-before-commit`.
-2. **Open a PR** to `main`.
-3. **A fresh reviewer subagent** (a separate context, launched via the `task` tool as `agent_type: "general-purpose"`, `mode: "background"`) waits for CI to go green, reviews the diff against the golden rules, does **hands-on QA in the browser at both iPhone Duo layouts**, posts a structured review comment on the PR, and — **only if everything is green** — merges to `main` and watches the `.github/workflows/release.yml` run (SemVer bump, `CHANGELOG.md`, PWA deploy, live offline QA, `vX.Y.Z` tag). If anything is off, it requests changes, and the implementer fixes and re-dispatches a fresh reviewer.
-4. **The implementer does not review or merge its own work.** This is the boundary that keeps the review independent.
+1. **Implement on a feature branch** (`feat/Txx-<slug>` or `fix/<slug>`) — incremental
+   Conventional-Commit commits, `(agent-generated)` suffix on every commit, tests-first per
+   `write-readable-tests`, hands-on Duo check per `verify-before-commit`.
+2. **Open a PR** to `main` and wait for CI to go green (`verify`, preview QA, `ios-simulator`).
+3. **An independent reviewer subagent** (a separate context, launched via the `task` tool) audits
+   the diff against the golden rules, does **hands-on QA in the browser at both iPhone Duo
+   layouts**, and posts a structured `gh pr review` + comment on the PR. It returns a verdict —
+   `APPROVED` or `CHANGES REQUESTED` — and **does not merge**.
+4. **You (the tech lead) do the final review and ship:** re-verify on real device widths yourself,
+   then **you merge to `main` and you ship**. Merging triggers `.github/workflows/release.yml`
+   (SemVer bump, `CHANGELOG.md`, PWA deploy, live offline QA, `vX.Y.Z` tag), which we watch to a
+   green finish after you merge.
 
-This is a real-world dev workflow — implement locally, PR, CI gate, independent review + QA, merge only when everything passes. See `ship-and-verify-release` §3 for the exact `task` dispatch and `review-pr` for the checklist.
+The line in the sand: **agents build, test, and review each other's work — they never merge.**
+Merging is a human decision, because it is what puts code into production and the owner's rent.
+The implementer does not review or merge its own work; the reviewer does not merge either. That
+two-agent plus human boundary is what keeps the review honest and keeps the final ship in a human's
+hands. See `ship-and-verify-release` §3 for the exact `task` dispatch and `review-pr` for the
+reviewer checklist.
 
 ## Skills (in `.agents/skills/`)
 
@@ -103,8 +137,8 @@ This is a real-world dev workflow — implement locally, PR, CI gate, independen
 | `verify-before-commit`    | Before **every** commit. Runs the gate and a hands-on check of the feature.                                                           |
 | `keep-docs-accurate`      | After any change to code, scripts, structure or behavior — and before committing.                                                     |
 | `agent-commit`            | Making any git commit. Enforces the `(agent-generated)` suffix and human-README protection.                                           |
-| `review-pr`               | The **reviewer subagent** runs this checklist on a PR — CI gate, hands-on QA, structured comment, merge.                              |
-| `ship-and-verify-release` | The implementer's side of the pipeline: open the PR, then dispatch the reviewer subagent to review, QA, merge, and watch release.yml. |
+| `review-pr`               | The **reviewer subagent** runs this checklist on a PR — CI gate + hands-on QA + structured comment, and returns a verdict. It never merges.      |
+| `ship-and-verify-release` | The implementer's side of the pipeline: open the PR, then dispatch the reviewer subagent to review + QA, and hand the approved PR to the tech lead. |
 | `rollback-release`        | Rolling back the live deployment to a previous `v*` release tag.                                                                      |
 | `orchestrate-tasks`       | Coordinating multi-agent personas (`implementer`, `reviewer`) or running independent plan tasks in parallel.                          |
 
@@ -112,4 +146,4 @@ This is a real-world dev workflow — implement locally, PR, CI gate, independen
 
 Commit **frequently as each logical sub-step is completed** (3–6 commits per task) so the commit log tells a clear story — never dump an entire feature into one giant commit. Use Conventional Commits with the plan task id and mandatory `(agent-generated)` suffix, e.g.:
 `feat(ledger): subtract manual expenses from the current budget [T06] (agent-generated)`.
-When merging a PR (`gh pr merge --merge`), rename the merge commit subject to summarize the shipped feature (`feat(scope): ... (#PR) [Txx] (agent-generated)`). Never commit generated folders (`dist/`, `test-results/`, `playwright-report/`).
+When the tech lead merges an approved PR (`gh pr merge --merge`), the merge commit subject should summarize the shipped feature (`feat(scope): ... (#PR) [Txx] (agent-generated)`). Never commit generated folders (`dist/`, `test-results/`, `playwright-report/`).
