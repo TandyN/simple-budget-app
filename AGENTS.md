@@ -39,6 +39,7 @@ expenses and deposits by hand. Whatever is left at the end of a month **rolls ov
 | `config/devices.ts`             | Device viewport profiles shared by Playwright and the dev device wall.                                      |
 | `src/domain/`                   | Pure TypeScript business rules: money, calendar, ledger math, budget plan changes, and domain rule tests.   |
 | `src/data/`                     | Native browser IndexedDB schema v1, transactional wrapper, repositories, and iOS storage bridge sync.       |
+| `src/app/`                      | Application use-cases (`completeSetup`, `openMonthsThrough`, `getMonthView`), clock/id providers & hooks.   |
 | `src/pwa/`                      | Service worker registration and offline status hook (`public/sw.js` + `public/manifest.webmanifest`).       |
 | `e2e/`                          | Playwright journeys (`e2e/journeys/`) and the readable test driver (`e2e/support/budget-app.ts`).           |
 | `.github/workflows/ci.yml`      | PR verification pipeline: unit/E2E tests, isolated `/pr-<N>/` preview QA, and Xcode iOS Simulator artifact. |
@@ -47,7 +48,6 @@ expenses and deposits by hand. Whatever is left at the end of a month **rolls ov
 
 Target source layout (built by the plan; each folder gets a row in the table above once it exists):
 
-- `src/app/` (planned) — use-cases (commands/queries) that combine domain + data; clock and id providers; React hooks.
 - `src/ui/` (planned) — theme tokens, layout primitives, components, screens.
 
 ## Golden rules
