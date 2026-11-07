@@ -1,0 +1,181 @@
+import 'fake-indexeddb/auto';
+import { IDBFactory } from 'fake-indexeddb';
+import { describe, expect, test } from 'vitest';
+import { createDatabase } from '../../data/database';
+import {
+  addLedgerEntry,
+  getSettings,
+  listOpenedMonths,
+  listRecurringItems,
+} from '../../data/repositories';
+import { formatMoney } from '../../domain/money';
+import { anExpense, money } from '../../domain/test-builders';
+import { observeMonthView } from '../hooks/useMonthView';
+import { createControllableClock, createSequentialIdGenerator } from '../providers';
+import { completeSetup, getMonthView, openMonthsThrough } from './index';
+
+function createTestApp(initialDate = '2026-11-05') {
+  const db = createDatabase({ idbFactory: new IDBFactory() });
+  const clock = createControllableClock(initialDate);
+  const ids = createSequentialIdGenerator('test-id');
+  return { db, clock, ids };
+}
+
+describe('setup, month opening and month view use-cases', () => {
+  test('finishing setup saves the monthly income and recurring expenses and opens the current month', async () => {
+    const app = createTestApp('2026-11-05');
+
+    await completeSetup(app, {
+      monthlyIncome: money('$5,000.00'),
+      recurringExpenses: [
+        { name: 'Rent', amount: money('$1,800.00') },
+        { name: 'Phone', amount: money('$80.00') },
+      ],
+    });
+
+    const [settings, recurringItems, openedMonths] = await app.db.transaction(
+      'readonly',
+      ['settings', 'recurringItems', 'months'],
+      (tx) => Promise.all([getSettings(tx), listRecurringItems(tx), listOpenedMonths(tx)]),
+    );
+
+    expect(settings?.setupCompletedAt).toBe('2026-11-05T09:00:00.000Z');
+    expect(recurringItems.map((item) => [item.name, item.kind, formatMoney(item.amount)])).toEqual([
+      ['Monthly income', 'income', '$5,000.00'],
+      ['Rent', 'expense', '$1,800.00'],
+      ['Phone', 'expense', '$80.00'],
+    ]);
+    expect(openedMonths.map((row) => row.monthKey)).toEqual(['2026-11']);
+
+    await app.db.close();
+  });
+
+  test('the month view after setup shows zero carried over, the income, each expense and the current budget', async () => {
+    const app = createTestApp('2026-11-05');
+
+    await completeSetup(app, {
+      monthlyIncome: money('$5,000.00'),
+      recurringExpenses: [
+        { name: 'Rent', amount: money('$1,800.00') },
+        { name: 'Phone', amount: money('$80.00') },
+      ],
+    });
+
+    const november = await getMonthView(app, '2026-11');
+
+    expect(
+      november.lines.map((line) => [line.name, formatMoney(line.amount, { sign: 'always' })]),
+    ).toEqual([
+      ['Carried over from October', '$0.00'],
+      ['Monthly income', '+$5,000.00'],
+      ['Phone', '−$80.00'],
+      ['Rent', '−$1,800.00'],
+    ]);
+
+    // $5,000.00 income - $1,800.00 rent - $80.00 phone = $3,120.00
+    expect(formatMoney(november.currentBudget)).toBe('$3,120.00');
+
+    await app.db.close();
+  });
+
+  test('opening months is safe to run many times: recurring lines are never duplicated', async () => {
+    const app = createTestApp('2026-11-05');
+
+    await completeSetup(app, {
+      monthlyIncome: money('$5,000.00'),
+      recurringExpenses: [{ name: 'Rent', amount: money('$1,800.00') }],
+    });
+
+    await openMonthsThrough(app, '2026-11-05');
+    await openMonthsThrough(app, '2026-11-15');
+    await openMonthsThrough(app, '2026-11-30');
+
+    const november = await getMonthView(app, '2026-11');
+
+    expect(
+      november.lines.map((line) => [line.name, formatMoney(line.amount, { sign: 'always' })]),
+    ).toEqual([
+      ['Carried over from October', '$0.00'],
+      ['Monthly income', '+$5,000.00'],
+      ['Rent', '−$1,800.00'],
+    ]);
+
+    // $5,000.00 income - $1,800.00 rent = $3,200.00
+    expect(formatMoney(november.currentBudget)).toBe('$3,200.00');
+
+    await app.db.close();
+  });
+
+  test('opening months after two months away fills in both missing months', async () => {
+    const app = createTestApp('2026-11-05');
+
+    await completeSetup(app, {
+      monthlyIncome: money('$5,000.00'),
+      recurringExpenses: [{ name: 'Rent', amount: money('$1,800.00') }],
+    });
+
+    app.clock.advanceTo('2027-01-10');
+    const newlyOpened = await openMonthsThrough(app);
+
+    expect(newlyOpened).toEqual(['2026-12', '2027-01']);
+
+    const december = await getMonthView(app, '2026-12');
+    // November left $3,200.00; December adds $5,000.00 - $1,800.00 = $6,400.00
+    expect(formatMoney(december.carriedOver)).toBe('$3,200.00');
+    expect(formatMoney(december.currentBudget)).toBe('$6,400.00');
+
+    const january = await getMonthView(app, '2027-01');
+    // December left $6,400.00; January adds $5,000.00 - $1,800.00 = $9,600.00
+    expect(formatMoney(january.carriedOver)).toBe('$6,400.00');
+    expect(formatMoney(january.currentBudget)).toBe('$9,600.00');
+
+    await app.db.close();
+  });
+
+  test('observing a month view automatically emits the updated statement when an entry is written', async () => {
+    const app = createTestApp('2026-11-05');
+
+    await completeSetup(app, {
+      monthlyIncome: money('$5,000.00'),
+      recurringExpenses: [{ name: 'Rent', amount: money('$1,800.00') }],
+    });
+
+    const observedBudgets: string[] = [];
+    let notifyNextEmission: (() => void) | null = null;
+    const waitForNextEmission = () =>
+      new Promise<void>((resolve) => {
+        notifyNextEmission = resolve;
+      });
+
+    const initialEmission = waitForNextEmission();
+    const unsubscribe = observeMonthView(app.db, '2026-11', (statement) => {
+      observedBudgets.push(formatMoney(statement.currentBudget));
+      notifyNextEmission?.();
+      notifyNextEmission = null;
+    });
+
+    await initialEmission;
+    // Initial budget after setup: $5,000.00 - $1,800.00 = $3,200.00
+    expect(observedBudgets.at(-1)).toBe('$3,200.00');
+
+    const updatedEmission = waitForNextEmission();
+    await app.db.transaction('readwrite', ['entries'], async (tx) => {
+      await addLedgerEntry(
+        tx,
+        anExpense({
+          id: 'manual-groceries',
+          name: 'Groceries',
+          amount: '$120.00',
+          date: '2026-11-06',
+        }),
+      );
+    });
+
+    await updatedEmission;
+    // Updated budget: $3,200.00 - $120.00 = $3,080.00
+    expect(observedBudgets.at(-1)).toBe('$3,080.00');
+
+    unsubscribe();
+    await app.db.close();
+  });
+});

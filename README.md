@@ -37,7 +37,7 @@ Licensed under the [MIT License](LICENSE) (`Copyright (c) 2026 Tandy Nguyen`). Y
 
 ## Status
 
-Foundation & domain core in progress (T01 toolchain/CI and T02 pure domain core complete). See the [build plan](docs/plan/README.md).
+Foundation in progress (T01 toolchain/CI, T02 pure domain core, and T03 local database & use-cases complete). See the [build plan](docs/plan/README.md).
 
 ## Docs
 
