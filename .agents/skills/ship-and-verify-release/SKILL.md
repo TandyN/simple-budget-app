@@ -1,54 +1,41 @@
 ---
 name: ship-and-verify-release
 description: >-
-  Use this skill after local verification passes to push a feature branch, open a Pull Request on
-  TandyN/simple-budget-app, run an independent PR review, bump the SemVer version and CHANGELOG.md,
-  merge to main, deploy to GitHub Pages, and run live WebKit + offline QA against the deployed site.
+  Use this skill after local verification passes on a feature branch: open a PR for verification (GitHub Actions CI +
+  independent code review), merge to main with a descriptive Conventional Commit merge subject, deploy to GitHub Pages,
+  run live WebKit + offline PWA QA, and finally cut the official SemVer release and release notes from Conventional Commits.
 ---
 
 # Ship and Verify Release
 
-Every completed task or update ships like a real business release: PR → Review → SemVer Bump → Merge → Deploy → Live & Offline QA.
+Simple Budget separates **PR verification** from **deployment, live QA, and official release cutting** so CI never runs redundantly:
 
-## 1. Verify Repository & Local Gate
+1. **Pull Request = Verification Only** (local `pnpm verify` + GitHub Actions `verify` & `ios-simulator` + independent `review-pr`).
+2. **Merge to `main` = Deploy Web Preview & Run Live QA** (`pnpm run release:deploy` → `pnpm run verify:live`).
+3. **Post-QA = Official SemVer Release & Release Notes** (`pnpm run release:deploy -- --release` → `pnpm run verify:live`).
+
+## 1. Verify Repository & Local Gate (Before Opening PR)
 
 1. Check `git remote get-url origin` points to `TandyN/simple-budget-app`.
-2. Ensure you are on a feature branch (e.g. `feat/T02-domain-core`), never committing feature work directly on `main`.
+2. Ensure your feature branch has **multiple small, story-telling Conventional Commits** (`git log origin/main..HEAD --oneline`), never a single monolithic commit for an entire task.
 3. Run `pnpm verify` (`bash scripts/verify.sh`) and confirm all checks pass.
 
-## 2. Push Branch & Open Pull Request
+## 2. Push Branch & Open Pull Request (No Version Bump or Deploy Yet)
 
 ```bash
 git push -u origin HEAD
-gh pr create --repo TandyN/simple-budget-app --fill
+gh pr create --repo TandyN/simple-budget-app \
+  --title "feat(<scope>): <feature summary> [Txx] (agent-generated)" \
+  --body "..."
 ```
 
-## 3. Independent Code Review
+## 3. Independent Code Review (`review-pr`)
 
-Invoke a `reviewer` subagent (or follow `.agents/skills/review-pr/SKILL.md`) to review the PR diff and post the
-review checklist comment on the PR via `gh pr comment`. Fix any findings before proceeding.
+Invoke the `reviewer` subagent (or follow `.agents/skills/review-pr/SKILL.md`) to review `gh pr diff` and post the structured review checklist on the PR via `gh pr comment`. Fix any findings before proceeding.
 
-## 4. Bump SemVer & Changelog
+## 4. Wait for GitHub Actions CI & Troubleshoot Any Failures
 
-Run the automated SemVer and changelog generator (`scripts/release-version.mjs`):
-
-```bash
-pnpm run release:bump
-pnpm run format
-bash scripts/verify.sh
-```
-
-Commit the version bump using the `agent-commit` skill:
-
-```bash
-git add package.json CHANGELOG.md
-git commit -m "chore(release): bump version to v$(jq -r .version package.json) (agent-generated)"
-git push
-```
-
-## 5. Wait for GitHub Actions CI & Troubleshoot Any Failures
-
-Before merging the PR, wait for the GitHub Actions CI workflow (`.github/workflows/ci.yml` — both the Linux `verify` job and the macOS `ios-simulator` Xcode build job) to finish on the PR:
+Wait for the GitHub Actions CI workflow (`.github/workflows/ci.yml` — both the Linux `verify` job and the macOS `ios-simulator` Xcode build job) to finish on the PR:
 
 ```bash
 gh pr checks <pr-number> --watch --repo TandyN/simple-budget-app
@@ -63,32 +50,44 @@ gh pr checks <pr-number> --watch --repo TandyN/simple-budget-app
   2. Diagnose and fix the root cause on the branch, run `bash scripts/verify.sh` locally, commit with `(agent-generated)`, push, and re-run `gh pr checks <pr-number> --watch --repo TandyN/simple-budget-app` until every check is green.
   3. **Never merge a PR with a failing or cancelled GitHub Actions check.**
 
-## 6. Merge PR to `main`
+## 5. Merge PR to `main` with a Descriptive Feature Merge Subject
+
+Keep the incremental commit history intact (`--merge`) while renaming the merge commit subject to clearly name the shipped feature and PR number:
 
 ```bash
-gh pr merge --repo TandyN/simple-budget-app --merge --delete-branch
+gh pr merge <pr-number> --repo TandyN/simple-budget-app --merge --delete-branch \
+  --subject "feat(<scope>): <feature summary> (#<pr-number>) [Txx] (agent-generated)"
 git checkout main
-git pull origin main
+git pull --ff-only origin main
 ```
 
-## 7. Deploy to GitHub Pages & Publish GitHub Release
+_(Note: Pushing to `main` does NOT re-run the PR `verify` / `ios-simulator` CI jobs.)_
+
+## 6. Deploy Merged `main` to GitHub Pages & Run Live + Offline QA
+
+Deploy the newly merged code to `https://tandyn.github.io/simple-budget-app/` (without cutting a release tag yet) and run live WebKit + offline PWA verification against the deployed site:
 
 ```bash
 pnpm run release:deploy
-```
-
-This builds `dist/` with `dist/version.json` (generated at build time, planned in build output) and the offline Service Worker, pushes `dist/` to `gh-pages`, ensures
-GitHub Pages is enabled, tags `v<version>`, and creates the GitHub Release from `CHANGELOG.md`.
-
-## 7. Run Live Post-Deploy & Offline QA
-
-```bash
 pnpm run verify:live
 ```
 
-`scripts/verify-live.mjs` polls `https://tandyn.github.io/simple-budget-app/version.json` until the new version is
-live, then opens the live URL in Playwright WebKit at both `iphone-duo-folded` and `iphone-duo-unfolded` viewports,
-verifies the rendered version, switches WebKit to **offline mode**, reloads the page, and proves the live PWA works
-100% offline.
+`scripts/verify-live.mjs` waits until `https://tandyn.github.io/simple-budget-app/version.json` serves the new `main` commit SHA, verifies the live app in WebKit at both `iphone-duo-folded` and `iphone-duo-unfolded` viewports, and reloads the live PWA 100% offline.
 
-If live QA fails, immediately run `.agents/skills/rollback-release/SKILL.md` to restore the previous version.
+- If Live QA fails, immediately run `.agents/skills/rollback-release/SKILL.md` to restore the previous release tag.
+
+## 7. Cut the Official SemVer Release & Release Notes
+
+Once Live QA passes on the deployed app, publish the official release:
+
+```bash
+pnpm run release:deploy -- --release
+pnpm run verify:live
+```
+
+What `bash scripts/deploy.sh --release` does automatically:
+
+1. Runs `scripts/release-version.mjs` to inspect all non-merge Conventional Commits since the last `v*` tag, bump `package.json` SemVer (`0.y.z` pre-1.0), and generate categorized release notes (`Features`, `Bug Fixes`, `Refactoring & Performance`, `Tests & Quality`, `Documentation`, `Tooling & Maintenance`) in `CHANGELOG.md`.
+2. Formats `CHANGELOG.md`, commits `chore(release): vX.Y.Z (agent-generated)` to `main`, and pushes `origin main`.
+3. Rebuilds `dist/` with the new `vX.Y.Z` version and updates `gh-pages`.
+4. Tags `vX.Y.Z`, pushes the tag (which triggers the `ios-testflight` job on GitHub Actions if Apple credentials are configured), and creates the official GitHub Release (`gh release create vX.Y.Z`) with the generated release notes.
