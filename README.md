@@ -37,7 +37,7 @@ Licensed under the [MIT License](LICENSE) (`Copyright (c) 2026 Tandy Nguyen`). Y
 
 ## Status
 
-Foundation and first-run setup + month ledger complete (T01–T05). See the [build plan](docs/plan/README.md).
+Foundation, first-run setup, month ledger, and manual expenses & deposits complete (T01–T06). See the [build plan](docs/plan/README.md).
 
 ## Docs
 

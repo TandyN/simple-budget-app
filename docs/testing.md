@@ -107,8 +107,11 @@ The vocabulary grows with the plan. Each task adds the methods it needs and docu
 | `finishSetup({ monthlyIncome, recurringExpenses })`                               | Walks the first-run setup screens and taps _Start budgeting_.                          |
 | `currentBudget`                                                                   | Locator for the big current-budget number (`output`).                                  |
 | `ledger`                                                                          | Locator for the month ledger region; use with `toShowLines([[label, amount], ...])`.   |
-| `addExpense({ name, amount, date?, tags? })`                                      | (planned until T06) Taps _Expense_, fills the sheet, saves.                            |
-| `addDeposit({ name, amount, date?, tags? })`                                      | (planned until T06) Taps _Deposit_, fills the sheet, saves.                            |
+| `addExpense({ name, amount, date?, note? })`                                      | Taps _Add expense_, fills the entry sheet, and saves.                                  |
+| `addDeposit({ name, amount, date?, note? })`                                      | Taps _Add deposit_, fills the entry sheet, and saves.                                  |
+| `editEntry(name, changes)`                                                        | Taps a manual ledger row, edits its fields in the sheet, and saves.                    |
+| `deleteEntry(name)`                                                               | Taps a manual ledger row and deletes it from the edit sheet.                           |
+| `undo()`                                                                          | Taps the _Undo_ action in the deletion toast to restore the deleted entry.             |
 | `changeMonthlyIncome(to, { takesEffect: 'this month' \| 'starting next month' })` | (planned until T08) Settings → income → choose when.                                   |
 | `travelTo(date)`                                                                  | (planned until T07) Moves the clock forward and brings the app back to the foreground. |
 

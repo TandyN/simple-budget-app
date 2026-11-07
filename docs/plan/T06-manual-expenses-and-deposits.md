@@ -46,10 +46,10 @@ activity list, edit by tapping a row, delete with Undo toast, guard for recurrin
 
 ## Acceptance criteria
 
-- [ ] Adding an expense takes ≤ 3 taps + typing from the month screen.
-- [ ] The current budget updates instantly (no reload) after add/edit/delete/undo.
-- [ ] Journeys pass on every device profile; screenshots reviewed (sheet in compact vs dialog in expanded).
-- [ ] `pnpm verify` passes.
+- [x] Adding an expense takes ≤ 3 taps + typing from the month screen.
+- [x] The current budget updates instantly (no reload) after add/edit/delete/undo.
+- [x] Journeys pass on every device profile; screenshots reviewed (sheet in compact vs dialog in expanded).
+- [x] `pnpm verify` passes.
 
 ## Docs to update
 
@@ -57,4 +57,12 @@ activity list, edit by tapping a row, delete with Undo toast, guard for recurrin
 
 ## Completion notes
 
-_Filled in by the agent when done._
+- Added repository helpers `getLedgerEntryById` and `removeLedgerEntry` (`src/data/repositories/index.ts`) and single-transaction application use-cases `addEntry`, `updateEntry`, `deleteEntry`, and `restoreEntry` (`src/app/use-cases/index.ts`) with rule test coverage in `src/app/use-cases/use-cases.test.ts`.
+- Built the shared `EntrySheet` (`src/ui/screens/month/EntrySheet.tsx`) for adding and editing manual expenses and deposits: autofocused `MoneyField` (`inputMode="decimal"`, validated with `parseMoneyInput`), `Name` (defaulting to `"Expense"` / `"Deposit"` if blank), `Date` (defaulting to today, deriving `monthKey`), collapsible `Note`, a reserved slot for T11 tags, disabled `Save` until valid, and `Delete` in edit mode.
+- Updated `MonthScreen` (`src/ui/screens/month/MonthScreen.tsx`) and `App` (`src/App.tsx`) with interactive manual Activity rows (newest first with formatted short dates like `"Nov 5"`), a 5-second `"Expense deleted"` / `"Deposit deleted"` `Undo` toast, and a guard sheet (`Managed in your budget plan`) when tapping a recurring or adjustment line that links to Settings.
+- Added `addExpense`, `addDeposit`, `editEntry`, `deleteEntry`, and `undo` to `BudgetAppDriver` (`e2e/support/budget-app.ts`), plus all 10 required E2E journeys and `@axe-core/playwright` check in `e2e/journeys/manual-entries.spec.ts`.
+- Visual inspection screenshots captured for the entry sheet in compact drawer mode and expanded centered dialog mode:
+  - `/home/tandy/.gemini/antigravity/brain/d2558615-9ffa-49ed-88e9-2c350ebacfb1/t06-sheet-compact-light.png`
+  - `/home/tandy/.gemini/antigravity/brain/d2558615-9ffa-49ed-88e9-2c350ebacfb1/t06-sheet-expanded-dark.png`
+  - `/home/tandy/.gemini/antigravity/brain/d2558615-9ffa-49ed-88e9-2c350ebacfb1/t06-activity-compact-light.png`
+  - `/home/tandy/.gemini/antigravity/brain/d2558615-9ffa-49ed-88e9-2c350ebacfb1/t06-activity-expanded-dark.png`
