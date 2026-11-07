@@ -3,6 +3,25 @@
 All notable changes to Simple Budget are documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) (`0.y.z` during initial development until `1.0.0` at T14).
 
+## [0.3.0] - 2026-11-07
+
+### Features
+
+- **deploy:** support isolated /pr-<N>/ preview deploys and full automated release mode (`f01264a`)
+- **release:** separate post-merge deploy from official SemVer release notes (`2adb0dc`)
+
+### Documentation
+
+- **workflow:** document trunk-based PR previews and automated release.yml pipeline (`3313b12`)
+- **skills:** enforce incremental commits, named PR merge subjects, and post-QA releases (`30b51da`)
+- update human description (`e8befac`)
+
+### Tooling & Maintenance
+
+- **ci:** format release.yml and release-version.mjs with Prettier (`a2db52d`)
+- **workflows:** split ci.yml PR verification from release.yml production deployment (`eeed8e4`)
+- **workflow:** run verify only on PRs and ios-testflight only on release tags (`61f571f`)
+
 ## [0.2.0] - 2026-11-07
 
 ### Features
