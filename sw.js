@@ -1,5 +1,5 @@
-const CACHE_NAME = 'simple-budget-0.6.0-989862b';
-const PRECACHE_ASSETS = ["./","./apple-touch-icon.png","./assets/index-D8uofP-9.js","./assets/index-DYPZ6_DM.css","./icon-192.png","./icon-512.png","./icon.svg","./index.html","./manifest.webmanifest","./version.json"];
+const CACHE_NAME = 'simple-budget-0.7.0-1e3eab5';
+const PRECACHE_ASSETS = ["./","./apple-touch-icon.png","./assets/index-CqKO9zdN.js","./assets/index-DYPZ6_DM.css","./icon-192.png","./icon-512.png","./icon.svg","./index.html","./manifest.webmanifest","./version.json"];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
