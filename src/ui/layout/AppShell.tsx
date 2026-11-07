@@ -75,9 +75,10 @@ export function AppShell({
         </nav>
       </header>
 
-      <main className="sb-main">{children}</main>
-
-      {layoutMode === 'compact' && bottomBar ? bottomBar : null}
+      <main className="sb-main">
+        {children}
+        {layoutMode === 'compact' && bottomBar ? bottomBar : null}
+      </main>
 
       <footer className="sb-status-bar">{statusFooter}</footer>
     </div>
