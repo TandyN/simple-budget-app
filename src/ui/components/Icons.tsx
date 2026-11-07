@@ -38,7 +38,27 @@ export function SettingsIcon() {
   );
 }
 
-export function BackArrowIcon() {
+export function BudgetIcon() {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M4.5 8A2.5 2.5 0 0 1 7 5.5h11A2.5 2.5 0 0 1 20.5 8v1" />
+      <path d="M4.5 8v8A2.5 2.5 0 0 0 7 18.5h11a2.5 2.5 0 0 0 2.5-2.5v-5H14a3 3 0 0 1 0-6H7A2.5 2.5 0 0 0 4.5 8Z" />
+      <path d="M16 12.75h.01" />
+    </svg>
+  );
+}
+
+export function LeftArrowIcon() {
   return (
     <svg
       width="20"
@@ -52,6 +72,24 @@ export function BackArrowIcon() {
       aria-hidden="true"
     >
       <path d="M15 18l-6-6 6-6" />
+    </svg>
+  );
+}
+
+export function RightArrowIcon() {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M9 18l6-6-6-6" />
     </svg>
   );
 }
