@@ -1,12 +1,40 @@
 import { useState, type ReactNode } from 'react';
-import type { MonthStatement } from '../../../domain/ledger';
-import { AmountText, EmptyState, ListRow, TextField } from '../../components';
+import type { LedgerEntry, MonthStatement } from '../../../domain/ledger';
+import { AmountText, Button, EmptyState, ListRow, Sheet, TextField, Toast } from '../../components';
 import { TwoPane, type LayoutMode } from '../../layout';
+
+const SHORT_MONTH_NAMES: Record<number, string> = {
+  1: 'Jan',
+  2: 'Feb',
+  3: 'Mar',
+  4: 'Apr',
+  5: 'May',
+  6: 'Jun',
+  7: 'Jul',
+  8: 'Aug',
+  9: 'Sep',
+  10: 'Oct',
+  11: 'Nov',
+  12: 'Dec',
+};
+
+export function formatShortDate(isoDate: string): string {
+  const monthNumber = Number(isoDate.slice(5, 7));
+  const day = Number(isoDate.slice(8, 10));
+  const shortMonth = SHORT_MONTH_NAMES[monthNumber] ?? isoDate.slice(5, 7);
+  return `${shortMonth} ${String(day)}`;
+}
 
 export interface MonthScreenProps {
   readonly statement: MonthStatement;
   readonly layoutMode: LayoutMode;
   readonly actionButtons: ReactNode;
+  readonly onSelectEntry?: (entry: LedgerEntry) => void;
+  readonly onNavigateToSettings?: () => void;
+  readonly deletedToast?: {
+    readonly message: string;
+    readonly onUndo: () => void;
+  } | null;
 }
 
 function LedgerRowItem({
@@ -14,12 +42,49 @@ function LedgerRowItem({
   subtitle,
   amount,
   sign,
+  onClick,
 }: {
   readonly title: string;
   readonly subtitle?: string;
   readonly amount: MonthStatement['carriedOver'];
   readonly sign: 'auto' | 'always';
+  readonly onClick?: () => void;
 }) {
+  if (onClick) {
+    return (
+      <div data-ledger-row="true" className="sb-list-row">
+        <button
+          type="button"
+          onClick={onClick}
+          style={{
+            display: 'flex',
+            width: '100%',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 'var(--space-3)',
+            padding: 0,
+            border: 'none',
+            background: 'transparent',
+            textAlign: 'left',
+            cursor: 'pointer',
+          }}
+        >
+          <div>
+            <div data-ledger-label="true">{title}</div>
+            {subtitle ? (
+              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-ink-muted)' }}>
+                {subtitle}
+              </div>
+            ) : null}
+          </div>
+          <span data-ledger-amount="true">
+            <AmountText amount={amount} sign={sign} />
+          </span>
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div data-ledger-row="true">
       <ListRow
@@ -35,9 +100,25 @@ function LedgerRowItem({
   );
 }
 
-export function MonthScreen({ statement, layoutMode, actionButtons }: MonthScreenProps) {
+export function MonthScreen({
+  statement,
+  layoutMode,
+  actionButtons,
+  onSelectEntry,
+  onNavigateToSettings,
+  deletedToast,
+}: MonthScreenProps) {
   const [startingPointOpen, setStartingPointOpen] = useState(true);
   const [draftNote, setDraftNote] = useState('');
+  const [guardedEntry, setGuardedEntry] = useState<LedgerEntry | null>(null);
+
+  const handleRowTap = (entry: LedgerEntry) => {
+    if (entry.source !== 'manual') {
+      setGuardedEntry(entry);
+      return;
+    }
+    onSelectEntry?.(entry);
+  };
 
   const heroSection = (
     <section className="sb-card" aria-label="Current budget summary">
@@ -76,7 +157,15 @@ export function MonthScreen({ statement, layoutMode, actionButtons }: MonthScree
         sign="auto"
       />
       {statement.startingPoint.map((entry) => (
-        <LedgerRowItem key={entry.id} title={entry.name} amount={entry.amount} sign="always" />
+        <LedgerRowItem
+          key={entry.id}
+          title={entry.name}
+          amount={entry.amount}
+          sign="always"
+          onClick={() => {
+            handleRowTap(entry);
+          }}
+        />
       ))}
     </div>
   );
@@ -126,34 +215,82 @@ export function MonthScreen({ statement, layoutMode, actionButtons }: MonthScree
         <EmptyState title="No expenses or deposits yet" />
       ) : (
         <div className="sb-list">
-          {statement.activity.map((entry) => (
-            <LedgerRowItem
-              key={entry.id}
-              title={entry.name}
-              subtitle={entry.note || undefined}
-              amount={entry.amount}
-              sign="always"
-            />
-          ))}
+          {statement.activity.map((entry) => {
+            const dateSubtitle = formatShortDate(entry.date);
+            const subtitle = entry.note ? `${dateSubtitle} · ${entry.note}` : dateSubtitle;
+            return (
+              <LedgerRowItem
+                key={entry.id}
+                title={entry.name}
+                subtitle={subtitle}
+                amount={entry.amount}
+                sign="always"
+                onClick={() => {
+                  handleRowTap(entry);
+                }}
+              />
+            );
+          })}
         </div>
       )}
     </section>
   );
 
+  const toastNode = deletedToast ? (
+    <Toast message={deletedToast.message} actionLabel="Undo" onAction={deletedToast.onUndo} />
+  ) : null;
+
+  const guardSheet = (
+    <Sheet
+      open={guardedEntry !== null}
+      title="Managed in your budget plan"
+      layoutMode={layoutMode}
+      onClose={() => {
+        setGuardedEntry(null);
+      }}
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+        <p style={{ margin: 0, color: 'var(--color-ink-muted)', fontSize: 'var(--text-sm)' }}>
+          {guardedEntry ? (
+            <>
+              <strong>{guardedEntry.name}</strong> comes from your budget plan and cannot be edited
+              directly in the ledger. Change your monthly income or recurring expenses in Settings.
+            </>
+          ) : null}
+        </p>
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <Button
+            variant="primary"
+            onClick={() => {
+              setGuardedEntry(null);
+              onNavigateToSettings?.();
+            }}
+          >
+            Open Settings
+          </Button>
+        </div>
+      </div>
+    </Sheet>
+  );
+
   if (layoutMode === 'expanded') {
     return (
-      <TwoPane
-        leftLabel="Overview pane"
-        rightLabel="Ledger pane"
-        left={
-          <>
-            {heroSection}
-            {draftSection}
-            {actionButtons}
-          </>
-        }
-        right={ledgerSection}
-      />
+      <>
+        <TwoPane
+          leftLabel="Overview pane"
+          rightLabel="Ledger pane"
+          left={
+            <>
+              {heroSection}
+              {draftSection}
+              {actionButtons}
+              {toastNode}
+            </>
+          }
+          right={ledgerSection}
+        />
+        {guardSheet}
+      </>
     );
   }
 
@@ -166,6 +303,8 @@ export function MonthScreen({ statement, layoutMode, actionButtons }: MonthScree
       {heroSection}
       {draftSection}
       {ledgerSection}
+      {toastNode}
+      {guardSheet}
     </div>
   );
 }
