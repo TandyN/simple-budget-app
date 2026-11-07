@@ -124,7 +124,7 @@ if ! head -n 1 README.md | grep -qx '# Human Description'; then
 elif ! grep -qx '# Simple Budget' README.md; then
   report "README.md must contain '# Simple Budget' marking the end of the '# Human Description' section"
 elif [[ "${ALLOW_HUMAN_README_EDIT:-}" != "1" ]]; then
-  last_human_commit="$(git log --grep='(agent-generated)' --invert-grep -n 1 --format=%H -- README.md 2>/dev/null || true)"
+  last_human_commit="$(git log --no-merges --grep='(agent-generated)' --invert-grep -n 1 --format=%H -- README.md 2>/dev/null || true)"
   if [[ -n "$last_human_commit" ]]; then
     expected_human_section="$(git show "${last_human_commit}:README.md" | awk '/^# Simple Budget$/{exit} {print}')"
     current_human_section="$(awk '/^# Simple Budget$/{exit} {print}' README.md)"
