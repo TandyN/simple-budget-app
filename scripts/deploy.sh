@@ -90,8 +90,15 @@ publish_to_gh_pages() {
       cp -r dist/. "${deploy_tmp}/${target_subdir}/"
       touch "${deploy_tmp}/.nojekyll"
     else
-      find "$deploy_tmp" -mindepth 1 -maxdepth 1 ! -name '.git' ! -name 'pr-*' -exec rm -rf {} +
+      find "$deploy_tmp" -mindepth 1 -maxdepth 1 ! -name '.git' ! -name 'pr-*' ! -name 'assets' -exec rm -rf {} +
+      mkdir -p "${deploy_tmp}/assets"
       cp -r dist/. "$deploy_tmp/"
+      current_js="$(find dist/assets -maxdepth 1 -name 'index-*.js' | head -n 1)"
+      if [[ -n "$current_js" ]]; then
+        for legacy_bundle in index-CZi6KRj0.js index-B_c5tggd.js index-CFmOOG01.js; do
+          cp "$current_js" "${deploy_tmp}/assets/${legacy_bundle}"
+        done
+      fi
       touch "${deploy_tmp}/.nojekyll"
     fi
 

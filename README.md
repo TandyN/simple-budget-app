@@ -23,13 +23,21 @@ Simple Budget is 100% local — there is no cloud account, no analytics, and no 
 - **Automatic Background Snapshots:** Every time you add or edit an item, the app automatically maintains a redundant local backup mirror and freezes a `pre-update` snapshot before any new app version runs.
 - **Export / Import Backup:** Under **Settings → Data**, you can tap **Export backup** anytime to save a human-readable JSON backup file (and see when you last exported), or **Import backup** to restore your full history on a new device.
 
+## Development & Release Workflow
+
+Simple Budget uses **Trunk-Based Development (`feature/* → main`)** with isolated per-PR previews and zero-touch production releases (see [`docs/workflow.md`](docs/workflow.md) for full details):
+
+1. **Story-Telling Feature Branches (`3–6 commits per task`):** Each feature or fix is built on a short-lived branch (`feat/Txx-...` or `fix/...`) as a sequence of focused [Conventional Commits](https://www.conventionalcommits.org/) (`feat(scope): ... [Txx] (agent-generated)`) so the commit history and generated release notes tell a clear story of every step.
+2. **Pull Request Verification & Isolated Previews (`.github/workflows/ci.yml`):** Opening a PR to `main` runs the full verification gate (`scripts/verify.sh`), enforces that the branch includes the latest `origin/main`, deploys an isolated live preview to `https://tandyn.github.io/simple-budget-app/pr-<N>/` (verified with WebKit + offline PWA QA), and compiles a downloadable `SimpleBudget-iOS-Simulator` `.app` artifact on macOS Xcode. Closing or merging the PR automatically cleans up `/pr-<N>/`.
+3. **Automated Production Release (`.github/workflows/release.yml`):** Merging a reviewed PR into `main` automatically calculates the next SemVer version (`0.y.z` pre-1.0 → `1.0.0`), generates categorized release notes in [`CHANGELOG.md`](CHANGELOG.md), deploys the production PWA to `https://tandyn.github.io/simple-budget-app/`, runs post-deploy live WebKit + offline QA (`scripts/verify-live.mjs`), publishes the `vX.Y.Z` GitHub Release, and uploads the native iOS build to TestFlight.
+
 ## License
 
 Licensed under the [MIT License](LICENSE) (`Copyright (c) 2026 Tandy Nguyen`). You are free to inspect, use, or build upon this code as long as you retain the copyright notice and credit **Tandy Nguyen** in all copies or substantial portions of the software.
 
 ## Status
 
-Foundation in progress (T01 complete: toolchain, test harness & CI). See the [build plan](docs/plan/README.md).
+Foundation & domain core in progress (T01 toolchain/CI and T02 pure domain core complete). See the [build plan](docs/plan/README.md).
 
 ## Docs
 
