@@ -14,6 +14,8 @@ export interface ManualEntryDraft {
   readonly name?: string;
   readonly amount: string;
   readonly date?: string;
+  /** 24-hour local time like `13:15`; turns on the "Set time" toggle. */
+  readonly time?: string;
   readonly note?: string;
 }
 
@@ -21,6 +23,7 @@ export interface EditEntryChanges {
   readonly name?: string;
   readonly amount?: string;
   readonly date?: string;
+  readonly time?: string;
   readonly note?: string;
 }
 
@@ -38,7 +41,6 @@ export class BudgetAppDriver {
   readonly settingsButton: Locator;
   readonly backToBudgetButton: Locator;
   readonly debugLayoutOverlay: Locator;
-  readonly quickNoteField: Locator;
   readonly currentBudget: Locator;
   readonly ledger: Locator;
   private isWebKitOffline = false;
@@ -57,9 +59,8 @@ export class BudgetAppDriver {
     this.settingsButton = page.getByRole('button', { name: 'Settings' });
     this.backToBudgetButton = page.getByRole('button', { name: 'Back to budget' });
     this.debugLayoutOverlay = page.getByRole('region', { name: 'Debug layout overlay' });
-    this.quickNoteField = page.getByRole('textbox', { name: 'Quick note' });
     this.currentBudget = page
-      .getByRole('region', { name: 'Current budget summary' })
+      .getByRole('region', { name: 'Available funds summary' })
       .locator('[data-current-budget="true"] output');
     this.ledger = page.getByRole('region', { name: 'Month ledger' });
   }
@@ -105,10 +106,14 @@ export class BudgetAppDriver {
       await dialog.getByLabel('Amount').fill(changes.amount);
     }
     if (changes.name !== undefined) {
-      await dialog.getByLabel('Name').fill(changes.name);
+      await dialog.getByLabel('Description').fill(changes.name);
     }
     if (changes.date !== undefined) {
       await dialog.getByLabel('Date').fill(changes.date);
+    }
+    if (changes.time !== undefined) {
+      await dialog.getByLabel('Set time').check();
+      await dialog.getByLabel('Time', { exact: true }).fill(changes.time);
     }
     if (changes.note !== undefined) {
       const addNoteBtn = dialog.getByRole('button', { name: 'Add note' });
@@ -137,10 +142,14 @@ export class BudgetAppDriver {
     const dialog = this.page.getByRole('dialog');
     await dialog.getByLabel('Amount').fill(entry.amount);
     if (entry.name !== undefined) {
-      await dialog.getByLabel('Name').fill(entry.name);
+      await dialog.getByLabel('Description').fill(entry.name);
     }
     if (entry.date !== undefined) {
       await dialog.getByLabel('Date').fill(entry.date);
+    }
+    if (entry.time !== undefined) {
+      await dialog.getByLabel('Set time').check();
+      await dialog.getByLabel('Time', { exact: true }).fill(entry.time);
     }
     if (entry.note !== undefined) {
       await dialog.getByRole('button', { name: 'Add note' }).click();

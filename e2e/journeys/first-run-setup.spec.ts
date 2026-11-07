@@ -65,7 +65,7 @@ test('a recurring expense can be removed during setup before finishing', async (
   await expect(budgetApp.currentBudget).toHaveText('$3,200.00');
 });
 
-test('the setup summary shows purchase power as income minus recurring expenses', async ({
+test('the setup summary shows available funds as income minus recurring expenses', async ({
   budgetApp,
 }) => {
   await budgetApp.openOn('2026-11-05');
@@ -84,13 +84,13 @@ test('the setup summary shows purchase power as income minus recurring expenses'
   await budgetApp.page.getByRole('button', { name: 'Review plan' }).click();
 
   const summary = budgetApp.page.getByRole('region', { name: 'Budget plan summary' });
-  // $5,000.00 income − ($1,800.00 rent + $60.00 phone = $1,860.00) = $3,140.00 purchase power
+  // $5,000.00 income − ($1,800.00 rent + $60.00 phone = $1,860.00) = $3,140.00 available funds
   await expect(summary).toContainText('+$5,000.00');
   await expect(summary).toContainText('−$1,860.00');
   await expect(summary).toContainText('$3,140.00');
 });
 
-test('after setup, the ledger shows zero carried over, the monthly income, each recurring expense and the current budget', async ({
+test('after setup, the ledger shows monthly income, each recurring expense and the current budget', async ({
   budgetApp,
 }) => {
   await budgetApp.openOn('2026-11-05');
@@ -105,7 +105,6 @@ test('after setup, the ledger shows zero carried over, the monthly income, each 
   // $5,000.00 income − $1,800.00 rent − $60.00 phone = $3,140.00
   await expect(budgetApp.currentBudget).toHaveText('$3,140.00');
   await expect(budgetApp.ledger).toShowLines([
-    ['Carried over from October', '$0.00'],
     ['Monthly income', '+$5,000.00'],
     ['Phone', '−$60.00'],
     ['Rent', '−$1,800.00'],
@@ -124,10 +123,7 @@ test('setup works with no recurring expenses at all', async ({ budgetApp }) => {
 
   // $4,200.00 income − $0.00 recurring expenses = $4,200.00
   await expect(budgetApp.currentBudget).toHaveText('$4,200.00');
-  await expect(budgetApp.ledger).toShowLines([
-    ['Carried over from October', '$0.00'],
-    ['Monthly income', '+$4,200.00'],
-  ]);
+  await expect(budgetApp.ledger).toShowLines([['Monthly income', '+$4,200.00']]);
 });
 
 test('everything is still there after the app is closed and reopened', async ({ budgetApp }) => {
@@ -142,7 +138,6 @@ test('everything is still there after the app is closed and reopened', async ({ 
   // $5,000.00 income − $1,800.00 rent = $3,200.00
   await expect(budgetApp.currentBudget).toHaveText('$3,200.00');
   await expect(budgetApp.ledger).toShowLines([
-    ['Carried over from October', '$0.00'],
     ['Monthly income', '+$5,000.00'],
     ['Rent', '−$1,800.00'],
   ]);

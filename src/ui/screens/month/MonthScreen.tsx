@@ -1,6 +1,8 @@
-import { useState, type ReactNode } from 'react';
-import type { LedgerEntry, MonthStatement } from '../../../domain/ledger';
-import { AmountText, Button, EmptyState, ListRow, Sheet, TextField, Toast } from '../../components';
+import { useEffect, useState } from 'react';
+import { formatLocalTime } from '../../../domain/instant';
+import { entryInstant, type LedgerEntry, type MonthStatement } from '../../../domain/ledger';
+import type { ManualEntryKind } from '../../../app/use-cases';
+import { AmountText, Button, EmptyState, ListRow, Toast } from '../../components';
 import { TwoPane, type LayoutMode } from '../../layout';
 
 const SHORT_MONTH_NAMES: Record<number, string> = {
@@ -25,12 +27,16 @@ export function formatShortDate(isoDate: string): string {
   return `${shortMonth} ${String(day)}`;
 }
 
+export const ACTIVITY_PAGE_SIZE: Record<LayoutMode, number> = {
+  compact: 5,
+  expanded: 8,
+};
+
 export interface MonthScreenProps {
   readonly statement: MonthStatement;
   readonly layoutMode: LayoutMode;
-  readonly actionButtons: ReactNode;
+  readonly onAddEntry: (kind: ManualEntryKind) => void;
   readonly onSelectEntry?: (entry: LedgerEntry) => void;
-  readonly onNavigateToSettings?: () => void;
   readonly deletedToast?: {
     readonly message: string;
     readonly onUndo: () => void;
@@ -69,7 +75,7 @@ function LedgerRowItem({
             cursor: 'pointer',
           }}
         >
-          <div>
+          <div style={{ minWidth: 0 }}>
             <div data-ledger-label="true">{title}</div>
             {subtitle ? (
               <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-ink-muted)' }}>
@@ -103,136 +109,126 @@ function LedgerRowItem({
 export function MonthScreen({
   statement,
   layoutMode,
-  actionButtons,
+  onAddEntry,
   onSelectEntry,
-  onNavigateToSettings,
   deletedToast,
 }: MonthScreenProps) {
-  const [startingPointOpen, setStartingPointOpen] = useState(true);
-  const [draftNote, setDraftNote] = useState('');
-  const [guardedEntry, setGuardedEntry] = useState<LedgerEntry | null>(null);
+  const pageSize = ACTIVITY_PAGE_SIZE[layoutMode];
+  const [page, setPage] = useState(0);
 
-  const handleRowTap = (entry: LedgerEntry) => {
-    if (entry.source !== 'manual') {
-      setGuardedEntry(entry);
-      return;
+  // The list is newest first and ends with the amount carried over from last month.
+  const hasCarriedOver = statement.carriedOver !== 0;
+  const totalRows = statement.activity.length + (hasCarriedOver ? 1 : 0);
+  const pageCount = Math.max(1, Math.ceil(totalRows / pageSize));
+  const currentPage = Math.min(page, pageCount - 1);
+
+  useEffect(() => {
+    if (page > pageCount - 1) {
+      setPage(pageCount - 1);
     }
-    onSelectEntry?.(entry);
-  };
+  }, [page, pageCount]);
+
+  const firstRow = currentPage * pageSize;
+  const entriesOnPage = statement.activity.slice(firstRow, firstRow + pageSize);
+  const showCarriedOver =
+    hasCarriedOver &&
+    firstRow + entriesOnPage.length >= statement.activity.length &&
+    entriesOnPage.length < pageSize;
 
   const heroSection = (
-    <section className="sb-card" aria-label="Current budget summary">
-      <p className="sb-hero-label">Current budget</p>
-      <div data-current-budget="true">
-        <AmountText amount={statement.currentBudget} variant="hero" />
+    <section className="sb-card sb-hero-card" aria-label="Available funds summary">
+      <div className="sb-hero-row">
+        <div style={{ minWidth: 0 }}>
+          <p className="sb-hero-label">Available funds</p>
+          <div data-current-budget="true">
+            <AmountText amount={statement.currentBudget} variant="hero" />
+          </div>
+        </div>
+        <div className="sb-quick-actions" role="toolbar" aria-label="Budget actions">
+          <button
+            type="button"
+            className="sb-quick-action sb-quick-action-minus"
+            aria-label="Add expense"
+            onClick={() => {
+              onAddEntry('expense');
+            }}
+          >
+            <span aria-hidden="true">−</span>
+          </button>
+          <button
+            type="button"
+            className="sb-quick-action"
+            aria-label="Add deposit"
+            onClick={() => {
+              onAddEntry('deposit');
+            }}
+          >
+            <span aria-hidden="true">+</span>
+          </button>
+        </div>
       </div>
-      <p
-        style={{
-          margin: 'var(--space-2) 0 0 0',
-          fontSize: 'var(--text-xs)',
-          color: 'var(--color-ink-muted)',
-        }}
-      >
-        Quiet ledger · Your data stays on this phone
-      </p>
     </section>
-  );
-
-  const draftSection = (
-    <section className="sb-card" aria-label="Quick memo">
-      <TextField
-        label="Quick note"
-        placeholder="What are you planning for?"
-        value={draftNote}
-        onChange={setDraftNote}
-      />
-    </section>
-  );
-
-  const startingPointRows = (
-    <div className="sb-list">
-      <LedgerRowItem
-        title={statement.carriedOverLabel}
-        amount={statement.carriedOver}
-        sign="auto"
-      />
-      {statement.startingPoint.map((entry) => (
-        <LedgerRowItem
-          key={entry.id}
-          title={entry.name}
-          amount={entry.amount}
-          sign="always"
-          onClick={() => {
-            handleRowTap(entry);
-          }}
-        />
-      ))}
-    </div>
   );
 
   const ledgerSection = (
     <section className="sb-card" aria-label="Month ledger">
-      {layoutMode === 'compact' ? (
-        <div>
-          <button
-            type="button"
-            aria-expanded={startingPointOpen}
-            onClick={() => {
-              setStartingPointOpen((prev) => !prev);
-            }}
-            style={{
-              display: 'flex',
-              width: '100%',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: 0,
-              marginBottom: startingPointOpen ? 'var(--space-2)' : 0,
-              border: 'none',
-              background: 'transparent',
-              cursor: 'pointer',
-            }}
-          >
-            <span className="sb-section-heading" style={{ margin: 0 }}>
-              Starting point
-            </span>
-            <span aria-hidden="true" style={{ color: 'var(--color-ink-muted)' }}>
-              {startingPointOpen ? '▾' : '▸'}
-            </span>
-          </button>
-          {startingPointOpen ? startingPointRows : null}
-        </div>
-      ) : (
-        <div>
-          <h2 className="sb-section-heading">Starting point</h2>
-          {startingPointRows}
-        </div>
-      )}
-
-      <h2 className="sb-section-heading" style={{ marginTop: 'var(--space-5)' }}>
-        Activity
-      </h2>
-      {statement.activity.length === 0 ? (
-        <EmptyState title="No expenses or deposits yet" />
+      <h2 className="sb-section-heading">Activity</h2>
+      {totalRows === 0 ? (
+        <EmptyState title="No activity yet" />
       ) : (
         <div className="sb-list">
-          {statement.activity.map((entry) => {
-            const dateSubtitle = formatShortDate(entry.date);
-            const subtitle = entry.note ? `${dateSubtitle} · ${entry.note}` : dateSubtitle;
+          {entriesOnPage.map((entry) => {
+            const details = [formatShortDate(entry.date), formatLocalTime(entryInstant(entry))];
+            if (entry.note) {
+              details.push(entry.note);
+            }
             return (
               <LedgerRowItem
                 key={entry.id}
                 title={entry.name}
-                subtitle={subtitle}
+                subtitle={details.join(' · ')}
                 amount={entry.amount}
                 sign="always"
                 onClick={() => {
-                  handleRowTap(entry);
+                  onSelectEntry?.(entry);
                 }}
               />
             );
           })}
+          {showCarriedOver ? (
+            <LedgerRowItem
+              title={statement.carriedOverLabel}
+              amount={statement.carriedOver}
+              sign="auto"
+            />
+          ) : null}
         </div>
       )}
+      {pageCount > 1 ? (
+        <nav className="sb-pager" aria-label="Activity pages">
+          <Button
+            variant="quiet"
+            disabled={currentPage === 0}
+            onClick={() => {
+              setPage(currentPage - 1);
+            }}
+          >
+            Newer
+          </Button>
+          <span>
+            Page {currentPage + 1} of {pageCount}
+          </span>
+          <Button
+            variant="quiet"
+            disabled={currentPage >= pageCount - 1}
+            onClick={() => {
+              setPage(currentPage + 1);
+            }}
+          >
+            Older
+          </Button>
+        </nav>
+      ) : null}
     </section>
   );
 
@@ -240,57 +236,17 @@ export function MonthScreen({
     <Toast message={deletedToast.message} actionLabel="Undo" onAction={deletedToast.onUndo} />
   ) : null;
 
-  const guardSheet = (
-    <Sheet
-      open={guardedEntry !== null}
-      title="Managed in your budget plan"
-      layoutMode={layoutMode}
-      onClose={() => {
-        setGuardedEntry(null);
-      }}
-    >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-        <p style={{ margin: 0, color: 'var(--color-ink-muted)', fontSize: 'var(--text-sm)' }}>
-          {guardedEntry ? (
-            <>
-              <strong>{guardedEntry.name}</strong> comes from your budget plan and cannot be edited
-              directly in the ledger. Change your monthly income or recurring expenses in Settings.
-            </>
-          ) : null}
-        </p>
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <Button
-            variant="primary"
-            onClick={() => {
-              setGuardedEntry(null);
-              onNavigateToSettings?.();
-            }}
-          >
-            Open Settings
-          </Button>
-        </div>
-      </div>
-    </Sheet>
-  );
-
   if (layoutMode === 'expanded') {
     return (
-      <>
-        <TwoPane
-          leftLabel="Overview pane"
-          rightLabel="Ledger pane"
-          left={
-            <>
-              {heroSection}
-              {draftSection}
-              {actionButtons}
-              {toastNode}
-            </>
-          }
-          right={ledgerSection}
-        />
-        {guardSheet}
-      </>
+      <TwoPane
+        left={
+          <>
+            {heroSection}
+            {toastNode}
+          </>
+        }
+        right={ledgerSection}
+      />
     );
   }
 
@@ -298,13 +254,11 @@ export function MonthScreen({
     <div
       role="region"
       aria-label="Single column layout"
-      style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}
+      style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}
     >
       {heroSection}
-      {draftSection}
       {ledgerSection}
       {toastNode}
-      {guardSheet}
     </div>
   );
 }

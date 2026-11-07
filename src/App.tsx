@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { monthKeyOf, monthLabel } from './domain/calendar';
+import { localTimeOf } from './domain/instant';
 import type { LedgerEntry } from './domain/ledger';
 import { useAppSettings, getDefaultAppDependencies } from './app/hooks/useAppSettings';
 import { useMonthView } from './app/hooks/useMonthView';
@@ -13,7 +14,7 @@ import {
   type ManualEntryKind,
 } from './app/use-cases';
 import { usePwaStatus } from './pwa/register-sw';
-import { Button, EmptyState } from './ui/components';
+import { EmptyState } from './ui/components';
 import { AppShell, useHashRoute, useLayoutMode } from './ui/layout';
 import { EntrySheet, type EntrySheetSubmitValue } from './ui/screens/month/EntrySheet';
 import { MonthScreen } from './ui/screens/month/MonthScreen';
@@ -24,6 +25,8 @@ interface SheetState {
   readonly mode: 'add' | 'edit';
   readonly kind: ManualEntryKind;
   readonly entry: LedgerEntry | null;
+  /** Local time captured when the sheet opened, so the form does not reset as the clock ticks. */
+  readonly openedAtTime: string;
 }
 
 export function App() {
@@ -38,6 +41,7 @@ export function App() {
     mode: 'add',
     kind: 'expense',
     entry: null,
+    openedAtTime: '00:00',
   });
   const [deletedEntry, setDeletedEntry] = useState<LedgerEntry | null>(null);
   const undoTimerRef = useRef<number | null>(null);
@@ -67,6 +71,7 @@ export function App() {
       mode: 'add',
       kind,
       entry: null,
+      openedAtTime: localTimeOf(deps.clock.now()),
     });
   };
 
@@ -76,6 +81,7 @@ export function App() {
       mode: 'edit',
       kind: entry.amount < 0 ? 'expense' : 'deposit',
       entry,
+      openedAtTime: localTimeOf(deps.clock.now()),
     });
   };
 
@@ -93,6 +99,7 @@ export function App() {
         amount: value.amount,
         name: value.name,
         date: value.date,
+        ...(value.time !== undefined ? { time: value.time } : {}),
         note: value.note,
       });
     } else {
@@ -101,6 +108,7 @@ export function App() {
         amount: value.amount,
         name: value.name,
         date: value.date,
+        ...(value.time !== undefined ? { time: value.time } : {}),
         note: value.note,
       });
     }
@@ -136,31 +144,6 @@ export function App() {
     void restoreEntry(deps, entryToRestore);
   };
 
-  const actionButtons = (
-    <div
-      className={layoutMode === 'compact' ? 'sb-action-bar sb-action-bar-bottom' : 'sb-action-bar'}
-      role="toolbar"
-      aria-label="Budget actions"
-    >
-      <Button
-        variant="primary"
-        onClick={() => {
-          openAddSheet('expense');
-        }}
-      >
-        Add expense
-      </Button>
-      <Button
-        variant="secondary"
-        onClick={() => {
-          openAddSheet('deposit');
-        }}
-      >
-        Add deposit
-      </Button>
-    </div>
-  );
-
   const statusFooter = (
     <p
       role="status"
@@ -194,7 +177,6 @@ export function App() {
       onNavigate={navigate}
       layoutMode={layoutMode}
       statusFooter={statusFooter}
-      bottomBar={isSetupCompleted && route === 'budget' ? actionButtons : undefined}
     >
       {route === 'insights' ? (
         <section className="sb-card" aria-labelledby="insights-heading">
@@ -227,11 +209,8 @@ export function App() {
           <MonthScreen
             statement={statement}
             layoutMode={layoutMode}
-            actionButtons={actionButtons}
+            onAddEntry={openAddSheet}
             onSelectEntry={openEditSheet}
-            onNavigateToSettings={() => {
-              navigate('settings');
-            }}
             deletedToast={deletedToast}
           />
           <EntrySheet
@@ -240,10 +219,15 @@ export function App() {
             kind={sheetState.kind}
             initialEntry={sheetState.entry}
             defaultDate={today}
+            defaultTime={sheetState.openedAtTime}
             layoutMode={layoutMode}
             onClose={closeSheet}
             onSave={handleSaveEntry}
-            onDelete={sheetState.mode === 'edit' ? handleDeleteCurrentEntry : undefined}
+            onDelete={
+              sheetState.mode === 'edit' && sheetState.entry?.source !== 'recurring'
+                ? handleDeleteCurrentEntry
+                : undefined
+            }
           />
         </>
       ) : null}

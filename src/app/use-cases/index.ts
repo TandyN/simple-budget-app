@@ -8,12 +8,14 @@ import {
   type WeekStartsOn,
 } from '../../domain/calendar';
 import {
+  entryInstant,
   monthStatement,
   recurringEntriesToOpen,
   type LedgerEntry,
   type MonthStatement,
   type RecurringItem,
 } from '../../domain/ledger';
+import { instantFromLocal, localDateOf, localTimeOf, type LocalTime } from '../../domain/instant';
 import { cents, negate, type Cents } from '../../domain/money';
 import type { SimpleBudgetDatabase } from '../../data/database';
 import {
@@ -58,7 +60,10 @@ export interface AddEntryInput {
   readonly kind: ManualEntryKind;
   readonly amount: Cents;
   readonly name?: string;
+  /** Local calendar day. Defaults to today. */
   readonly date?: IsoDate;
+  /** Local time of day (`HH:mm`). Defaults to the current time (the "override time" toggle sets it). */
+  readonly time?: LocalTime;
   readonly note?: string;
   readonly tagIds?: readonly string[];
 }
@@ -68,6 +73,8 @@ export interface UpdateEntryInput {
   readonly amount?: Cents;
   readonly name?: string;
   readonly date?: IsoDate;
+  /** Local time of day (`HH:mm`). Defaults to the entry's existing time of day. */
+  readonly time?: LocalTime;
   readonly note?: string;
   readonly tagIds?: readonly string[];
 }
@@ -173,15 +180,18 @@ export async function addEntry(deps: AppDependencies, input: AddEntryInput): Pro
   if (input.amount <= 0) {
     throw new RangeError('Manual entry amount must be greater than zero.');
   }
-  const date = assertIsoDate(input.date ?? deps.clock.today());
-  const monthKey = monthKeyOf(date);
   const now = deps.clock.now();
+  const pickedDate = assertIsoDate(input.date ?? deps.clock.today());
+  const occurredAt = instantFromLocal(pickedDate, input.time ?? localTimeOf(now));
+  const date = localDateOf(occurredAt);
+  const monthKey = monthKeyOf(date);
   const signedAmount = input.kind === 'expense' ? negate(input.amount) : cents(input.amount);
   const defaultName = input.kind === 'expense' ? 'Expense' : 'Deposit';
   const trimmedName = (input.name ?? '').trim();
 
   const entry: LedgerEntry = {
     id: deps.ids.nextId(),
+    occurredAt,
     date,
     monthKey,
     amount: signedAmount,
@@ -212,9 +222,6 @@ export async function updateEntry(
     if (!existing) {
       throw new Error(`Ledger entry "${input.id}" was not found.`);
     }
-    if (existing.source !== 'manual') {
-      throw new Error('Only manual entries can be edited from the ledger.');
-    }
 
     const kind: ManualEntryKind = existing.amount < 0 ? 'expense' : 'deposit';
     let nextAmount = existing.amount;
@@ -225,7 +232,15 @@ export async function updateEntry(
       nextAmount = kind === 'expense' ? negate(input.amount) : cents(input.amount);
     }
 
-    const nextDate = input.date !== undefined ? assertIsoDate(input.date) : existing.date;
+    const existingInstant = entryInstant(existing);
+    const nextOccurredAt =
+      input.date !== undefined || input.time !== undefined
+        ? instantFromLocal(
+            input.date !== undefined ? assertIsoDate(input.date) : localDateOf(existingInstant),
+            input.time ?? localTimeOf(existingInstant),
+          )
+        : existingInstant;
+    const nextDate = localDateOf(nextOccurredAt);
     const nextMonthKey = monthKeyOf(nextDate);
     const defaultName = kind === 'expense' ? 'Expense' : 'Deposit';
     const nextName =
@@ -237,6 +252,7 @@ export async function updateEntry(
 
     const updated: LedgerEntry = {
       ...existing,
+      occurredAt: nextOccurredAt,
       date: nextDate,
       monthKey: nextMonthKey,
       amount: nextAmount,
@@ -257,8 +273,10 @@ export async function deleteEntry(deps: AppDependencies, id: string): Promise<Le
     if (!existing) {
       throw new Error(`Ledger entry "${id}" was not found.`);
     }
-    if (existing.source !== 'manual') {
-      throw new Error('Only manual entries can be deleted from the ledger.');
+    if (existing.source === 'recurring') {
+      throw new Error(
+        'Recurring lines come from your budget plan; remove them from the plan instead of deleting them here.',
+      );
     }
     await removeLedgerEntry(tx, id);
     return existing;
@@ -269,8 +287,8 @@ export async function restoreEntry(
   deps: Pick<AppDependencies, 'db'>,
   entry: LedgerEntry,
 ): Promise<LedgerEntry> {
-  if (entry.source !== 'manual') {
-    throw new Error('Only manual entries can be restored.');
+  if (entry.source === 'recurring') {
+    throw new Error('Recurring lines cannot be restored from the ledger.');
   }
   await deps.db.transaction('readwrite', ['entries'], async (tx) => {
     await putLedgerEntry(tx, entry);

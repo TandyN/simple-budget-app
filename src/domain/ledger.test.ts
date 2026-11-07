@@ -1,6 +1,7 @@
 import fc from 'fast-check';
 import { describe, expect, test } from 'vitest';
 import {
+  entryInstant,
   monthStatement,
   purchasePower,
   recurrenceKeyFor,
@@ -240,6 +241,12 @@ describe('month ledger math and rollover', () => {
       'Lunch',
       'Coffee',
     ]);
+
+    const legacyEntry = {
+      ...earlySameDay,
+      occurredAt: undefined as unknown as string,
+    };
+    expect(entryInstant(legacyEntry)).toBe(earlySameDay.createdAt);
   });
 
   test('for any sequence of expenses and deposits, the current budget equals carried over plus every line', () => {
@@ -253,6 +260,7 @@ describe('month ledger math and rollover', () => {
           const entriesBefore: LedgerEntry[] = priorAmounts.map((amount, index) => ({
             id: `before-${String(index)}`,
             date: '2026-10-15',
+            occurredAt: '2026-10-15T12:00:00.000Z',
             monthKey: '2026-10',
             amount,
             name: `Prior ${String(index)}`,
@@ -267,6 +275,7 @@ describe('month ledger math and rollover', () => {
           const entriesIn: LedgerEntry[] = monthAmounts.map((amount, index) => ({
             id: `in-${String(index)}`,
             date: '2026-11-10',
+            occurredAt: '2026-11-10T12:00:00.000Z',
             monthKey: '2026-11',
             amount,
             name: `Line ${String(index)}`,
@@ -316,6 +325,7 @@ describe('month ledger math and rollover', () => {
           return {
             id: `entry-${String(index)}`,
             date: `${monthKey}-05`,
+            occurredAt: `${monthKey}-05T12:00:00.000Z`,
             monthKey,
             amount,
             name: `Month ${String(index)} net`,

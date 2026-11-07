@@ -13,10 +13,9 @@ test('an expense is subtracted from the current budget', async ({ budgetApp }) =
   // $5,000.00 income − $1,800.00 rent − $120.00 groceries = $3,080.00
   await expect(budgetApp.currentBudget).toHaveText('$3,080.00');
   await expect(budgetApp.ledger).toShowLines([
-    ['Carried over from October', '$0.00'],
+    ['Groceries', '−$120.00'],
     ['Monthly income', '+$5,000.00'],
     ['Rent', '−$1,800.00'],
-    ['Groceries', '−$120.00'],
   ]);
 
   const axeResults = await new AxeBuilder({ page: budgetApp.page }).analyze();
@@ -35,10 +34,9 @@ test('a deposit is added to the current budget', async ({ budgetApp }) => {
   // $5,000.00 income − $1,800.00 rent + $250.00 tax refund = $3,450.00
   await expect(budgetApp.currentBudget).toHaveText('$3,450.00');
   await expect(budgetApp.ledger).toShowLines([
-    ['Carried over from October', '$0.00'],
+    ['Tax refund', '+$250.00'],
     ['Monthly income', '+$5,000.00'],
     ['Rent', '−$1,800.00'],
-    ['Tax refund', '+$250.00'],
   ]);
 });
 
@@ -70,10 +68,9 @@ test('editing an expense amount updates the current budget', async ({ budgetApp 
   // $5,000.00 income − $1,800.00 rent − $145.00 farmer market = $3,055.00
   await expect(budgetApp.currentBudget).toHaveText('$3,055.00');
   await expect(budgetApp.ledger).toShowLines([
-    ['Carried over from October', '$0.00'],
+    ['Farmer market', '−$145.00'],
     ['Monthly income', '+$5,000.00'],
     ['Rent', '−$1,800.00'],
-    ['Farmer market', '−$145.00'],
   ]);
 });
 
@@ -100,10 +97,9 @@ test('deleting an expense gives the money back, and undo brings the expense back
   // Undoing restores Groceries (−$120.00) -> $3,080.00
   await expect(budgetApp.currentBudget).toHaveText('$3,080.00');
   await expect(budgetApp.ledger).toShowLines([
-    ['Carried over from October', '$0.00'],
+    ['Groceries', '−$120.00'],
     ['Monthly income', '+$5,000.00'],
     ['Rent', '−$1,800.00'],
-    ['Groceries', '−$120.00'],
   ]);
 });
 
@@ -125,9 +121,9 @@ test('an expense dated last month changes last month and the amount carried over
   // Carried over from October becomes −$90.00; November budget becomes $3,200.00 − $90.00 = $3,110.00
   await expect(budgetApp.currentBudget).toHaveText('$3,110.00');
   await expect(budgetApp.ledger).toShowLines([
-    ['Carried over from October', '−$90.00'],
     ['Monthly income', '+$5,000.00'],
     ['Rent', '−$1,800.00'],
+    ['Carried over from October', '−$90.00'],
   ]);
 });
 
@@ -165,7 +161,26 @@ test('the save button stays disabled until a valid amount is entered', async ({ 
   await expect(saveButton).toBeEnabled();
 });
 
-test("recurring lines can't be edited from the ledger; the app points you to Settings", async ({
+test('a recurring line can be edited for this month like any other transaction', async ({
+  budgetApp,
+}) => {
+  await budgetApp.openOn('2026-11-05');
+  await budgetApp.finishSetup({
+    monthlyIncome: '$5,000.00',
+    recurringExpenses: [{ name: 'Rent', amount: '$1,800.00' }],
+  });
+
+  await budgetApp.editEntry('Rent', { amount: '$1,700.00' });
+
+  // $5,000.00 income − $1,700.00 rent (edited for this month only) = $3,300.00
+  await expect(budgetApp.currentBudget).toHaveText('$3,300.00');
+  await expect(budgetApp.ledger).toShowLines([
+    ['Monthly income', '+$5,000.00'],
+    ['Rent', '−$1,700.00'],
+  ]);
+});
+
+test('a recurring line has no delete button, because it comes from the budget plan', async ({
   budgetApp,
 }) => {
   await budgetApp.openOn('2026-11-05');
@@ -177,10 +192,8 @@ test("recurring lines can't be edited from the ledger; the app points you to Set
   await budgetApp.ledger.getByRole('button', { name: /Rent/ }).click();
 
   const dialog = budgetApp.page.getByRole('dialog');
-  await expect(dialog.getByRole('heading', { name: 'Managed in your budget plan' })).toBeVisible();
-  await dialog.getByRole('button', { name: 'Open Settings' }).click();
-
-  await expect(budgetApp.page.getByRole('heading', { name: 'Settings' })).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Save' })).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Delete' })).toHaveCount(0);
 });
 
 test('a new expense appears at the top of Activity', async ({ budgetApp }) => {
@@ -193,12 +206,76 @@ test('a new expense appears at the top of Activity', async ({ budgetApp }) => {
   await budgetApp.addExpense({ name: 'Lunch', amount: '$15.00', date: '2026-11-04' });
   await budgetApp.addExpense({ name: 'Dinner', amount: '$35.00', date: '2026-11-05' });
 
-  // Dinner (Nov 5) is newer than Lunch (Nov 4) so it appears first in Activity
+  // Newest first: Dinner (Nov 5), then Lunch (Nov 4), then the plan's lines posted on Nov 1
   await expect(budgetApp.ledger).toShowLines([
-    ['Carried over from October', '$0.00'],
-    ['Monthly income', '+$5,000.00'],
-    ['Rent', '−$1,800.00'],
     ['Dinner', '−$35.00'],
     ['Lunch', '−$15.00'],
+    ['Monthly income', '+$5,000.00'],
+    ['Rent', '−$1,800.00'],
   ]);
+});
+
+test('the add sheet asks for a description and a date that starts as today', async ({
+  budgetApp,
+}) => {
+  await budgetApp.openOn('2026-11-05');
+  await budgetApp.finishSetup({ monthlyIncome: '$5,000.00' });
+
+  await budgetApp.page.getByRole('button', { name: 'Add expense' }).click();
+  const dialog = budgetApp.page.getByRole('dialog');
+
+  await expect(dialog.getByLabel('Description')).toBeVisible();
+  await expect(dialog.getByLabel('Name')).toHaveCount(0);
+  await expect(dialog.getByLabel('Date')).toHaveValue('2026-11-05');
+});
+
+test('every activity row shows when it happened, and the time can be set by hand', async ({
+  budgetApp,
+}) => {
+  await budgetApp.openOn('2026-11-05');
+  await budgetApp.finishSetup({ monthlyIncome: '$5,000.00' });
+
+  await budgetApp.addExpense({
+    name: 'Lunch',
+    amount: '$15.00',
+    date: '2026-11-04',
+    time: '13:15',
+  });
+
+  await expect(budgetApp.ledger.getByRole('button', { name: /Lunch/ })).toContainText(
+    /Nov 4 · 1:15\s?PM/,
+  );
+
+  await budgetApp.editEntry('Lunch', { time: '18:45' });
+
+  await expect(budgetApp.ledger.getByRole('button', { name: /Lunch/ })).toContainText(
+    /Nov 4 · 6:45\s?PM/,
+  );
+});
+
+test('activity is split into pages so the app fits on one screen', async ({ budgetApp }) => {
+  await budgetApp.foldScreen();
+  await budgetApp.openOn('2026-11-05');
+  await budgetApp.finishSetup({
+    monthlyIncome: '$5,000.00',
+    recurringExpenses: [{ name: 'Rent', amount: '$1,800.00' }],
+  });
+  for (const name of ['One', 'Two', 'Three', 'Four']) {
+    await budgetApp.addExpense({ name, amount: '$1.00' });
+  }
+
+  // Newest first: the four newest expenses plus the first plan line fill page one.
+  await expect(budgetApp.ledger).toShowLines([
+    ['Four', '−$1.00'],
+    ['Three', '−$1.00'],
+    ['Two', '−$1.00'],
+    ['One', '−$1.00'],
+    ['Monthly income', '+$5,000.00'],
+  ]);
+  await expect(budgetApp.page.getByText('Page 1 of 2')).toBeVisible();
+
+  await budgetApp.page.getByRole('button', { name: 'Older' }).click();
+
+  await expect(budgetApp.ledger).toShowLines([['Rent', '−$1,800.00']]);
+  await expect(budgetApp.page.getByText('Page 2 of 2')).toBeVisible();
 });

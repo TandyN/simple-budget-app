@@ -123,6 +123,7 @@ export function anExpense(options: ManualEntryBuilderOptions): LedgerEntry {
   const createdAt = options.createdAt ?? `${date}T12:00:00.000Z`;
   return {
     id: options.id ?? nextBuilderId('expense'),
+    occurredAt: createdAt,
     date,
     monthKey: monthKeyOf(date),
     amount: negate(money(options.amount)),
@@ -141,6 +142,7 @@ export function aDeposit(options: ManualEntryBuilderOptions): LedgerEntry {
   const createdAt = options.createdAt ?? `${date}T12:00:00.000Z`;
   return {
     id: options.id ?? nextBuilderId('deposit'),
+    occurredAt: createdAt,
     date,
     monthKey: monthKeyOf(date),
     amount: money(options.amount),
@@ -166,6 +168,7 @@ function toLedgerEntryInMonth(
   const recurringItemId = line.recurringItemId ?? null;
   return {
     id,
+    occurredAt: `${date}T09:00:00.000Z`,
     date,
     monthKey: month,
     amount: line.amount,
@@ -197,6 +200,7 @@ export function aMonthStatement(options: MonthStatementBuilderOptions): MonthSta
       : [
           {
             id: nextBuilderId('prior'),
+            occurredAt: `${firstDayOf(previousMonth)}T00:00:00.000Z`,
             date: firstDayOf(previousMonth),
             monthKey: previousMonth,
             amount: carriedOverCents,
@@ -229,6 +233,7 @@ export function openNextMonth(
       : [
           {
             id: nextBuilderId('carry'),
+            occurredAt: `${firstDayOf(previous.month)}T00:00:00.000Z`,
             date: firstDayOf(previous.month),
             monthKey: previous.month,
             amount: previous.currentBudget,

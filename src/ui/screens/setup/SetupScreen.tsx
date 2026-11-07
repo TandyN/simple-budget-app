@@ -145,7 +145,7 @@ export function SetupScreen({ layoutMode, onCompleteSetup }: SetupScreenProps) {
           trailing={<AmountText amount={negate(totalRecurringExpenses)} sign="auto" />}
         />
         <ListRow
-          title={<strong>Purchase power</strong>}
+          title={<strong>Available funds</strong>}
           trailing={<AmountText amount={purchasePowerAmount} sign="auto" />}
         />
       </div>
@@ -276,7 +276,7 @@ export function SetupScreen({ layoutMode, onCompleteSetup }: SetupScreenProps) {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
+              gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
               gap: 'var(--space-3)',
               alignItems: 'start',
             }}
@@ -334,7 +334,7 @@ export function SetupScreen({ layoutMode, onCompleteSetup }: SetupScreenProps) {
               Ready to start budgeting
             </h2>
             <p style={{ margin: 0, color: 'var(--color-ink-muted)', fontSize: 'var(--text-sm)' }}>
-              Your purchase power is what remains each month after recurring expenses.
+              Your available funds are what remains each month after recurring expenses.
             </p>
           </div>
 

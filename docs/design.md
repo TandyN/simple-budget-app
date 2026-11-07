@@ -39,10 +39,10 @@ notebook that happens to do the math. Nothing blinks, nothing nags, nothing is d
 
 Layouts are chosen by **available width**, never by sniffing the device, so any phone works.
 
-| Mode         | When                                                     | Layout                                                                                                                                                                                                      |
-| ------------ | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **compact**  | width < 600 px (iPhone Duo folded, normal phones)        | Single column. Header (month + calendar + settings), hero card, ledger, bottom action bar with **Expense** and **Deposit** in the thumb zone.                                                               |
-| **expanded** | width ≥ 600 px (iPhone Duo unfolded, tablets, landscape) | Two panes, split **50/50 so the fold hinge falls in the gutter**. Left: hero + calendar + actions. Right: ledger. Settings and Insights use list → detail across the panes. Sheets become centered dialogs. |
+| Mode         | When                                                     | Layout                                                                                                                                                                                                                          |
+| ------------ | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **compact**  | width < 560 px (iPhone Duo folded, normal phones)        | Single column that fits one screen without scrolling. Sticky header, hero card with the **−** (expense) and **+** (deposit) buttons beside the amount, then one paginated Activity list (5 rows per page).                      |
+| **expanded** | width ≥ 560 px (iPhone Duo unfolded, tablets, landscape) | Two panes, split **50/50 so the fold hinge falls in the gutter**. Left: hero + calendar + actions. Right: Activity (8 rows per page). Settings and Insights use list → detail across the panes. Sheets become centered dialogs. |
 
 - Uses `env(safe-area-inset-*)` with `viewport-fit=cover`, and `100dvh` (not `100vh`).
 - Progressive enhancement: if the browser supports the CSS Viewport Segments API
@@ -52,18 +52,15 @@ Layouts are chosen by **available width**, never by sniffing the device, so any 
 ```text
  iPhone Duo folded (compact)          iPhone Duo unfolded (expanded)
 ┌─────────────────────────┐         ┌──────────────────┬──────────────────┐
-│ November 2026   📅  ⚙︎   │         │ November 2026  ⚙︎ │ Starting point   │
-│                         │         │                  │ Carried over  $0 │
-│   Current budget        │         │  Current budget  │ Monthly income + │
-│   $3,080.00             │         │  $3,080.00       │ Rent           − │
-│   ≈ $118/day left       │         │                  │──────────────────│
-│─────────────────────────│         │ S M T W T F S    │ Activity         │
-│ Starting point        ▾ │         │ 1 2 3 4 5 6 7    │ Groceries   −120 │
-│ Activity                │         │ ...calendar...   │ ...              │
-│ Groceries      −$120.00 │         │                  │                  │
-│                         │         │ [− Expense] [+ Deposit]             │
-│ [ − Expense ][ + Deposit ]│       └──────────────────┴──────────────────┘
-└─────────────────────────┘                    ↑ hinge in the gutter
+│ Simple Budget  Nov  📈 ⚙︎│ sticky  │ Simple Budget ⚙︎  │ Activity         │
+│─────────────────────────│         │                  │ Groceries  −120  │
+│ Available funds   (−)(+)│         │ Available funds  │ Monthly income + │
+│ $3,080.00               │         │ $3,080.00 (−)(+) │ Rent           − │
+│─────────────────────────│         │                  │ Carried over  …  │
+│ Activity (newest first) │         │ ...calendar...   │ Newer  1/2  Older│
+│ Groceries  Nov 5 · 3:42 │         └──────────────────┴──────────────────┘
+│ Newer      1 / 2   Older│                    ↑ hinge in the gutter
+└─────────────────────────┘
 ```
 
 ## Device profiles (`config/devices.ts`)
