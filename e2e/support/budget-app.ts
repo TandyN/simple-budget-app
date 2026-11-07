@@ -39,7 +39,7 @@ export class BudgetAppDriver {
   readonly actionBar: Locator;
   readonly insightsButton: Locator;
   readonly settingsButton: Locator;
-  readonly backToBudgetButton: Locator;
+  readonly budgetButton: Locator;
   readonly debugLayoutOverlay: Locator;
   readonly currentBudget: Locator;
   readonly ledger: Locator;
@@ -57,7 +57,7 @@ export class BudgetAppDriver {
     this.actionBar = page.getByRole('toolbar', { name: 'Budget actions' });
     this.insightsButton = page.getByRole('button', { name: 'Insights' });
     this.settingsButton = page.getByRole('button', { name: 'Settings' });
-    this.backToBudgetButton = page.getByRole('button', { name: 'Back to budget' });
+    this.budgetButton = page.getByRole('button', { name: 'Budget' });
     this.debugLayoutOverlay = page.getByRole('region', { name: 'Debug layout overlay' });
     this.currentBudget = page
       .getByRole('region', { name: 'Available funds summary' })
@@ -84,6 +84,10 @@ export class BudgetAppDriver {
 
     await this.page.getByRole('button', { name: 'Review plan' }).click();
     await this.page.getByRole('button', { name: 'Start budgeting' }).click();
+
+    // Wait for the budget screen to take over before the test reads it,
+    // so the setup summary (which shows the same amounts) is out of the DOM.
+    await this.page.getByRole('region', { name: 'Available funds summary' }).waitFor();
   }
 
   async addExpense(entry: ManualEntryDraft): Promise<void> {
@@ -175,7 +179,7 @@ export class BudgetAppDriver {
   }
 
   async returnToBudget(): Promise<void> {
-    await this.backToBudgetButton.click();
+    await this.budgetButton.click();
   }
 
   async simulateSafeAreas(insets: {

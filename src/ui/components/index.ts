@@ -5,7 +5,7 @@ export {
   type SpokenAmountOptions,
 } from './AmountText';
 export { Button, IconButton, type ButtonProps, type IconButtonProps } from './Button';
-export { BackArrowIcon, InsightsIcon, SettingsIcon } from './Icons';
+export { BudgetIcon, InsightsIcon, LeftArrowIcon, RightArrowIcon, SettingsIcon } from './Icons';
 export {
   EmptyState,
   ListRow,
