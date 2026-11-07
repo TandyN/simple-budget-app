@@ -9,7 +9,7 @@ Statuses: `todo` → `in-progress` → `done`.
 | --- | ---------------------------------------------------------------------------- | ---------- | --------------------------- | ------ |
 | T01 | [Toolchain, test harness & CI](T01-toolchain-and-ci.md)                      | —          | Foundation                  | done   |
 | T02 | [Domain core: money, calendar, ledger math](T02-domain-core.md)              | T01        | Foundation                  | done   |
-| T03 | [Local database & repositories](T03-local-database.md)                       | T02        | Foundation                  | todo   |
+| T03 | [Local database & repositories](T03-local-database.md)                       | T02        | Foundation                  | in-progress |
 | T04 | [Design system & responsive app shell](T04-design-system-and-shell.md)       | T01        | Foundation                  | todo   |
 | T05 | [First-run setup & month ledger](T05-first-run-setup-and-ledger.md)          | T03, T04   | MVP                         | todo   |
 | T06 | [Manual expenses & deposits](T06-manual-expenses-and-deposits.md)            | T05        | MVP                         | todo   |
