@@ -38,7 +38,7 @@ expenses and deposits by hand. Whatever is left at the end of a month **rolls ov
 | `scripts/rollback.sh`           | One-command rollback of the live site to any previous `v*` tag.                                                                                                     |
 | `config/devices.ts`             | Device viewport profiles shared by Playwright and the dev device wall.                                                                                              |
 | `dev/devices.html`              | Dev-only side-by-side device wall showing every profile from `config/devices.ts` with a dark-mode toggle.                                                           |
-| `src/domain/`                   | Pure TypeScript business rules: money, calendar, ledger math, budget plan changes, and domain rule tests.                                                           |
+| `src/domain/`                   | Pure TypeScript business rules: money, calendar, UTC instants, ledger math, budget plan changes, and domain rule tests.                                             |
 | `src/data/`                     | Native browser IndexedDB schema v1, transactional wrapper, repositories, and iOS storage bridge sync.                                                               |
 | `src/app/`                      | Application use-cases (`completeSetup`, `addEntry`, `updateEntry`, `deleteEntry`, `restoreEntry`, `openMonthsThrough`, `getMonthView`), clock/id providers & hooks. |
 | `src/ui/`                       | Design tokens (`src/ui/theme/tokens.css`), responsive shell (`AppShell`, `TwoPane`), screens (`src/ui/screens/`), and components.                                   |
@@ -51,7 +51,7 @@ expenses and deposits by hand. Whatever is left at the end of a month **rolls ov
 ## Golden rules
 
 1. **Money is integer cents.** Never use floats for money. Parse user input with the money module; format with it too.
-2. **Dates are plain strings.** `IsoDate` = `"YYYY-MM-DD"`, `MonthKey` = `"YYYY-MM"`, always in the device's local calendar. Never store timestamps for ledger dates. No `Temporal` (not in iOS Safari).
+2. **Every moment is a UTC timestamp.** Ledger entries store `occurredAt` as a UTC ISO-8601 string (`2026-11-05T17:30:00.000Z`) and convert to the device's local time only to display it or to pick the day/month (`src/domain/instant.ts`). `IsoDate` (`"YYYY-MM-DD"`) and `MonthKey` (`"YYYY-MM"`) are the local calendar day/month _derived_ from that instant and stored only so they can be indexed. Always use the `instant` helpers; never hand-parse. No `Temporal` (not in iOS Safari).
 3. **Ledger entry amounts are signed.** Positive adds to the budget, negative subtracts. `current budget = carried over + sum(entries in month)`.
 4. **The domain is pure.** Anything in `src/domain/` must be deterministic and free of I/O so it can be tested exhaustively.
 5. **History is immutable-ish.** Recurring lines are snapshotted into a month when it opens. Mid-month config changes appear as _adjustment_ lines, never by rewriting the snapshot.
@@ -71,14 +71,13 @@ expenses and deposits by hand. Whatever is left at the end of a month **rolls ov
 | **Monthly income**    | The recurring income from the budget plan.                                                            |
 | **Recurring expense** | A named expense from the budget plan that is subtracted every month (rent, phone…).                   |
 | **Budget plan**       | Monthly income + recurring expenses (the configuration).                                              |
-| **Purchase power**    | Monthly income − sum of recurring expenses.                                                           |
+| **Available funds**   | Monthly income − sum of recurring expenses in setup; after setup it is the **Current budget**.        |
 | **Carried over**      | Last month's final current budget, brought into this month as the first ledger line. Can be negative. |
 | **Expense**           | A manual line that subtracts from the budget.                                                         |
 | **Deposit**           | A manual line that adds to the budget.                                                                |
 | **Adjustment**        | A system line created when the budget plan changes "this month". Shows the difference.                |
-| **Current budget**    | Carried over + every line this month. The big number on the main screen.                              |
+| **Current budget**    | Carried over + every line this month. Shown on screen as **Available funds** (the big number).        |
 | **Opening a month**   | Snapshotting recurring income/expenses into a month the first time the app sees it (rollover).        |
-| **Starting point**    | The carried over line + the month's recurring lines.                                                  |
 
 ## Commands
 

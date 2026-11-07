@@ -1,38 +1,56 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '../support/budget-app';
 
-test('when folded, the app uses a single column with the action bar at the bottom', async ({
+test('when folded, everything fits on one screen with the add buttons at the top', async ({
   budgetApp,
 }) => {
   await budgetApp.foldScreen();
   await budgetApp.openOn('2026-11-05');
   await budgetApp.finishSetup({
     monthlyIncome: '$5,000.00',
-    recurringExpenses: [{ name: 'Rent', amount: '$1,800.00' }],
+    recurringExpenses: [
+      { name: 'Rent', amount: '$1,800.00' },
+      { name: 'Phone', amount: '$60.00' },
+    ],
   });
+  for (const name of ['One', 'Two', 'Three']) {
+    await budgetApp.addExpense({ name, amount: '$1.00' });
+  }
 
   await expect(budgetApp.singleColumnRegion).toBeVisible();
   await expect(budgetApp.twoPaneRegion).toHaveCount(0);
   await expect(budgetApp.actionBar).toBeVisible();
+  await expect(budgetApp.page.getByRole('button', { name: 'Add expense' })).toHaveText('−');
+  await expect(budgetApp.page.getByRole('button', { name: 'Add deposit' })).toHaveText('+');
 
-  const positions = await budgetApp.page.evaluate(() => {
-    const columnRect = document
-      .querySelector('[role="region"][aria-label="Single column layout"]')
-      ?.getBoundingClientRect();
-    const toolbarRect = document
-      .querySelector('[role="toolbar"][aria-label="Budget actions"]')
-      ?.getBoundingClientRect();
-    const scrollOverflow =
-      document.documentElement.scrollWidth > document.documentElement.clientWidth;
-    return {
-      columnTop: columnRect?.top ?? 0,
-      toolbarTop: toolbarRect?.top ?? 0,
-      scrollOverflow,
-    };
+  const page = await budgetApp.page.evaluate(() => ({
+    needsVerticalScroll:
+      document.documentElement.scrollHeight > document.documentElement.clientHeight,
+    needsHorizontalScroll:
+      document.documentElement.scrollWidth > document.documentElement.clientWidth,
+  }));
+
+  expect(page.needsVerticalScroll).toBe(false);
+  expect(page.needsHorizontalScroll).toBe(false);
+});
+
+test('the top bar stays in place while the page scrolls', async ({ budgetApp }) => {
+  await budgetApp.foldScreen();
+  await budgetApp.openOn('2026-11-05');
+  await budgetApp.finishSetup({ monthlyIncome: '$5,000.00' });
+
+  await budgetApp.page.evaluate(() => {
+    const main = document.querySelector<HTMLElement>('main');
+    if (main) {
+      main.style.minHeight = '3000px';
+    }
+    window.scrollTo(0, 800);
   });
 
-  expect(positions.toolbarTop).toBeGreaterThan(positions.columnTop);
-  expect(positions.scrollOverflow).toBe(false);
+  const headerTop = await budgetApp.page.evaluate(
+    () => document.querySelector('header')?.getBoundingClientRect().top ?? -1,
+  );
+  expect(headerTop).toBe(0);
 });
 
 test('when unfolded, the app shows two panes split at the hinge with nothing crossing the center line', async ({
@@ -90,14 +108,31 @@ test('the layout switches when the screen is unfolded without losing what you we
     monthlyIncome: '$5,000.00',
     recurringExpenses: [{ name: 'Rent', amount: '$1,800.00' }],
   });
-
-  await budgetApp.quickNoteField.fill('Save $300 for holiday travel');
+  await budgetApp.addExpense({ name: 'Groceries', amount: '$120.00' });
   await expect(budgetApp.singleColumnRegion).toBeVisible();
 
   await budgetApp.unfoldScreen();
 
   await expect(budgetApp.twoPaneRegion).toBeVisible();
-  await expect(budgetApp.quickNoteField).toHaveValue('Save $300 for holiday travel');
+  await expect(budgetApp.ledger.getByRole('button', { name: /Groceries/ })).toBeVisible();
+  await expect(budgetApp.currentBudget).toHaveText('$3,080.00');
+});
+
+test('folding and unfolding again and again, then reopening, always ends in two panes when unfolded', async ({
+  budgetApp,
+}) => {
+  await budgetApp.openOn('2026-11-05');
+  await budgetApp.finishSetup({ monthlyIncome: '$5,000.00' });
+
+  for (let round = 0; round < 3; round += 1) {
+    await budgetApp.foldScreen();
+    await expect(budgetApp.singleColumnRegion).toBeVisible();
+    await budgetApp.unfoldScreen();
+    await expect(budgetApp.twoPaneRegion).toBeVisible();
+  }
+
+  await budgetApp.reopenApp();
+  await expect(budgetApp.twoPaneRegion).toBeVisible();
 });
 
 test('the header lets you reach Insights and Settings and come back', async ({ budgetApp }) => {
@@ -113,7 +148,7 @@ test('the header lets you reach Insights and Settings and come back', async ({ b
   await expect(budgetApp.page.getByRole('heading', { name: 'Settings' })).toBeVisible();
 
   await budgetApp.returnToBudget();
-  await expect(budgetApp.page.getByText('Current budget')).toBeVisible();
+  await expect(budgetApp.page.getByText('Available funds')).toBeVisible();
 });
 
 test('content stays clear of the notch and home indicator (safe areas are respected)', async ({
@@ -123,14 +158,15 @@ test('content stays clear of the notch and home indicator (safe areas are respec
   await budgetApp.simulateSafeAreas({ top: 48, right: 16, bottom: 34, left: 16 });
 
   const paddings = await budgetApp.page.evaluate(() => {
+    // The top inset lives on the sticky header so it stays clear of the notch while scrolling.
+    const header = document.querySelector('.sb-header');
     const shell = document.querySelector('.sb-shell');
-    if (!shell) {
+    if (!shell || !header) {
       return { top: 0, bottom: 0 };
     }
-    const style = window.getComputedStyle(shell);
     return {
-      top: Number.parseFloat(style.paddingTop),
-      bottom: Number.parseFloat(style.paddingBottom),
+      top: Number.parseFloat(window.getComputedStyle(header).paddingTop),
+      bottom: Number.parseFloat(window.getComputedStyle(shell).paddingBottom),
     };
   });
 

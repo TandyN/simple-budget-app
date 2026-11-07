@@ -89,11 +89,14 @@ src/
 
 Unit tests sit next to the code they test (`src/domain/money.ts` + `src/domain/money.test.ts`).
 
-## 4. Data model (Dexie schema v1)
+## 4. Data model (IndexedDB schema v2)
+
+v2 added `occurredAt` to every entry; the upgrade step in `src/data/database.ts` backfills existing rows and `src/data/database.test.ts` covers it. The backup-format migration for `occurredAt` lands with T09 (import must accept v1 backups and backfill the same way).
 
 ```ts
 type Cents = number & { readonly __brand: 'Cents' }; // integer, may be negative in ledger entries
-type IsoDate = string; // "2026-11-05" — local calendar date
+type UtcTimestamp = string; // "2026-11-05T17:30:00.000Z" — the source of truth for every moment
+type IsoDate = string; // "2026-11-05" — local calendar day derived from a UtcTimestamp (indexing only)
 type MonthKey = string; // "2026-11"
 
 interface Settings {
@@ -131,7 +134,8 @@ interface RecurringItem {
 interface LedgerEntry {
   // table: entries
   id: string;
-  date: IsoDate;
+  occurredAt: UtcTimestamp; // when it happened; shown in the device's local time
+  date: IsoDate; // local day of occurredAt, derived, stored for the index
   monthKey: MonthKey; // always derived from date
   amount: Cents; // signed: + adds to budget, − subtracts
   name: string;

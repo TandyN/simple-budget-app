@@ -105,11 +105,11 @@ The vocabulary grows with the plan. Each task adds the methods it needs and docu
 | `openInsights()` / `openSettings()` / `backToBudget()`                            | Navigates between Budget (`#/`), Insights (`#/insights`), and Settings (`#/settings`). |
 | `debugLayoutOverlay`                                                              | Locator for the `?debug=layout` viewport/hinge overlay region.                         |
 | `finishSetup({ monthlyIncome, recurringExpenses })`                               | Walks the first-run setup screens and taps _Start budgeting_.                          |
-| `currentBudget`                                                                   | Locator for the big current-budget number (`output`).                                  |
+| `currentBudget`                                                                   | Locator for the big Available funds number (`output`).                                 |
 | `ledger`                                                                          | Locator for the month ledger region; use with `toShowLines([[label, amount], ...])`.   |
-| `addExpense({ name, amount, date?, note? })`                                      | Taps _Add expense_, fills the entry sheet, and saves.                                  |
-| `addDeposit({ name, amount, date?, note? })`                                      | Taps _Add deposit_, fills the entry sheet, and saves.                                  |
-| `editEntry(name, changes)`                                                        | Taps a manual ledger row, edits its fields in the sheet, and saves.                    |
+| `addExpense({ name, amount, date?, time?, note? })`                               | Taps _Add expense_, fills the entry sheet, and saves.                                  |
+| `addDeposit({ name, amount, date?, time?, note? })`                               | Taps _Add deposit_, fills the entry sheet, and saves.                                  |
+| `editEntry(name, changes)`                                                        | Taps a ledger row, edits its fields (incl. `time`) in the sheet, and saves.            |
 | `deleteEntry(name)`                                                               | Taps a manual ledger row and deletes it from the edit sheet.                           |
 | `undo()`                                                                          | Taps the _Undo_ action in the deletion toast to restore the deleted entry.             |
 | `changeMonthlyIncome(to, { takesEffect: 'this month' \| 'starting next month' })` | (planned until T08) Settings → income → choose when.                                   |

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import {
+  assertUtcTimestamp,
   formatLocalTime,
   instantFromLocal,
   isLocalTime,
@@ -24,6 +25,8 @@ describe('instants are UTC timestamps shown in the device local time', () => {
     expect(isUtcTimestamp('2026-11-05')).toBe(false);
     expect(isUtcTimestamp('2026-11-05T17:30:00')).toBe(false);
     expect(isUtcTimestamp('2026-11-05T17:30:00+02:00')).toBe(false);
+    expect(assertUtcTimestamp('2026-11-05T17:30:00.000Z')).toBe('2026-11-05T17:30:00.000Z');
+    expect(() => assertUtcTimestamp('2026-11-05')).toThrow(RangeError);
   });
 
   test('times of day are 24-hour HH:mm', () => {
@@ -31,6 +34,7 @@ describe('instants are UTC timestamps shown in the device local time', () => {
     expect(isLocalTime('23:59')).toBe(true);
     expect(isLocalTime('24:00')).toBe(false);
     expect(isLocalTime('9:30')).toBe(false);
+    expect(() => instantFromLocal('2026-11-05', '25:00')).toThrow(RangeError);
   });
 
   test('the time shown to people is a friendly local time', () => {

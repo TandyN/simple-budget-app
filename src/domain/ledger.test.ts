@@ -1,6 +1,7 @@
 import fc from 'fast-check';
 import { describe, expect, test } from 'vitest';
 import {
+  entryInstant,
   monthStatement,
   purchasePower,
   recurrenceKeyFor,
@@ -240,6 +241,12 @@ describe('month ledger math and rollover', () => {
       'Lunch',
       'Coffee',
     ]);
+
+    const legacyEntry = {
+      ...earlySameDay,
+      occurredAt: undefined as unknown as string,
+    };
+    expect(entryInstant(legacyEntry)).toBe(earlySameDay.createdAt);
   });
 
   test('for any sequence of expenses and deposits, the current budget equals carried over plus every line', () => {
