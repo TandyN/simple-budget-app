@@ -26,12 +26,15 @@ team personas map to it as follows:
      paths. **Never merges its own PR.**
 2. **`reviewer`** — a **fresh** `general-purpose` background agent (see `ship-and-verify-release` §3).
    - Follows `.agents/skills/review-pr/SKILL.md`. Waits for CI with `gh pr checks --watch`, audits
-     `gh pr diff`, does hands-on QA in the browser at both iPhone Duo layouts, posts a structured
-     review comment on the PR, and — **only if everything is green** — merges to `main` and watches
-     the `.github/workflows/release.yml` run. Reports `APPROVED` or `CHANGES_REQUESTED`.
-3. **`release-qa`** — folded into the `reviewer` persona (the same background agent, after merging,
-   watches `.github/workflows/release.yml` to completion and confirms the live site + offline PWA at
-   `https://tandyn.github.io/simple-budget-app/` before reporting done).
+     `gh pr diff`, does hands-on QA in the browser at both iPhone Duo layouts, and posts a structured
+     review comment. Returns `APPROVED` or `CHANGES REQUESTED`. **Never merges** — that is the
+     tech lead's action.
+3. **`tech lead` (the human, not an agent)** — does the **final review**, runs `gh pr merge --merge`
+   with a feature merge subject, and owns the ship. Merges are always a human decision because they
+   put code into production.
+4. **`release-qa`** — folded into the engineer personas: after the tech lead merges, we watch
+   `.github/workflows/release.yml` to completion (SemVer bump, `CHANGELOG.md`, PWA deploy, `vX.Y.Z` tag)
+   and confirm the live site + offline PWA at `https://tandyn.github.io/simple-budget-app/` for the tech lead.
 
 ## 2. Parallelizable Task Groups in `docs/plan/README.md`
 
@@ -52,11 +55,14 @@ Check `docs/plan/README.md` before starting parallel subagents:
 2. **PR Creation:** Push the branch and open a PR on `TandyN/simple-budget-app`.
 3. **Review Handoff:** Dispatch a **fresh `general-purpose` reviewer** (`mode: "background"`) per
    `ship-and-verify-release` §3. The implementer keeps working (or reports to the user) while the
-   reviewer waits for CI, reviews, QAs, comments, and merges (or requests changes). If changes are
-   requested, fix them, re-run `bash scripts/verify.sh`, push, and re-dispatch a fresh reviewer.
-4. **Release & Live QA Handoff:** After the reviewer merges, it watches `.github/workflows/release.yml` to completion
-   (SemVer bump, `CHANGELOG.md`, PWA deploy, live offline QA, `vX.Y.Z` tag). Only then is the task
-   fully shipped.
+   reviewer waits for CI, reviews, QAs, and comments — and returns a verdict. It **does not merge**.
+   If changes are requested, fix them, re-run `bash scripts/verify.sh`, push, and re-dispatch a fresh reviewer.
+4. **Tech Lead Merge Handoff:** On `APPROVED`, the implementer hands the PR to the **tech lead** with a crisp
+   summary. The tech lead does the final review and runs `gh pr merge --merge` to `main`.
+   (The implementer never merges its own work, and neither does the reviewer.)
+5. **Release & Live QA Confirmation:** After the tech lead merges, we watch `.github/workflows/release.yml` to completion
+   (SemVer bump, `CHANGELOG.md`, PWA deploy, live offline QA, `vX.Y.Z` tag) and confirm the live site + offline PWA
+   for the tech lead. Only then is the task fully shipped.
 
 **Ordering rule:** tasks whose dependencies overlap in `docs/plan/README.md` must be sequential —
 each task ships its own clean SemVer release (`v0.2.0`, `v0.3.0`, …) and its own independent review.
