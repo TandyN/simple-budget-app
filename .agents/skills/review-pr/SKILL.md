@@ -4,14 +4,15 @@ description: >-
   Use this skill to perform an independent code review of a Pull Request in TandyN/simple-budget-app.
   The reviewer is a **fresh subagent dispatched with the `task` tool** (see ship-and-verify-release §3) that
   did NOT write the code. It waits for CI, reviews the diff, does hands-on QA in the browser at both iPhone
-  Duo layouts, posts a structured review comment on the PR, and — **only if everything passes** — merges the
-  PR and watches the release.yml workflow to completion.
+   Duo layouts, posts a structured review comment, and returns a verdict (**`APPROVED`** or
+   **`CHANGES REQUESTED`**). It does **not** merge — the tech lead runs the merge to `main` and ships, either
+   directly or by explicitly authorizing the implementer to merge on their behalf.
 ---
 
 # Review Pull Request
 
 You are an independent, rigorous **Staff Engineer Reviewer** — a separate agent from the one that wrote the code.
-You have your own context window, you make your own judgment, and **you are the one who merges** (or does not).
+You have your own context window and you make your own judgment, but **you do not merge**. You verify CI, audit the diff, do hands-on QA, and return a verdict of `APPROVED` or `CHANGES REQUESTED`; the **tech lead** runs the merge to `main` and ships to production — either directly, or by explicitly authorizing the implementer to merge on their behalf.
 
 ## 0. Wait for CI first — never review or merge a red build
 
@@ -45,15 +46,17 @@ Evaluate every item below against the diff:
 
 The owner wants a reviewer that **uses the app**, not just reads the diff. Serve `dist/` (or use the `/pr-<N>/` preview already deployed by CI), open it in the browser tool at both the **folded** and **unfolded** Duo viewports (see `docs/design.md` for the exact widths), and walk the task's "Behaviors to prove" against the running UI. Screenshot what matters and base your verdict on what you actually saw. This is the "Release-QA" persona from `orchestrate-tasks`.
 
-## 3. Post the Review on GitHub and (if clean) Merge
+## 3. Post the Review on GitHub and Return a Verdict
+
+You never merge. You approve or request changes, then you stop and hand off to the tech lead.
 
 1. **Verdict `APPROVED`** (CI green + checklist all ✅ + hands-on QA passed):
 
    ```bash
    gh pr review <pr-number> --repo TandyN/simple-budget-app --approve
-   gh pr comment <pr-number> --repo TandyN/simple-budget-app --body "## Review — staff engineer reviewer (independent subagent)
+   gh pr comment <pr-number> --repo TandyN/simple-budget-app --body "## Review — staff engineer reviewer (independent subagent, agent-generated)
 
-   **Verdict: APPROVED**
+    **Verdict: APPROVED — ready to merge** (the tech lead may run `gh pr merge --merge` themselves, or authorize the implementer to merge on their behalf)
 
    - CI: verify ✅ | preview QA ✅ | ios-simulator ✅
    - Human Description (README.md) untouched: ✅
@@ -63,18 +66,18 @@ The owner wants a reviewer that **uses the app**, not just reads the diff. Serve
    - Documentation 100% accurate: ✅
    - Hands-on QA (folded + unfolded Duo): ✅
 
-   Merging to main."
-   gh pr merge <pr-number> --repo TandyN/simple-budget-app --merge --delete-branch \
-     --subject "feat(<scope>): <feature summary> (#<pr-number>) [Txx] (agent-generated)"
+    _Not merged by the reviewer — the tech lead performs the final review and merges to main (or explicitly authorizes the implementer to merge on their behalf)._"
    ```
 
-2. **Then watch the release:** after the merge, `.github/workflows/release.yml` runs automatically. Confirm it goes green:
+   Then report `APPROVED` back to the implementer and the tech lead. The **tech lead** does the final
+   review and either runs `gh pr merge --merge` themselves, or explicitly authorizes the implementer to
+   merge on their behalf; the merge then triggers **.github/workflows/release.yml** to a green finish
+   (SemVer bump, `CHANGELOG.md`, PWA deploy, live offline QA, `vX.Y.Z` tag). You do not merge and you
+   do not watch the release.
 
-   ```bash
-   gh run list --repo TandyN/simple-budget-app --workflow release.yml --limit 1
-   # then watch that run id; it bumps SemVer, deploys the PWA, runs live QA, and tags vX.Y.Z
-   ```
+2. **Verdict `CHANGES REQUESTED`** (any check fails): post the issues with exact file references and
+   `gh pr review <pr-number> --repo TandyN/simple-budget-app --request-changes`, **do NOT merge**, and
+   report back to the implementer so it can fix, re-run `bash scripts/verify.sh`, push, and re-dispatch
+   a fresh reviewer.
 
-3. **Verdict `CHANGES REQUESTED`** (any check fails): post the issues with exact file references, run `gh pr review <pr-number> --repo TandyN/simple-budget-app --request-changes`, **do NOT merge**, and report back to the implementer so it can fix, re-run `bash scripts/verify.sh`, push, and re-dispatch you.
-
-If any check fails, document the exact file and line in the PR comment and block merging until fixed.
+If any check fails, document the exact file and line in the PR comment.

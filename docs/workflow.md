@@ -71,7 +71,11 @@ flowchart LR
      `https://tandyn.github.io/simple-budget-app/pr-<N>/`, runs `scripts/verify-live.mjs` against that isolated preview,
      and compiles + uploads the `SimpleBudget-iOS-Simulator` `.app` artifact.
    - Run the `review-pr` skill (via the `reviewer` subagent) and wait for `gh pr checks <pr> --watch --repo TandyN/simple-budget-app` to turn green.
-4. **Merge to `main` with a Descriptive Feature Merge Subject:**
+4. **Tech Lead Merges to `main` with a Descriptive Feature Merge Subject:**
+   Merging to `main` is a **tech-lead decision** — by default the tech lead runs `gh pr merge --merge`
+   themselves, or explicitly authorizes the implementer to merge on their behalf; the reviewer never
+   merges, under any circumstances. On `APPROVED`, the implementer hands the PR to the tech lead (or
+   merges with their authorization), who does the final review and runs:
    ```bash
    gh pr merge <pr-number> --repo TandyN/simple-budget-app --merge --delete-branch \
      --subject "feat(<scope>): <feature summary> (#<pr-number>) [Txx] (agent-generated)"
@@ -83,7 +87,7 @@ flowchart LR
      `https://tandyn.github.io/simple-budget-app/`, runs `scripts/verify-live.mjs` against production, pushes the
      `chore(release): vX.Y.Z [skip ci] (agent-generated)` commit and `vX.Y.Z` tag to `main`, creates the official
      GitHub Release notes, and triggers `ios-testflight` on `macos-15`.
-   - Agents watch the automated `.github/workflows/release.yml` run to completion (`gh run watch`) and then pull `origin/main` locally.
+   - After the tech lead merges, agents watch the automated `.github/workflows/release.yml` run to completion (`gh run watch`) and then pull `origin/main` locally.
 
 ## 5. Instant Rollback
 
@@ -100,11 +104,12 @@ pnpm release:rollback v0.1.0
 
 Using the `orchestrate-tasks` skill, an orchestrator agent can define and coordinate three specialized subagent roles:
 
-| Persona       | Role                                                                                                                            |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `implementer` | Works on an isolated branch (`Workspace: 'branch'` or `'share'`), makes incremental commits, writes tests, verifies.            |
-| `reviewer`    | Read-only/review focus: audits `gh pr diff` against all golden rules, test readability, and zero-runtime-deps policy.           |
-| `release-qa`  | Ensures PR is up to date with `main`, merges approved PRs, and monitors the automated `.github/workflows/release.yml` pipeline. |
+| Persona       | Role                                                                                                                                                                                     |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `implementer` | Works on an isolated branch (`Workspace: 'branch'` or `'share'`), makes incremental commits, writes tests, verifies.                                                                     |
+| `reviewer`    | Read-only/review focus: waits for CI, audits `gh pr diff` against all golden rules, does hands-on QA, posts the review, and returns `APPROVED` or `CHANGES REQUESTED`. **Never merges.** |
+| `tech lead`   | The final gate: does the final review, then runs `gh pr merge --merge` to `main` (or explicitly authorizes the implementer to merge on their behalf), and owns the ship.                 |
+| `release-qa`  | After the tech lead merges, monitors the automated `.github/workflows/release.yml` pipeline and confirms the live site + offline PWA.                                                    |
 
 Tasks without shared dependencies in `docs/plan/README.md` can be developed in parallel on separate branches:
 

@@ -2,9 +2,9 @@
 name: ship-and-verify-release
 description: >-
   Use this skill after local verification passes on a feature branch: open a PR to main, wait for GitHub Actions
-  ci.yml (tests + isolated /pr-N/ preview QA + iOS Simulator artifact) and independent review, ensure the branch is
-  up-to-date with main, merge with a descriptive Conventional Commit merge subject, and watch the automated
-  release.yml workflow publish the SemVer release, production PWA, and iOS TestFlight build.
+  ci.yml (tests + isolated /pr-N/ preview QA + iOS Simulator artifact) and an independent reviewer subagent to
+  return APPROVED, keep the branch up-to-date with main, then hand the PR to the tech lead — who does the final
+  review, merges to main, and watches release.yml publish the SemVer release, production PWA, and iOS TestFlight build.
 ---
 
 # Ship and Verify Release
@@ -31,7 +31,7 @@ gh pr create --repo TandyN/simple-budget-app \
 
 ## 3. Dispatch the Independent Reviewer & QA Agent
 
-**The implementer conversation does NOT review or merge the PR.** Instead, spawn a **fresh `general-purpose` subagent** in **background mode** using the `task` tool. This agent is the Staff Engineer Reviewer — it has its own context, makes its own judgment, and is the one who merges.
+**The implementer conversation does NOT review the PR.** Instead, spawn a **fresh `general-purpose` subagent** in **background mode** using the `task` tool. This agent is the Staff Engineer Reviewer — it has its own context and makes its own judgment. It waits for CI, audits the diff, does hands-on QA on both iPhone Duo layouts, posts the review, and **returns a verdict (`APPROVED` or `CHANGES REQUESTED`). It does not merge — only the tech lead merges (directly, or by explicitly authorizing the implementer to merge on their behalf).**
 
 The `task` call looks like this (adjust the PR number, scope, and feature summary):
 
@@ -91,18 +91,13 @@ Work in this order:
    **Verdict:** APPROVED  (or CHANGES REQUESTED: <specific file/line issues>)
    "
 
-5. MERGE (only if verdict is APPROVED):
-   gh pr merge <PR> --repo TandyN/simple-budget-app --merge --delete-branch \
-     --subject "feat(<scope>): <feature summary> (#<PR>) [Txx] (agent-generated)"
+5. HAND OFF — you DO NOT merge. If the verdict is APPROVED, report to the implementer and the
+   tech lead: "APPROVED — ready for the tech lead's final review and merge." (Only the tech
+   lead later runs `gh pr merge --merge`, with subject
+   "feat(<scope>): <feature summary> (#<PR>) [Txx] (agent-generated)".)
 
-6. WATCH THE RELEASE — the merge triggers release.yml on main:
-   sleep 5
-   RID=$(gh run list --repo TandyN/simple-budget-app --workflow release.yml -L 1 \
-         --json databaseId -q '.[0].databaseId')
-   gh run watch "$RID" --repo TandyN/simple-budget-app --exit-status
-   git checkout main && git pull --ff-only origin main
-
-Report back: the verdict, the release version, and any issues found and fixed.
+Report back: the verdict, what you actually saw working in QA, and any issues you found. Do not
+merge and do not watch the release — that is the tech lead's call and gate.
 `
 )
 ```
@@ -130,15 +125,13 @@ gh pr checks <pr-number> --watch --repo TandyN/simple-budget-app
   2. Diagnose and fix the root cause on the branch, run `bash scripts/verify.sh` locally, commit with `(agent-generated)`, push, and re-run `gh pr checks <pr-number> --watch --repo TandyN/simple-budget-app` until every check is green.
   3. **Never merge a PR with a failing or cancelled GitHub Actions check.**
 
-## 5. The Reviewer Merges — the Implementer Never Merges
+## 5. The Tech Lead Merges (or Authorizes an Agent to Merge) — the Reviewer Never Does
 
-Merging is the **reviewer subagent's** action (see §3, step 5). The conversation that wrote the code does **not** call `gh pr merge` — that is the boundary that keeps the review independent. If the reviewer reports `CHANGES REQUESTED`, fix the named issues, re-run `bash scripts/verify.sh`, push, and re-dispatch the reviewer with the updated PR.
+Merging to `main` (and therefore shipping to production) is a **tech-lead decision**. By default the **tech lead** runs `gh pr merge --merge` themselves; this keeps the final ship accountable to a human. The tech lead may also **explicitly authorize** the implementer to merge on their behalf (in the original task prompt or right after the review) — in that case, and only in that case, the implementer may run `gh pr merge --merge` after CI is green and the review is `APPROVED`. The **reviewer subagent never merges**, under any circumstances: it returns `APPROVED` or `CHANGES REQUESTED` and stops, which is what keeps the review independent. On `APPROVED`, the implementer either hands the PR to the tech lead with a crisp summary (what shipped, CI status, QA highlights, preview URL, and a suggested merge subject) or — with the tech lead's explicit authorization — merges it. If the reviewer reports `CHANGES REQUESTED`, fix the named issues, re-run `bash scripts/verify.sh`, push, and re-dispatch a fresh reviewer.
 
-## 6. Watch the Automated Production Release Workflow (`.github/workflows/release.yml`)
+## 6. After the Tech Lead Merges: Watch the Release (`.github/workflows/release.yml`) & Confirm
 
-Merging to `main` automatically triggers `.github/workflows/release.yml` on GitHub Actions (which bumps SemVer, generates release notes in `CHANGELOG.md`, deploys to `https://tandyn.github.io/simple-budget-app/`, runs live WebKit + offline QA, pushes `vX.Y.Z` + GitHub Release notes, and triggers `ios-testflight`).
-
-Wait for the `.github/workflows/release.yml` workflow run to complete and sync your local `main` branch:
+The tech lead's merge to `main` automatically triggers `.github/workflows/release.yml` on GitHub Actions (which bumps SemVer, generates release notes in `CHANGELOG.md`, deploys to `https://tandyn.github.io/simple-budget-app/`, runs live WebKit + offline QA, pushes `vX.Y.Z` + GitHub Release notes, and triggers `ios-testflight`). Our job now is to confirm it lands cleanly for the tech lead and sync the local `main` branch:
 
 ```bash
 sleep 5

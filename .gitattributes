@@ -1,0 +1,9 @@
+# Force LF line endings in the repo and in every checkout, on every OS.
+# Git on Windows (system gitconfig defaults to core.autocrlf=true) would otherwise
+# rewrite this to CRLF in the working tree, which makes `prettier --check .` fail
+# locally even though the blob in git is correct. Pinning here is the only knob
+# that works across Linux, macOS and Windows — and it is the documented reason
+# for .editorconfig's `end_of_line = lf`.
+#
+# Reference: https://git-scm.com/docs/gitattributes#_setting-line-ending-handling
+* text=auto eol=lf
