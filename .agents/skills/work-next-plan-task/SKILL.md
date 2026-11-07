@@ -3,7 +3,7 @@ name: work-next-plan-task
 description: >-
   Use this skill when asked to work on the Simple Budget build plan, "do the next task", "continue the plan",
   or implement a specific plan task (T01–T14). It picks the correct task from docs/plan/README.md and runs the
-  full loop: read → mark in progress → incremental story-telling commits → see it work → update docs → verify → PR → merge → deploy & live QA → official release.
+  full loop: read → mark in progress → incremental story-telling commits → see it work → update docs → verify → PR → merge → automated release.
 ---
 
 # Work the next plan task
@@ -17,7 +17,7 @@ description: >-
 
 ## 2. Start
 
-1. Make sure the working tree is clean (`git status`) and `origin` is `TandyN/simple-budget-app`.
+1. Make sure the working tree is clean (`git status`), `origin` is `TandyN/simple-budget-app`, and `main` is up to date (`git checkout main && git pull --ff-only origin main`).
 2. Create a feature branch from `main` (e.g. `git checkout -b feat/T03-local-database`).
 3. In `docs/plan/README.md` set the task's status to `in-progress`.
 
@@ -46,16 +46,15 @@ Use the `verify-before-commit` skill. It runs the full gate (`bash scripts/verif
 4. Set the status to `done` in `docs/plan/README.md`.
 5. Run `bash scripts/verify.sh` and commit the docs/plan completion using `agent-commit` (e.g. `docs(db): document src/data layer and complete T03 plan notes [T03] (agent-generated)`).
 
-## 6. PR → CI & Review → Merge → Deploy & Live QA → Official Release
+## 6. PR Verification (`/pr-<N>/` Preview QA) → Merge → Automated Release (`.github/workflows/release.yml`)
 
 Use the `ship-and-verify-release` skill:
 
-1. **Open PR (Verification Only):** Push the branch and open a PR on `TandyN/simple-budget-app`. Do **not** bump the version or deploy on the PR.
-2. **Wait for GitHub Actions CI & Independent Review:** Run `gh pr checks <pr> --watch --repo TandyN/simple-budget-app` (troubleshooting any failure via `gh run view --log-failed`) and run `review-pr`.
+1. **Open PR to `main`:** Push the branch and open a PR on `TandyN/simple-budget-app`.
+2. **Wait for `.github/workflows/ci.yml` & Independent Review:** Run `gh pr checks <pr> --watch --repo TandyN/simple-budget-app` (which verifies the branch is up to date with `main`, runs all tests, deploys the isolated preview to `https://tandyn.github.io/simple-budget-app/pr-<N>/`, runs live WebKit + offline QA on that preview, and uploads the `SimpleBudget-iOS-Simulator` artifact) and run `review-pr`.
 3. **Merge with a Clean Feature Title:** Merge to `main` using `--merge` and `--subject "feat(<scope>): <feature summary> (#<pr>) [Txx] (agent-generated)"`.
-4. **Deploy to GitHub Pages & Run Live QA:** On `main`, run `pnpm run release:deploy` (deploys `dist/` to `gh-pages`) followed by `pnpm run verify:live` to verify the live PWA in WebKit (`iphone-duo-folded` + `iphone-duo-unfolded`) and offline mode.
-5. **Cut the Official Release:** Once Live QA passes, run `pnpm run release:deploy -- --release` to automatically bump SemVer (`package.json`), generate structured release notes in `CHANGELOG.md` from the Conventional Commits, tag `vX.Y.Z`, and publish the official GitHub Release.
-6. Report to the user: the incremental commit story, PR link, release version, and local + live verification results.
+4. **Watch the Automated Production Release (`.github/workflows/release.yml`):** Merging to `main` automatically runs `.github/workflows/release.yml` on GitHub Actions to bump SemVer, generate categorized release notes in `CHANGELOG.md`, deploy the production PWA, run live QA, push `vX.Y.Z` + GitHub Release notes, and trigger `ios-testflight`. Wait for `gh run watch` to finish and pull `origin/main`.
+5. Report to the user: the incremental commit story, PR link, automated release version, and local + live verification results.
    **Do not start the next task** unless the user asked for several.
 
 ## If you get stuck

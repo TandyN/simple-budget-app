@@ -15,33 +15,34 @@ expenses and deposits by hand. Whatever is left at the end of a month **rolls ov
 
 ## Where things are
 
-| Path                        | What it is                                                                                                 |
-| --------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `AGENTS.md`                 | This file.                                                                                                 |
-| `README.md`                 | Human-facing intro (**Note:** `# Human Description` at the top is human-only; agents must NEVER touch it). |
-| `LICENSE`                   | MIT License (`Copyright (c) 2026 Tandy Nguyen`) — requires attribution/credit when reusing this work.      |
-| `CHANGELOG.md`              | Automated SemVer release history (`0.y.z` pre-1.0 → `1.0.0`).                                              |
-| `docs/plan/README.md`       | **The build plan.** Ordered task list with status. Start here when asked to "do the next task".            |
-| `docs/workflow.md`          | Branch, PR, independent review, SemVer release, GitHub Pages + TestFlight deploy, live QA & rollback.      |
-| `docs/architecture.md`      | Stack, layers, data model, key flows, and the reasons behind each decision.                                |
-| `docs/testing.md`           | How tests must be written (human-readable, end-to-end first). **Mandatory reading before writing tests.**  |
-| `docs/design.md`            | Visual design system, layouts for folded/unfolded, device profiles.                                        |
-| `docs/developer-setup.md`   | Toolchain install, every `pnpm` command, viewing the app on Linux and on a real phone.                     |
-| `docs/install-on-iphone.md` | Native iOS TestFlight / App Store automated deployment + live web preview on iPhone.                       |
-| `ios/`                      | Native Swift iOS app target (`ios/project.yml`, `ios/SimpleBudget/`) with native file storage bridge.      |
-| `scripts/verify.sh`         | The one verification gate: docs & policy check, format, lint, types, unit, build, e2e.                     |
-| `scripts/check-docs.sh`     | Mechanical docs & policy check (paths exist, human README intact, zero extra runtime deps).                |
-| `scripts/run-e2e.sh`        | Runs Playwright journeys natively (with Ubuntu 24.04 WebKit libs on Arch) or in the Playwright container.  |
-| `scripts/build-ios.sh`      | Bundles `dist/` into `ios/SimpleBudget/www/`, compiles Xcode iOS target, and uploads `.ipa` to TestFlight. |
-| `scripts/deploy.sh`         | Builds `dist/`, deploys to `gh-pages`, enables GitHub Pages, tags `v*`, and creates the GitHub Release.    |
-| `scripts/verify-live.mjs`   | Post-deploy live WebKit + offline PWA verification against `https://tandyn.github.io/simple-budget-app/`.  |
-| `scripts/rollback.sh`       | One-command rollback of the live site to any previous `v*` tag.                                            |
-| `config/devices.ts`         | Device viewport profiles shared by Playwright and the dev device wall.                                     |
-| `src/domain/`               | Pure TypeScript business rules: money, calendar, ledger math, budget plan changes, and domain rule tests.  |
-| `src/pwa/`                  | Service worker registration and offline status hook (`public/sw.js` + `public/manifest.webmanifest`).      |
-| `e2e/`                      | Playwright journeys (`e2e/journeys/`) and the readable test driver (`e2e/support/budget-app.ts`).          |
-| `.github/workflows/ci.yml`  | GitHub Actions CI + macOS Xcode iOS Simulator & TestFlight release pipeline.                               |
-| `.agents/skills/`           | Project skills for agents (see below).                                                                     |
+| Path                            | What it is                                                                                                  |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `AGENTS.md`                     | This file.                                                                                                  |
+| `README.md`                     | Human-facing intro (**Note:** `# Human Description` at the top is human-only; agents must NEVER touch it).  |
+| `LICENSE`                       | MIT License (`Copyright (c) 2026 Tandy Nguyen`) — requires attribution/credit when reusing this work.       |
+| `CHANGELOG.md`                  | Automated SemVer release history (`0.y.z` pre-1.0 → `1.0.0`).                                               |
+| `docs/plan/README.md`           | **The build plan.** Ordered task list with status. Start here when asked to "do the next task".             |
+| `docs/workflow.md`              | Branch, PR, independent review, SemVer release, GitHub Pages + TestFlight deploy, live QA & rollback.       |
+| `docs/architecture.md`          | Stack, layers, data model, key flows, and the reasons behind each decision.                                 |
+| `docs/testing.md`               | How tests must be written (human-readable, end-to-end first). **Mandatory reading before writing tests.**   |
+| `docs/design.md`                | Visual design system, layouts for folded/unfolded, device profiles.                                         |
+| `docs/developer-setup.md`       | Toolchain install, every `pnpm` command, viewing the app on Linux and on a real phone.                      |
+| `docs/install-on-iphone.md`     | Native iOS TestFlight / App Store automated deployment + live web preview on iPhone.                        |
+| `ios/`                          | Native Swift iOS app target (`ios/project.yml`, `ios/SimpleBudget/`) with native file storage bridge.       |
+| `scripts/verify.sh`             | The one verification gate: docs & policy check, format, lint, types, unit, build, e2e.                      |
+| `scripts/check-docs.sh`         | Mechanical docs & policy check (paths exist, human README intact, zero extra runtime deps).                 |
+| `scripts/run-e2e.sh`            | Runs Playwright journeys natively (with Ubuntu 24.04 WebKit libs on Arch) or in the Playwright container.   |
+| `scripts/build-ios.sh`          | Bundles `dist/` into `ios/SimpleBudget/www/`, compiles Xcode iOS target, and uploads `.ipa` to TestFlight.  |
+| `scripts/deploy.sh`             | Builds `dist/`, deploys to `gh-pages`, enables GitHub Pages, tags `v*`, and creates the GitHub Release.     |
+| `scripts/verify-live.mjs`       | Post-deploy live WebKit + offline PWA verification against `https://tandyn.github.io/simple-budget-app/`.   |
+| `scripts/rollback.sh`           | One-command rollback of the live site to any previous `v*` tag.                                             |
+| `config/devices.ts`             | Device viewport profiles shared by Playwright and the dev device wall.                                      |
+| `src/domain/`                   | Pure TypeScript business rules: money, calendar, ledger math, budget plan changes, and domain rule tests.   |
+| `src/pwa/`                      | Service worker registration and offline status hook (`public/sw.js` + `public/manifest.webmanifest`).       |
+| `e2e/`                          | Playwright journeys (`e2e/journeys/`) and the readable test driver (`e2e/support/budget-app.ts`).           |
+| `.github/workflows/ci.yml`      | PR verification pipeline: unit/E2E tests, isolated `/pr-<N>/` preview QA, and Xcode iOS Simulator artifact. |
+| `.github/workflows/release.yml` | Production release pipeline on merge to `main`: SemVer bump, release notes, PWA deploy, and TestFlight.     |
+| `.agents/skills/`               | Project skills for agents (see below).                                                                      |
 
 Target source layout (built by the plan; each folder gets a row in the table above once it exists):
 
