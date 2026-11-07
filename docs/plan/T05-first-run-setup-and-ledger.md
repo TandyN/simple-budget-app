@@ -51,10 +51,10 @@ locator + `toShowLines` matcher, persistence across reloads.
 
 ## Acceptance criteria
 
-- [ ] All journeys pass on every device profile.
-- [ ] Screenshots of setup + month screen at Duo folded and unfolded, light and dark, reviewed.
-- [ ] axe: no violations on setup and month screens.
-- [ ] `pnpm verify` passes.
+- [x] All journeys pass on every device profile.
+- [x] Screenshots of setup + month screen at Duo folded and unfolded, light and dark, reviewed.
+- [x] axe: no violations on setup and month screens.
+- [x] `pnpm verify` passes.
 
 ## Docs to update
 
@@ -62,4 +62,16 @@ locator + `toShowLines` matcher, persistence across reloads.
 
 ## Completion notes
 
-_Filled in by the agent when done._
+- Added `useAppSettings` and `getDefaultAppDependencies` in `src/app/hooks/useAppSettings.ts` to observe `settings.setupCompletedAt` in IndexedDB and route between the first-run setup flow and the month ledger.
+- Implemented the 4-step `SetupScreen` (`src/ui/screens/setup/SetupScreen.tsx`) with Welcome, Monthly income (`parseMoneyInput` validation), Recurring expenses (add/remove rows, zero recurring expenses allowed), and Summary (live purchase power preview, side-by-side summary pane in expanded layout, and _Start budgeting_ calling `completeSetup`).
+- Implemented `MonthScreen` (`src/ui/screens/month/MonthScreen.tsx`) with the `Current budget` hero (`AmountText` red when negative), `Starting point` (collapsible in compact mode, expanded by default), and `Activity` (`No expenses or deposits yet` empty state).
+- Added `finishSetup`, `currentBudget`, `ledger`, and custom `toShowLines([[label, amount], ...])` matcher to `BudgetAppDriver` (`e2e/support/budget-app.ts`), plus all 9 E2E journeys and `@axe-core/playwright` checks in `e2e/journeys/first-run-setup.spec.ts`.
+- Visual inspection screenshots captured at both iPhone Duo sizes in light and dark mode:
+  - `/home/tandy/.gemini/antigravity/brain/d2558615-9ffa-49ed-88e9-2c350ebacfb1/t05-setup-duo-folded-light.png`
+  - `/home/tandy/.gemini/antigravity/brain/d2558615-9ffa-49ed-88e9-2c350ebacfb1/t05-setup-duo-folded-dark.png`
+  - `/home/tandy/.gemini/antigravity/brain/d2558615-9ffa-49ed-88e9-2c350ebacfb1/t05-setup-duo-unfolded-light.png`
+  - `/home/tandy/.gemini/antigravity/brain/d2558615-9ffa-49ed-88e9-2c350ebacfb1/t05-setup-duo-unfolded-dark.png`
+  - `/home/tandy/.gemini/antigravity/brain/d2558615-9ffa-49ed-88e9-2c350ebacfb1/t05-month-duo-folded-light.png`
+  - `/home/tandy/.gemini/antigravity/brain/d2558615-9ffa-49ed-88e9-2c350ebacfb1/t05-month-duo-folded-dark.png`
+  - `/home/tandy/.gemini/antigravity/brain/d2558615-9ffa-49ed-88e9-2c350ebacfb1/t05-month-duo-unfolded-light.png`
+  - `/home/tandy/.gemini/antigravity/brain/d2558615-9ffa-49ed-88e9-2c350ebacfb1/t05-month-duo-unfolded-dark.png`

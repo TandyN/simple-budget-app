@@ -104,13 +104,13 @@ The vocabulary grows with the plan. Each task adds the methods it needs and docu
 | `resizeViewport(width, height)`                                                   | Resizes the browser viewport mid-session to simulate folding/unfolding the device.     |
 | `openInsights()` / `openSettings()` / `backToBudget()`                            | Navigates between Budget (`#/`), Insights (`#/insights`), and Settings (`#/settings`). |
 | `debugLayoutOverlay`                                                              | Locator for the `?debug=layout` viewport/hinge overlay region.                         |
-| `finishSetup({ monthlyIncome, recurringExpenses })`                               | (planned until T05) Walks the first-run setup screens.                                 |
+| `finishSetup({ monthlyIncome, recurringExpenses })`                               | Walks the first-run setup screens and taps _Start budgeting_.                          |
+| `currentBudget`                                                                   | Locator for the big current-budget number (`output`).                                  |
+| `ledger`                                                                          | Locator for the month ledger region; use with `toShowLines([[label, amount], ...])`.   |
 | `addExpense({ name, amount, date?, tags? })`                                      | (planned until T06) Taps _Expense_, fills the sheet, saves.                            |
 | `addDeposit({ name, amount, date?, tags? })`                                      | (planned until T06) Taps _Deposit_, fills the sheet, saves.                            |
 | `changeMonthlyIncome(to, { takesEffect: 'this month' \| 'starting next month' })` | (planned until T08) Settings → income → choose when.                                   |
 | `travelTo(date)`                                                                  | (planned until T07) Moves the clock forward and brings the app back to the foreground. |
-| `currentBudget`                                                                   | (planned until T05) Locator for the big current-budget number.                         |
-| `ledger`                                                                          | (planned until T05) Locator for the ledger; use with `toShowLines([...])`.             |
 
 ## Readable domain test builders (`src/domain/test-builders.ts`)
 
