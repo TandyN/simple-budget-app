@@ -5,7 +5,9 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches
       .open(CACHE_NAME)
-      .then((cache) => cache.addAll(PRECACHE_ASSETS))
+      .then((cache) =>
+        cache.addAll(PRECACHE_ASSETS.map((assetUrl) => new Request(assetUrl, { cache: 'reload' }))),
+      )
       .then(() => self.skipWaiting()),
   );
 });
@@ -43,10 +45,20 @@ self.addEventListener('fetch', (event) => {
 
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request).catch(async () => {
+      (async () => {
         const cache = await caches.open(CACHE_NAME);
         const indexUrl = new URL('./index.html', self.registration.scope).href;
         const rootUrl = new URL('./', self.registration.scope).href;
+        try {
+          const networkResponse = await fetch(request.url, { cache: 'no-cache' });
+          if (networkResponse && networkResponse.ok) {
+            await cache.put(indexUrl, networkResponse.clone());
+            await cache.put(rootUrl, networkResponse.clone());
+            return networkResponse;
+          }
+        } catch {
+          // Offline or transient network error; fall back to precached shell below.
+        }
         const cached =
           (await cache.match(request)) ||
           (await cache.match(indexUrl)) ||
@@ -60,7 +72,7 @@ self.addEventListener('fetch', (event) => {
           statusText: cached.statusText,
           headers: cached.headers,
         });
-      }),
+      })(),
     );
     return;
   }
@@ -74,6 +86,25 @@ self.addEventListener('fetch', (event) => {
         if (networkResponse && networkResponse.ok) {
           const cache = await caches.open(CACHE_NAME);
           await cache.put(request, networkResponse.clone());
+          return networkResponse;
+        }
+        const fallbackAsset = PRECACHE_ASSETS.find(
+          (asset) =>
+            (url.pathname.includes('/assets/index-') &&
+              asset.startsWith('./assets/index-') &&
+              asset.endsWith('.js') &&
+              url.pathname.endsWith('.js')) ||
+            (url.pathname.includes('/assets/index-') &&
+              asset.startsWith('./assets/index-') &&
+              asset.endsWith('.css') &&
+              url.pathname.endsWith('.css')),
+        );
+        if (fallbackAsset) {
+          const cache = await caches.open(CACHE_NAME);
+          const matched = await cache.match(new URL(fallbackAsset, self.registration.scope).href);
+          if (matched) {
+            return matched;
+          }
         }
         return networkResponse;
       });
