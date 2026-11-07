@@ -3,6 +3,21 @@
 All notable changes to Simple Budget are documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) (`0.y.z` during initial development until `1.0.0` at T14).
 
+## [0.6.0] - 2026-11-07
+
+### Features
+
+- **ledger:** add MonthScreen and route guard between setup and ledger [T05] (`1b4acca`)
+- **setup:** add app settings hook and 4-step first-run setup flow [T05] (`266c635`)
+
+### Tests & Quality
+
+- **setup:** add E2E journeys for first-run setup and month ledger [T05] (`c888404`)
+
+### Documentation
+
+- **setup:** update testing and plan docs for first-run setup and ledger [T05] (`80292cc`)
+
 ## [0.5.0] - 2026-11-07
 
 ### Features
