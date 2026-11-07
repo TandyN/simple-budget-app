@@ -3,6 +3,21 @@
 All notable changes to Simple Budget are documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) (`0.y.z` during initial development until `1.0.0` at T14).
 
+## [0.8.0] - 2026-11-07
+
+### Features
+
+- **ui:** compact one-screen layout, unified paginated activity list, sticky header, +/- actions (`e7b5f6b`)
+- **time:** store every transaction as a UTC timestamp with a v2 migration (`757e861`)
+
+### Bug Fixes
+
+- **ui:** adjust hero typography in two-pane to avoid quick action overlap (`de308d9`)
+
+### Tests & Quality
+
+- **ui:** cover compact layout, pagination, time override and fold/unfold; update docs (`dfc6fff`)
+
 ## [0.7.0] - 2026-11-07
 
 ### Features
