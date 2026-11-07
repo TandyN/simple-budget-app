@@ -274,7 +274,7 @@ test('activity is split into pages so the app fits on one screen', async ({ budg
   ]);
   await expect(budgetApp.page.getByText('Page 1 of 2')).toBeVisible();
 
-  await budgetApp.page.getByRole('button', { name: 'Older' }).click();
+  await budgetApp.page.getByRole('button', { name: 'Next page' }).click();
 
   await expect(budgetApp.ledger).toShowLines([['Rent', '−$1,800.00']]);
   await expect(budgetApp.page.getByText('Page 2 of 2')).toBeVisible();

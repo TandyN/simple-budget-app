@@ -102,7 +102,7 @@ The vocabulary grows with the plan. Each task adds the methods it needs and docu
 | `goOnline()`                                                                      | Restores network connectivity (`context.setOffline(false)`).                           |
 | `openOnWithQuery(date, query)`                                                    | Sets the device clock and opens the app with a query string (e.g. `'?debug=layout'`).  |
 | `resizeViewport(width, height)`                                                   | Resizes the browser viewport mid-session to simulate folding/unfolding the device.     |
-| `openInsights()` / `openSettings()` / `backToBudget()`                            | Navigates between Budget (`#/`), Insights (`#/insights`), and Settings (`#/settings`). |
+| `openInsights()` / `openSettings()` / `returnToBudget()`                          | Navigates the three icon tabs: Budget (`#/`), Insights (`#/insights`), and Settings (`#/settings`). |
 | `debugLayoutOverlay`                                                              | Locator for the `?debug=layout` viewport/hinge overlay region.                         |
 | `finishSetup({ monthlyIncome, recurringExpenses })`                               | Walks the first-run setup screens and taps _Start budgeting_.                          |
 | `currentBudget`                                                                   | Locator for the big Available funds number (`output`).                                 |

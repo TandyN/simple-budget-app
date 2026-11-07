@@ -41,7 +41,7 @@ Layouts are chosen by **available width**, never by sniffing the device, so any 
 
 | Mode         | When                                                     | Layout                                                                                                                                                                                                                          |
 | ------------ | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **compact**  | width < 560 px (iPhone Duo folded, normal phones)        | Single column that fits one screen without scrolling. Sticky header, hero card with the **−** (expense) and **+** (deposit) buttons beside the amount, then one paginated Activity list (5 rows per page).                      |
+| **compact**  | width < 560 px (iPhone Duo folded, normal phones)        | Single column that fits one screen without scrolling. Sticky header, hero card with the **−** (expense) and **+** (deposit) buttons beside the amount, then one paginated Activity list (5 rows per page). The document itself never scrolls: the header and status bar stay pinned and only the main area scrolls internally. |
 | **expanded** | width ≥ 560 px (iPhone Duo unfolded, tablets, landscape) | Two panes, split **50/50 so the fold hinge falls in the gutter**. Left: hero + calendar + actions. Right: Activity (8 rows per page). Settings and Insights use list → detail across the panes. Sheets become centered dialogs. |
 
 - Uses `env(safe-area-inset-*)` with `viewport-fit=cover`, and `100dvh` (not `100vh`).
@@ -52,14 +52,14 @@ Layouts are chosen by **available width**, never by sniffing the device, so any 
 ```text
  iPhone Duo folded (compact)          iPhone Duo unfolded (expanded)
 ┌─────────────────────────┐         ┌──────────────────┬──────────────────┐
-│ Simple Budget  Nov  📈 ⚙︎│ sticky  │ Simple Budget ⚙︎  │ Activity         │
+│ Simple Budget  Nov  📈⚙︎💰│ sticky  │ Simple Budget 📈⚙︎💰 │ Activity         │
 │─────────────────────────│         │                  │ Groceries  −120  │
 │ Available funds   (−)(+)│         │ Available funds  │ Monthly income + │
 │ $3,080.00               │         │ $3,080.00 (−)(+) │ Rent           − │
 │─────────────────────────│         │                  │ Carried over  …  │
-│ Activity (newest first) │         │ ...calendar...   │ Newer  1/2  Older│
+│ Activity (newest first) │         │ ...calendar...   │ ‹      1/2    › │
 │ Groceries  Nov 5 · 3:42 │         └──────────────────┴──────────────────┘
-│ Newer      1 / 2   Older│                    ↑ hinge in the gutter
+│ ‹      1 / 2      ›│                    ↑ hinge in the gutter
 └─────────────────────────┘
 ```
 
