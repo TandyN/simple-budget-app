@@ -3,6 +3,18 @@
 All notable changes to Simple Budget are documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) (`0.y.z` during initial development until `1.0.0` at T14).
 
+## [0.4.0] - 2026-11-07
+
+### Features
+
+- **app:** implement completeSetup, openMonthsThrough, getMonthView and useMonthView [T03] (`583573c`)
+- **app:** add Clock and IdGenerator providers without secure context requirement [T03] (`e56d404`)
+- **db:** add native IndexedDB schema v1, transactional wrapper and repositories [T03] (`411b665`)
+
+### Documentation
+
+- **db:** update architecture.md, README.md and complete T03 plan notes [T03] (`c97f1f7`)
+
 ## [0.3.1] - 2026-11-07
 
 ### Bug Fixes
