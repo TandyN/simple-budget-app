@@ -42,7 +42,7 @@ In your repository on GitHub, go to **Settings → Secrets and variables → Act
 
 Whenever an agent (or you) ships a release (`v0.2.0`, `v0.3.0`, …, `v1.0.0`):
 
-1. `scripts/build-ios.sh` (invoked by the `ios-testflight` job in `config/workflows/ci.yml` on `macos-15`) builds the production React bundle, embeds it into `ios/`, generates the Xcode project with `xcodegen`, archives and signs the `.ipa`, and uploads it to **TestFlight** via `xcrun altool`.
+1. `scripts/build-ios.sh` (invoked by the `ios-testflight` job in `.github/workflows/ci.yml` on `macos-15`) builds the production React bundle, embeds it into `ios/`, generates the Xcode project with `xcodegen`, archives and signs the `.ipa`, and uploads it to **TestFlight** via `xcrun altool`.
 2. On your iPhone Duo, install Apple's free **TestFlight** app from the App Store — every new release automatically appears in TestFlight (or auto-updates on your phone)!
 3. When you are ready to publish or sell the app on the public **App Store**, you simply select the TestFlight build in App Store Connect and click **Submit for Review**.
 

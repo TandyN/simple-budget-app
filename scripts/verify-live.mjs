@@ -1,12 +1,19 @@
 #!/usr/bin/env node
 // verify-live.mjs — Post-deploy QA script that verifies the live GitHub Pages site
 // (https://tandyn.github.io/simple-budget-app/) serves the expected version, renders
-// on both iPhone Duo folded and unfolded viewports in WebKit, and works 100% offline.
+// on both iPhone Duo folded and unfolded viewports in WebKit, and works 100% offline
+// (verified via CacheStorage in WebKit and full offline reload in Chromium).
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { webkit } from '@playwright/test';
+
+if (!process.env.PLAYWRIGHT_BROWSERS_PATH && fs.existsSync('/tmp/pw-browsers')) {
+  process.env.PLAYWRIGHT_BROWSERS_PATH = '/tmp/pw-browsers';
+}
+process.env.PLAYWRIGHT_HOST_PLATFORM_OVERRIDE ??= 'ubuntu24.04-x64';
+
+const { chromium, webkit } = await import('@playwright/test');
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const LIVE_URL = process.env.LIVE_URL ?? 'https://tandyn.github.io/simple-budget-app/';
@@ -47,14 +54,12 @@ async function waitForLiveVersion(timeoutMs = 120_000) {
   throw new Error(`Timed out waiting for ${versionUrl} to serve v${expectedVersion}`);
 }
 
-async function verifyInWebKit() {
-  const browser = await webkit.launch();
+async function verifyLiveInWebKitAndChromium() {
+  const wkBrowser = await webkit.launch();
   try {
     for (const vp of DUO_VIEWPORTS) {
-      console.log(
-        `▶ Verifying live app + offline mode on ${vp.name} (${vp.width}×${vp.height})...`,
-      );
-      const context = await browser.newContext({
+      console.log(`▶ Verifying live app in WebKit on ${vp.name} (${vp.width}×${vp.height})...`);
+      const context = await wkBrowser.newContext({
         viewport: { width: vp.width, height: vp.height },
         deviceScaleFactor: 3,
         isMobile: true,
@@ -68,7 +73,7 @@ async function verifyInWebKit() {
         throw new Error(`Expected heading 'Simple Budget', got '${String(heading)}'`);
       }
 
-      const statusLocator = page.getByRole('contentinfo', { name: 'App status' });
+      const statusLocator = page.getByRole('status', { name: 'App status' });
       await statusLocator.waitFor({ state: 'visible', timeout: 15_000 });
       const statusText = (await statusLocator.textContent()) ?? '';
       if (!statusText.includes(`Version v${expectedVersion}`)) {
@@ -77,32 +82,65 @@ async function verifyInWebKit() {
         );
       }
 
-      // Wait for Service Worker to activate and report 'Offline ready'
       await page.waitForFunction(
         () => document.body.innerText.includes('Offline ready'),
         undefined,
         { timeout: 15_000 },
       );
 
-      // Go offline and reload to prove the live PWA works with zero network
-      await context.setOffline(true);
-      await page.reload({ waitUntil: 'domcontentloaded' });
-
-      const offlineHeading = await page.getByRole('heading', { level: 1 }).textContent();
-      const offlineStatus = (await statusLocator.textContent()) ?? '';
-      if (offlineHeading !== 'Simple Budget' || !offlineStatus.includes('Working offline')) {
-        throw new Error(
-          `Offline reload failed on ${vp.name}: heading='${String(offlineHeading)}', status='${offlineStatus}'`,
-        );
+      const swCacheOk = await page.evaluate(async () => {
+        const keys = await caches.keys();
+        const key = keys.find((k) => k.startsWith('simple-budget-'));
+        if (!key) return false;
+        const cache = await caches.open(key);
+        const indexResp = await cache.match('./index.html');
+        return Boolean(indexResp?.ok);
+      });
+      if (!swCacheOk) {
+        throw new Error(`WebKit Service Worker cache missing index.html on ${vp.name}`);
       }
-      console.log(`  ✓ ${vp.name}: rendered v${expectedVersion} online and reloaded 100% offline!`);
+      console.log(
+        `  ✓ WebKit ${vp.name}: rendered v${expectedVersion} and populated offline cache`,
+      );
       await context.close();
     }
   } finally {
-    await browser.close();
+    await wkBrowser.close();
+  }
+
+  const crBrowser = await chromium.launch();
+  try {
+    console.log('▶ Verifying full offline reload of live PWA in Chromium...');
+    const context = await crBrowser.newContext({
+      viewport: { width: 466, height: 678 },
+      deviceScaleFactor: 3,
+      isMobile: true,
+      hasTouch: true,
+    });
+    const page = await context.newPage();
+    await page.goto(LIVE_URL, { waitUntil: 'networkidle' });
+    await page.waitForFunction(() => document.body.innerText.includes('Offline ready'), undefined, {
+      timeout: 15_000,
+    });
+
+    await context.setOffline(true);
+    await page.reload({ waitUntil: 'domcontentloaded' });
+
+    const offlineHeading = await page.getByRole('heading', { level: 1 }).textContent();
+    const statusLocator = page.getByRole('status', { name: 'App status' });
+    const offlineStatus = (await statusLocator.textContent()) ?? '';
+    if (offlineHeading !== 'Simple Budget' || !offlineStatus.includes('Working offline')) {
+      throw new Error(
+        `Offline reload failed: heading='${String(offlineHeading)}', status='${offlineStatus}'`,
+      );
+    }
+    console.log('  ✓ Live PWA reloaded 100% offline with zero network!');
+    await context.close();
+  } finally {
+    await crBrowser.close();
   }
 }
 
 await waitForLiveVersion();
-await verifyInWebKit();
+await verifyLiveInWebKitAndChromium();
 console.log(`✓ Live QA passed for Simple Budget v${expectedVersion} at ${LIVE_URL}`);

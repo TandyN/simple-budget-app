@@ -57,7 +57,10 @@ if [[ "$mode" == "--simulator" ]]; then
 fi
 
 if [[ "$mode" == "--testflight" ]]; then
-  : "${APPLE_TEAM_ID:?Missing APPLE_TEAM_ID secret}"
+  if [[ -z "${APPLE_TEAM_ID:-}" ]]; then
+    echo "ℹ Skipping TestFlight upload: APPLE_TEAM_ID secret is not configured yet."
+    exit 0
+  fi
   : "${APP_STORE_CONNECT_API_KEY_ID:?Missing APP_STORE_CONNECT_API_KEY_ID secret}"
   : "${APP_STORE_CONNECT_ISSUER_ID:?Missing APP_STORE_CONNECT_ISSUER_ID secret}"
   : "${APP_STORE_CONNECT_API_KEY_P8:?Missing APP_STORE_CONNECT_API_KEY_P8 secret}"

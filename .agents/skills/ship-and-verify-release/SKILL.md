@@ -46,7 +46,24 @@ git commit -m "chore(release): bump version to v$(jq -r .version package.json) (
 git push
 ```
 
-## 5. Merge PR to `main`
+## 5. Wait for GitHub Actions CI & Troubleshoot Any Failures
+
+Before merging the PR, wait for the GitHub Actions CI workflow (`.github/workflows/ci.yml` — both the Linux `verify` job and the macOS `ios-simulator` Xcode build job) to finish on the PR:
+
+```bash
+gh pr checks <pr-number> --watch --repo TandyN/simple-budget-app
+```
+
+- **If any CI check fails:**
+  1. Immediately inspect the failed run logs:
+     ```bash
+     gh run list --repo TandyN/simple-budget-app --branch <branch-name> -L 3
+     gh run view <run-id> --repo TandyN/simple-budget-app --log-failed
+     ```
+  2. Diagnose and fix the root cause on the branch, run `bash scripts/verify.sh` locally, commit with `(agent-generated)`, push, and re-run `gh pr checks <pr-number> --watch --repo TandyN/simple-budget-app` until every check is green.
+  3. **Never merge a PR with a failing or cancelled GitHub Actions check.**
+
+## 6. Merge PR to `main`
 
 ```bash
 gh pr merge --repo TandyN/simple-budget-app --merge --delete-branch
@@ -54,7 +71,7 @@ git checkout main
 git pull origin main
 ```
 
-## 6. Deploy to GitHub Pages & Publish GitHub Release
+## 7. Deploy to GitHub Pages & Publish GitHub Release
 
 ```bash
 pnpm run release:deploy

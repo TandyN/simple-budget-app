@@ -98,11 +98,11 @@ Budget plan changes
 
 ## Acceptance criteria
 
-- [ ] 100% line and branch coverage for `src/domain/**` (enforced by Vitest thresholds).
-- [ ] No imports from React, Dexie, DOM APIs (other than `Intl`) in `src/domain/` (lint enforced).
-- [ ] All money values are `Cents`; there is no floating-point arithmetic on money anywhere.
-- [ ] Every behavior above is a test with that name (polished wording is fine).
-- [ ] `pnpm verify` passes.
+- [x] 100% line and branch coverage for `src/domain/**` (enforced by Vitest thresholds).
+- [x] No imports from React, Dexie, DOM APIs (other than `Intl`) in `src/domain/` (lint enforced).
+- [x] All money values are `Cents`; there is no floating-point arithmetic on money anywhere.
+- [x] Every behavior above is a test with that name (polished wording is fine).
+- [x] `pnpm verify` passes.
 
 ## Docs to update
 
@@ -110,4 +110,7 @@ Budget plan changes
 
 ## Completion notes
 
-_Filled in by the agent when done._
+- Implemented pure domain modules in `src/domain/money.ts`, `src/domain/calendar.ts`, `src/domain/ledger.ts`, and `src/domain/budget-plan-changes.ts` with zero external runtime dependencies and integer `Cents` math.
+- Added human-readable test builders in `src/domain/test-builders.ts` (`money`, `aRecurringIncome`, `aRecurringExpense`, `monthlyIncome`, `recurringExpense`, `anExpense`, `aDeposit`, `aMonthStatement`, `openNextMonth`).
+- Added unit and `fast-check` property test suites in `src/domain/money.test.ts`, `src/domain/calendar.test.ts`, `src/domain/ledger.test.ts`, and `src/domain/budget-plan-changes.test.ts` achieving 100% statements, branches, functions, and lines coverage across `src/domain/**`.
+- Updated `AGENTS.md`, `docs/architecture.md`, `docs/testing.md`, and `docs/workflow.md` + agent skills so PRs always wait for GitHub Actions CI (`gh pr checks --watch`) and troubleshoot any failures before merging.
