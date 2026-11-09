@@ -34,6 +34,54 @@ test('when folded, everything fits on one screen with the add buttons at the top
   expect(page.needsHorizontalScroll).toBe(false);
 });
 
+test('the activity box keeps the same height whether it has a few lines or many (nothing moves)', async ({
+  budgetApp,
+}) => {
+  await budgetApp.foldScreen();
+  await budgetApp.openOn('2026-11-05');
+  await budgetApp.finishSetup({
+    monthlyIncome: '$5,000.00',
+    recurringExpenses: [{ name: 'Rent', amount: '$1,800.00' }],
+  });
+
+  // A few lines: the plan's two recurring lines only.
+  const heightWithFewLines = await budgetApp.activityCardHeight();
+
+  // Many lines: enough to push the activity into a second page.
+  for (const name of ['One', 'Two', 'Three', 'Four', 'Five', 'Six']) {
+    await budgetApp.addExpense({ name, amount: '$1.00' });
+  }
+  await expect(budgetApp.page.getByText(/Page 1 of \d+/)).toBeVisible();
+
+  const heightWithManyLines = await budgetApp.activityCardHeight();
+
+  // The card fills the remaining screen space either way, so it does not shrink
+  // and nothing on the screen moves as you log.
+  expect(heightWithManyLines).toBeGreaterThan(0);
+  expect(heightWithFewLines).toBe(heightWithManyLines);
+});
+
+test('unfolded, the activity pane fills the screen and never needs scrolling', async ({
+  budgetApp,
+}) => {
+  await budgetApp.unfoldScreen();
+  await budgetApp.openOn('2026-11-05');
+  await budgetApp.finishSetup({
+    monthlyIncome: '$5,000.00',
+    recurringExpenses: [{ name: 'Rent', amount: '$1,800.00' }],
+  });
+  // Plenty of lines: enough to fill many pages and would overflow a content-sized box.
+  for (const name of ['One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight']) {
+    await budgetApp.addExpense({ name, amount: '$1.00' });
+  }
+
+  // The activity card fills its pane (tall), the whole app fits the screen, and
+  // only the row list scrolls internally if it ever must.
+  const height = await budgetApp.activityCardHeight();
+  expect(height).toBeGreaterThan(400);
+  expect(await budgetApp.needsVerticalScroll()).toBe(false);
+});
+
 test('the top bar stays in place while the page scrolls', async ({ budgetApp }) => {
   await budgetApp.foldScreen();
   await budgetApp.openOn('2026-11-05');

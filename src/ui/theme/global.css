@@ -120,13 +120,17 @@ a:focus-visible,
   -webkit-overflow-scrolling: touch;
 }
 
-/* TwoPane layout for unfolded / expanded screen (>= 600px) */
+/* TwoPane layout for unfolded / expanded screen (>= 600px).
+   Panes stretch to the full available height so the right (activity) pane can
+   give its card a bounded box to fill; the left pane keeps its content at the
+   top (its card is content-sized) so the hero stays top-left as designed. */
 .sb-two-pane {
   flex: 1;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   column-gap: var(--hinge-gutter);
-  align-items: start;
+  align-items: stretch;
 }
 
 @media (horizontal-viewport-segments: 2) {
@@ -290,7 +294,6 @@ a:focus-visible,
 .sb-list {
   display: flex;
   flex-direction: column;
-  divide-y: 1px solid var(--color-hairline);
 }
 
 .sb-list-row {
@@ -489,8 +492,33 @@ a:focus-visible,
   color: var(--color-ink);
 }
 
-/* Activity pager */
+/* Activity card: a stable, full-height flex box in both layouts. The hero card
+   above it stays content-sized; the card fills the remaining height and keeps
+   the same size whether there are 1 row or 100, so the layout stays uniform and
+   nothing moves as you log. The row list (`.sb-list`) is the only inner scroll
+   region and only scrolls if a screen is shorter than the target device or a
+   note is very long. */
+.sb-activity-card {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* The activity list is the only inner scroll region: it grows to fill the card
+   (flex:1) and scrolls only if content genuinely overflows (a screen shorter
+   than the target device, or a very long note). Scoped to the activity card so
+   the setup lists keep their natural content height. */
+.sb-activity-card .sb-list {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Activity pager stays pinned at the bottom of the activity card. */
 .sb-pager {
+  flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
