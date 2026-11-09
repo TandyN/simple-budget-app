@@ -200,7 +200,7 @@ describe('month ledger math and rollover', () => {
     expect(formatMoney(purchasePower(items, '2026-11'))).toBe('$3,120.00');
   });
 
-  test('activity lines are ordered newest first by date, then creation timestamp, then id', () => {
+  test('activity lines are ordered newest first by date, then creation timestamp, then name, then id', () => {
     const earlySameDay = anExpense({
       id: 'exp-a',
       name: 'Coffee',
@@ -237,8 +237,8 @@ describe('month ledger math and rollover', () => {
 
     expect(statement.activity.map((entry) => entry.name)).toEqual([
       'Dinner',
-      'Snack',
       'Lunch',
+      'Snack',
       'Coffee',
     ]);
 
@@ -247,6 +247,30 @@ describe('month ledger math and rollover', () => {
       occurredAt: undefined as unknown as string,
     };
     expect(entryInstant(legacyEntry)).toBe(earlySameDay.createdAt);
+  });
+
+  test('activity lines that share a time, a creation time and a name fall back to id order', () => {
+    const laterId = anExpense({
+      id: 'exp-z',
+      name: 'Groceries',
+      amount: '$10.00',
+      date: '2026-11-05',
+      createdAt: '2026-11-05T12:00:00.000Z',
+    });
+    const earlierId = anExpense({
+      id: 'exp-a',
+      name: 'Groceries',
+      amount: '$10.00',
+      date: '2026-11-05',
+      createdAt: '2026-11-05T12:00:00.000Z',
+    });
+
+    const statement = aMonthStatement({
+      month: '2026-11',
+      lines: [laterId, earlierId],
+    });
+
+    expect(statement.activity.map((entry) => entry.id)).toEqual(['exp-a', 'exp-z']);
   });
 
   test('for any sequence of expenses and deposits, the current budget equals carried over plus every line', () => {
