@@ -142,6 +142,21 @@ export class BudgetAppDriver {
     await this.page.getByRole('button', { name: 'Undo' }).click();
   }
 
+  /** Pixel height of the activity card, so tests can prove it stays uniform. */
+  async activityCardHeight(): Promise<number> {
+    return this.page.evaluate(() => {
+      const card = document.querySelector<HTMLElement>('.sb-activity-card');
+      return card ? Math.round(card.getBoundingClientRect().height) : 0;
+    });
+  }
+
+  /** Whether the whole app needs to scroll vertically (it should not). */
+  async needsVerticalScroll(): Promise<boolean> {
+    return this.page.evaluate(
+      () => document.documentElement.scrollHeight > document.documentElement.clientHeight,
+    );
+  }
+
   private async fillAndSaveEntrySheet(entry: ManualEntryDraft): Promise<void> {
     const dialog = this.page.getByRole('dialog');
     await dialog.getByLabel('Amount').fill(entry.amount);

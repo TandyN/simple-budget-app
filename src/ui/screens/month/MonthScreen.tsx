@@ -179,7 +179,7 @@ export function MonthScreen({
   );
 
   const ledgerSection = (
-    <section className="sb-card" aria-label="Month ledger">
+    <section className="sb-card sb-activity-card" aria-label="Month ledger">
       <h2 className="sb-section-heading">Activity</h2>
       {totalRows === 0 ? (
         <EmptyState title="No activity yet" />
@@ -262,7 +262,13 @@ export function MonthScreen({
     <div
       role="region"
       aria-label="Single column layout"
-      style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        flex: '1 1 0',
+        minHeight: 0,
+        gap: 'var(--space-3)',
+      }}
     >
       {heroSection}
       {ledgerSection}

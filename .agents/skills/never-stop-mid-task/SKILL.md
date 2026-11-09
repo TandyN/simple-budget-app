@@ -3,15 +3,22 @@ name: never-stop-mid-task
 description: >-
   Use this skill at the start of any multi-turn task in Simple Budget (fixing a bug, working a plan task,
   reviewing, releasing) and whenever the user says an agent "stops randomly," "stalls," or "ends the turn
-  without finishing." It fixes the three failure modes that cause premature turn ends: ending a turn on
-  narration, blocking silently on long commands, and bouncing questions that already have an answer.
+  without finishing." It fixes the failure modes that cause premature turn ends: ending a turn on
+  narration, blocking silently on long commands, bouncing questions that already have an answer, and
+  ending a turn at the "understanding -> acting" boundary (the #1 observed cause).
 ---
 
 # Never stop mid-task
 
 The owner has observed agents ending the turn in the middle of a task and requiring a "continue" nudge.
-That is a behavior bug, not an accident. Fix it with the three rules below. Read this skill at the **start
+That is a behavior bug, not an accident. Fix it with the rules below. Read this skill at the **start
 of every multi-turn session** (before the first tool call) and again any time the user reports a stall.
+
+**Meta-rule (the root of most stalls):** a turn's last act must be a **tool call or the final user-facing
+summary** — never a _receptive_ or _reporting_ step. The stops that actually happen are at the boundary
+between _understanding_ and _acting_: the turn ends right after reading a file, reading the user's
+message, polling a job, or posting a comment, and the next action is deferred to the _next_ turn. That
+deferred action is where the stop happens. **Never do that.**
 
 ## 1. Never end a turn on narration
 
@@ -59,10 +66,35 @@ to size the page" is a stall, not diligence.
 - **On ambiguity:** use the exact wording from AGENTS.md §"Working with you": state the interpretation,
   the plan default you are leaning on, and continue building in the same turn.
 
+## 4. Never end a turn at the "understanding -> acting" boundary
+
+This is the **most common real stop** observed, and it is _not_ narration — the turn simply ends after
+a receptive/reporting step and before the first productive action.
+
+Observed turn-enders (all were stops the owner had to nudge):
+
+| Ended right after…                        | Next step that got deferred (caused the stop) |
+| ----------------------------------------- | --------------------------------------------- |
+| a large parallel **read batch**           | analysis + first edit                         |
+| **reading the user's multi-part message** | create todos + start implementing             |
+| a **poll** of a background job (`tail`)   | act on the result                             |
+| **posting a comment** to a GH issue       | continue the actual task                      |
+
+- **Rule:** receptive/reporting steps (reading files, reading the user's message, polling a job, posting
+  a comment) are **not** turn-ending actions. If the next logical step is productive (edit, create, test,
+  implement, commit), **that action is the first tool call in the _same_ turn** — not the first action in
+  the next turn.
+- **Practical:** after any "I now understand" moment, immediately pair it with the action: same message,
+  e.g. `read(user message) + todowrite(plan)`, or `read(file) + edit(file)`. Never `read(message)` alone.
+- **Do not over-think before acting.** The host caps turn time/thinking ("after ~2 minutes of thinking"
+  it cuts off). Long reasoning is the fuel for this stop: think _enough_ to act, then act. If you are
+  still reasoning as the turn budget runs out, **stop reasoning and emit the first tool call** — momentum
+  beats a perfect plan. A short "my plan is X" line is enough; the action follows in the same turn.
+
 ## Recovery: if the user says an agent stopped
 
-1. **Diagnose honestly.** Say in one line which of the three patterns it was (narration-only turn, silent
-   long wait, over-asked question). No excuses.
+1. **Diagnose honestly.** Say in one line which pattern it was (narration-only turn, silent long wait,
+   over-asked question, or the understanding→acting boundary). No excuses.
 2. **Re-enter the task at its last real state:** `git status`, the last log, the last tool call.
 3. **Resume with a tool call, not a status sentence.** Pick up from the failing step and keep going.
 4. **If the stop is reproducible** (same command hangs every time, same screen asks the same question),
@@ -78,4 +110,8 @@ Before your next response, ask:
       first, and set a `timeout` on the call?
 - [ ] Am I about to ask a question that is already answered in AGENTS.md / plan / linked doc? If yes, drop
       the question and pick the plan default.
+- [ ] Did I just finish a receptive/reporting step (read a file or the user's message, poll a job, post a
+      comment)? If the next step is productive, did I pair it with a tool call in _this_ turn? If not, do
+      it now.
+- [ ] Am I over-thinking? If the plan is good enough, emit the first tool call instead of more reasoning.
 - [ ] If any of the above is "no," fix it in _this_ turn before the assistant message ends.
