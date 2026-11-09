@@ -3,6 +3,12 @@
 All notable changes to Simple Budget are documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) (`0.y.z` during initial development until `1.0.0` at T14).
 
+## [0.9.5] - 2026-11-09
+
+### Bug Fixes
+
+- **layout:** stable full-height activity box, no scroll (folded + unfolded) (`0953822`)
+
 ## [0.9.4] - 2026-11-09
 
 ### Bug Fixes
