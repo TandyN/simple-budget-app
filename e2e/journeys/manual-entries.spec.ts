@@ -260,8 +260,14 @@ test('activity is split into pages so the app fits on one screen', async ({ budg
     monthlyIncome: '$5,000.00',
     recurringExpenses: [{ name: 'Rent', amount: '$1,800.00' }],
   });
-  for (const name of ['One', 'Two', 'Three', 'Four']) {
-    await budgetApp.addExpense({ name, amount: '$1.00' });
+  // Each expense gets a distinct time so the "newest first" order is unambiguous.
+  for (const [name, time] of [
+    ['One', '13:00'],
+    ['Two', '14:00'],
+    ['Three', '15:00'],
+    ['Four', '16:00'],
+  ]) {
+    await budgetApp.addExpense({ name, amount: '$1.00', time });
   }
 
   // Newest first: the four newest expenses plus the first plan line fill page one.

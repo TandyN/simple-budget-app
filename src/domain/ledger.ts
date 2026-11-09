@@ -90,7 +90,14 @@ function compareNewestFirst(left: LedgerEntry, right: LedgerEntry): number {
   if (left.createdAt !== right.createdAt) {
     return right.createdAt.localeCompare(left.createdAt);
   }
-  return right.id.localeCompare(left.id);
+  // Same instant (and same creation time, e.g. entries added together): keep a stable,
+  // predictable order rather than a random one. By name, then id, so the display never
+  // shuffles between renders.
+  const byName = left.name.localeCompare(right.name);
+  if (byName !== 0) {
+    return byName;
+  }
+  return left.id.localeCompare(right.id);
 }
 
 export function isActiveIn(item: RecurringItem, month: MonthKey): boolean {
