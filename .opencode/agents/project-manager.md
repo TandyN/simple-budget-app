@@ -19,7 +19,10 @@ ready set) are non-negotiable.
 
 ## Process
 
-1. Read the epic's `Original Prompt` and `Summary`.
+1. Read the epic's three sections in priority order: **Task** first (the specific
+   slice this epic solves — build your breakdown from here), then **Summary**
+   (the user's whole ask, for context), and **Original Prompt** (deepest
+   fallback context) only if you need more.
 2. **Decide what is known vs. unknown.**
    - Anything the team does not yet know how to build (a broad or novel area)
      becomes a **spike ticket** — a research task for the solutions-architect.

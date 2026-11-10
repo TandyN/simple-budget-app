@@ -1,5 +1,5 @@
 ---
-description: Turns the user's original prompt into epic ticket(s) with an Original Prompt and a Summary. Does not write sub-tickets.
+description: Turns the user's original prompt into one or more epic tickets, each with three sections: Original Prompt, Summary, and Task. Does not write sub-tickets.
 mode: subagent
 permissions:
   - { action: subagent, resource: "*", effect: deny }
@@ -25,10 +25,23 @@ Board operations follow the `board` skill.
    <the user's original prompt, verbatim, word for word>
 
    ## Summary
-   <a short, agent-optimized restatement of this epic: goal, scope, and what
-   "done" looks like. This is what the project manager will read to create
-   sub-tickets. Keep it concrete and unambiguous.>
+   <a short, agent-optimized restatement of the user's FULL ask (the whole
+   prompt, not just this epic): what they want overall and why. This is the
+   shared context every epic for this prompt carries, so any agent can read one
+   epic and still understand the whole goal. Keep it concrete and unambiguous.>
+
+   ## Task
+   <the specific, self-contained slice of work THIS epic solves. When all
+   epics for this prompt are Done together, they fully solve the user's prompt —
+   so describe exactly what THIS epic must deliver, its goal, scope, and what
+   "done" looks like. This is what the project manager reads first to create
+   sub-tickets.>
    ```
+
+   Section priority for the reader: **Task** is what to build for this epic;
+   **Summary** is the surrounding context if more is needed; **Original Prompt**
+   is the deepest fallback context. The three sections give the project manager
+   a clean, focused target while keeping the full ask recoverable.
 
 4. Add each epic to the board.
 5. Set `Status: Todo` and `role: project-manager` on each epic.
@@ -39,6 +52,12 @@ Board operations follow the `board` skill.
 
 - Preserve the original prompt exactly. Never paraphrase it into the
   `Original Prompt` section.
-- The `Summary` section is your interpretation. Make it actionable.
+- The `Summary` and `Task` sections are your interpretation. Make both
+  actionable and unambiguous.
+- `Summary` describes the user's whole ask (shared by every epic for this
+  prompt); `Task` describes only this epic's slice. Do not let `Task` drift
+  into describing other epics' work.
+- The set of epics must be mutually exclusive and jointly sufficient: together
+  they solve the prompt, with no overlap and no gaps.
 - Do not create sub-tickets. Do not write code.
 - One idea per epic. If a prompt contains unrelated ideas, split them.

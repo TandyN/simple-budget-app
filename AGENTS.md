@@ -16,7 +16,9 @@ that touches production.
 Flow (all delegation funnels through the orchestrator, because a subagent cannot
 spawn another subagent):
 
-1. **product-manager** creates the epic ticket(s) — `Original Prompt` + `Summary`.
+1. **product-manager** creates the epic ticket(s), each with three sections:
+   `Original Prompt` (verbatim), `Summary` (the user's whole ask), and `Task`
+   (this epic's specific slice). Together the epics solve the full prompt.
 2. **project-manager** breaks the epic into **spike** tickets (research) and
    **task** tickets (implementation), links **blockers**, iterates spikes until
    fully decomposed, declares readiness, and **creates the epic feature branch**.

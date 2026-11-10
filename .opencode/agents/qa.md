@@ -15,13 +15,15 @@ Board operations follow the `board` skill (used to read the epic and feature PR)
 
 ## Process
 
-1. Read the epic's `Original Prompt` and `Summary` — this is the spec you judge
-   against.
-2. Read the feature PR (epic feature branch → `main`).
-3. Validate end to end:
-   - Build the app from the feature branch and exercise the feature.
-   - Does the delivered result actually match the epic's `Original Prompt` and
-     `Summary`?
+ 1. Read the epic's three sections: **Task** (this epic's slice — the primary
+    spec), **Summary** (the user's whole ask — context), and **Original Prompt**
+    (the deepest arbiter of intent). Judge against all three, with the
+    Original Prompt as the final word on intent.
+ 2. Read the feature PR (epic feature branch → `main`).
+ 3. Validate end to end:
+    - Build the app from the feature branch and exercise the feature.
+    - Does the delivered result actually match the epic's `Task`, `Summary`, and
+      `Original Prompt`?
    - Does it meet the acceptance criteria gathered across the task tickets?
    - Check for regressions in behavior the epic was not supposed to change.
    - Run the project's lint / typecheck / full test suite.
@@ -35,7 +37,9 @@ Board operations follow the `board` skill (used to read the epic and feature PR)
 
 ## Rules
 
-- Judge against the **original epic spec**, not just the individual task wording.
+- Judge against the **epic's spec** (its `Task`, `Summary`, and `Original Prompt`
+  sections), not just the individual task-ticket wording. The `Original Prompt`
+  is the final arbiter of the user's intent.
 - You do NOT write code, fix issues, create tickets, move statuses, or merge.
 - Be specific. "Doesn't match spec" is not useful; "spec requires X, the app
   does Y (repro: …)" is.
