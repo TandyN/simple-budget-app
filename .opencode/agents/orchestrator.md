@@ -60,12 +60,14 @@ Compute the ready set (tickets whose blockers are all `Done`, per the `board`
 skill). Pick one ready ticket and, by role:
 
 - **Spike (`role: solutions-architect`)** → spawn the **solutions-architect**
-  with the spike number. It researches, writes `## Findings` + `## Recommended
-  tasks` on the spike, moves it to `Done`, reports open questions.
-  - If it reports it still can't be decomposed → spawn the **project-manager**
-    to open a follow-up spike (loop with step 2).
-  - Once the spike is `Done`, recompute the ready set (its tasks may now be
-    ready).
+  with the spike number. It researches, leaves a **signed comment**
+  (`(solutions-architect-agent):`) on the spike with its findings + recommended
+  tasks, moves it to `Done`, reports back. Then spawn the **project-manager**
+  to read that signed comment and turn it into task tickets (with blockers).
+  - If the project-manager reports it still can't decompose → have the
+    **project-manager** create a follow-up spike ticket, then spawn the
+    **solutions-architect** on it (loop).
+  - Once the spike is `Done` and its tasks exist, recompute the ready set.
 
 - **Task (`role: software-engineer`)** → spawn the **software-engineer** with the
   task number **and the epic feature-branch name**. It cuts a branch from the
@@ -78,29 +80,35 @@ skill). Pick one ready ticket and, by role:
 ### 4. Staff Software Engineer reviews (per task in Review)
 
 For each task in `Review`, spawn the **staff-software-engineer** (Mode A) with
-the task number. It reports:
-- **BUGS FOUND** → relay to the **project-manager** to create a fix ticket (with
-  a blocker/parent link), then return to step 3 for the fix.
+the task number and its PR. It reports:
+- **REJECTED** → it has left a **signed bug-summary comment on the PR**
+  (`(staff-software-engineer-agent):`). Relay the rejection + PR link to the
+  **project-manager**, which reads that comment and creates the fix ticket(s).
+  Then return to step 3 for the fix.
 - **APPROVED** → relay to the **software-engineer** to merge the PR into the
   epic feature branch and move the ticket to `Done`.
 
 ### 5. When ALL task tickets for the epic are `Done`
 
- - Spawn the **staff-software-engineer** (Mode B) for the **final holistic epic
-   review** of the whole feature branch.
-   - **PROBLEMS FOUND** → relay to the **project-manager** to create fix tickets;
-     return to step 3.
-   - **APPROVED** → the staff-software-engineer **opens the feature PR**
-     (feature branch → `main`); proceed to step 6.
+  - Spawn the **staff-software-engineer** (Mode B) for the **final holistic epic
+    review** of the whole feature branch.
+    - **REJECTED** → it has left a **signed problem summary on the epic ticket**
+      (`(staff-software-engineer-agent):`). Relay the rejection + epic link to
+      the **project-manager**, which reads that comment and creates the fix
+      tickets; return to step 3.
+    - **APPROVED** → the staff-software-engineer **opens the feature PR**
+      (feature branch → `main`); proceed to step 6.
 
 ### 6. Run QA, then merge
 
 - Spawn **QA** (once, on the feature PR the staff-software-engineer opened) with
   the epic number. It reports:
-   - **PROBLEMS FOUND** → relay to the **project-manager** to create fix tickets;
-     return to step 3, then re-run steps 4–6.
-   - **APPROVED** → relay to the **staff-software-engineer** to merge the feature
-     PR into `main`. (Only the staff-software-engineer merges into `main`.)
+    - **REJECTED** → it has left a **signed failure summary on the feature PR**
+      (`(qa-agent):`). Relay the rejection + PR link to the **project-manager**,
+      which reads that comment and creates the fix tickets; return to step 3,
+      then re-run steps 4–6.
+    - **APPROVED** → relay to the **staff-software-engineer** to merge the feature
+      PR into `main`. (Only the staff-software-engineer merges into `main`.)
 
 ### 7. Complete
 

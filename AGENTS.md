@@ -44,6 +44,15 @@ merged to `main`.**
 Follow the `board` skill (`.agents/skills/board/SKILL.md`) for all GitHub Projects board
 operations. Its golden rules are non-negotiable.
 
+## Commenting
+
+Follow the `comment-signature` skill (`.agents/skills/comment-signature/SKILL.md`).
+Agents communicate findings and verdicts by **signed comments** (e.g.
+`(solutions-architect-agent): ...`, `(staff-software-engineer-agent): ...`) on the
+ticket or PR — they never edit another role's ticket body. A rejection carries a
+signed comment listing every issue, which the project-manager reads to build fix
+tickets.
+
 ## Committing
 
 Follow the `conventional-commits` skill (`.agents/skills/conventional-commits/SKILL.md`).
