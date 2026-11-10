@@ -85,20 +85,21 @@ the task number. It reports:
 
 ### 5. When ALL task tickets for the epic are `Done`
 
-- Spawn the **staff-software-engineer** (Mode B) for the **final holistic epic
-  review** of the whole feature branch.
-  - **PROBLEMS FOUND** → relay to the **project-manager** to create fix tickets;
-    return to step 3.
-  - **APPROVED** → proceed to step 6.
+ - Spawn the **staff-software-engineer** (Mode B) for the **final holistic epic
+   review** of the whole feature branch.
+   - **PROBLEMS FOUND** → relay to the **project-manager** to create fix tickets;
+     return to step 3.
+   - **APPROVED** → the staff-software-engineer **opens the feature PR**
+     (feature branch → `main`); proceed to step 6.
 
-### 6. Open the feature PR and run QA
+### 6. Run QA, then merge
 
-- Open the **feature PR** (epic feature branch → `main`) per the `board` skill.
-- Spawn **QA** (once, on the feature PR) with the epic number. It reports:
-  - **PROBLEMS FOUND** → relay to the **project-manager** to create fix tickets;
-    return to step 3, then re-run steps 4–6.
-  - **APPROVED** → relay to the **staff-software-engineer** to merge the feature
-    PR into `main`. (Only the staff-software-engineer merges into `main`.)
+- Spawn **QA** (once, on the feature PR the staff-software-engineer opened) with
+  the epic number. It reports:
+   - **PROBLEMS FOUND** → relay to the **project-manager** to create fix tickets;
+     return to step 3, then re-run steps 4–6.
+   - **APPROVED** → relay to the **staff-software-engineer** to merge the feature
+     PR into `main`. (Only the staff-software-engineer merges into `main`.)
 
 ### 7. Complete
 
@@ -125,9 +126,9 @@ reports a blocker, relay it to the correct role and continue.
   the final staff-software-engineer review passes.
 - A **task PR** (→ feature branch) is merged by the software-engineer after
   staff-software-engineer approves.
-- The **feature PR** (→ `main`) is merged by the **staff-software-engineer**,
-  only after the final staff-software-engineer review **and** QA approve. You
-  relay QA's approval to the staff-software-engineer to do the merge.
+- The **feature PR** (→ `main`) is **opened and merged by the
+  staff-software-engineer**: it opens it after its final review, and merges it
+  only after QA approves. You relay QA's approval to it to do the merge.
 - You move the **epic** to `Done` only when all its tickets are `Done` and its
   feature PR is merged.
 - **Never stop until every ticket on the board is `Done` and all feature PRs are

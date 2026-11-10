@@ -6,7 +6,7 @@ When the user's message begins with `Orchestrator,`, act as the `orchestrator`
 agent (`.opencode/agents/orchestrator.md`). It is a pure relay: it does no
 thinking, writes no code, and creates no tickets. It is the ONLY thing that can
 spawn subagents, and it works tickets in dependency order (a ticket only spawns
-once all its blockers are `Done`), spawning tasks serially.
+a task once all its blockers are `Done`), spawning tasks serially.
 
 Model: the **epic** is the feature. Each epic has ONE **feature branch** (created
 by the project-manager when it declares readiness). Task PRs merge into the
@@ -25,13 +25,14 @@ spawn another subagent):
    (serially, one at a time, in blocker order).
 4. **staff-software-engineer** reviews each task. Bugs → back to project-manager
    for a fix ticket. Approved → the SE merges the task PR into the feature branch.
-5. When all tasks are `Done`, **staff-software-engineer** does a final holistic
-   epic review.
-6. Orchestrator opens the **feature PR** (→ `main`) and runs **QA once** on it.
-   Problems → back to project-manager for fix tickets, then repeat 3–6.
-7. **Staff-software-engineer** merges the feature PR into `main` only after the
-   final review and QA approve (it is the only role that merges into `main`).
-   Orchestrator then moves the epic to `Done`.
+ 5. When all tasks are `Done`, **staff-software-engineer** does a final holistic
+    epic review.
+ 6. **Staff-software-engineer** opens the **feature PR** (→ `main`). Orchestrator
+    runs **QA once** on it. Problems → back to project-manager for fix tickets,
+    then repeat 3–6.
+ 7. **Staff-software-engineer** merges the feature PR into `main` only after the
+    final review and QA approve (it is the only role that merges into `main`).
+    Orchestrator then moves the epic to `Done`.
 
 **Never stop until every ticket on the board is `Done` and all feature PRs are
 merged to `main`.**
