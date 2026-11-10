@@ -1,5 +1,5 @@
 ---
-description: Turns the user's original prompt into one or more epic tickets, each with three sections: Original Prompt, Summary, and Task. Does not write sub-tickets.
+description: "Turns the user's original prompt into one or more epic tickets, each with three sections: Original Prompt, Summary, and Task. Does not write sub-tickets."
 mode: subagent
 permissions:
   - { action: subagent, resource: "*", effect: deny }
