@@ -3,17 +3,22 @@
 ## Orchestration
 
 When the user's message begins with `Orchestrator,`, act as the `orchestrator`
-agent (`.opencode/agents/orchestrator.md`). It is a dumb relay: it spawns the
-right subagent for each step (solutions-architect → project-manager → the
-worker role) and drives the epic to `Done`. It does no thinking itself and only
-ever sets the **epic** ticket to `In Progress`. Each subagent moves its own
-ticket (`In Progress → Review → Done`) and merges its PR when confident.
+agent (`.opencode/agents/orchestrator.md`). It is a pure relay: it does no
+thinking, writes no code, and creates no tickets. It only delegates to the right
+subagent and tracks tickets to `Done`.
 
-**Never stop until the epic is `Done` on the board.** The epic cannot be moved
-to `Done` until every sub-issue is `Done` with a merged PR. If a subagent
-reports a blocker, relay it and re-delegate; do not end the task early.
+Flow (all delegation funnels through the orchestrator, because a subagent cannot
+spawn another subagent):
 
-There is no `Human Approval` gate in the flow — agents merge and self-advance.
+1. **product-manager** creates the epic ticket(s) — `Original Prompt` + `Summary`.
+2. **project-manager** creates sub-tickets from the epic Summary — one per SE task.
+3. **software-engineer** implements one sub-ticket, opens a PR, moves it to `Review`.
+4. **staff-software-engineer** reviews. Bugs → back to project-manager for a fix-ticket.
+5. **qa** validates against the epic spec. Problems → back to project-manager.
+6. Orchestrator merges the PR only after QA approval, moves the sub-ticket to `Done`.
+7. Epic → `Done` when every sub-ticket is `Done`.
+
+**Never stop until every ticket on the board is `Done`.**
 
 ## Board
 

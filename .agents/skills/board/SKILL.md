@@ -5,9 +5,9 @@ description: GitHub Projects board operations. Use whenever creating, linking, o
 
 # Board
 
-All agents (orchestrator, project-manager, software-engineer, solutions-architect)
-drive the same GitHub Projects board. This skill is **repo-agnostic**: it discovers
-IDs from the current repository.
+All agents (orchestrator, product-manager, project-manager, software-engineer,
+staff-software-engineer, qa, solutions-architect) drive the same GitHub Projects
+board. This skill is **repo-agnostic**: it discovers IDs from the current repository.
 
 ## Discover IDs (run once per session)
 
@@ -46,6 +46,9 @@ DONE_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="Status") | .op
 PM_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="role") | .options[] | select(.name=="project-manager") | .id')
 SE_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="role") | .options[] | select(.name=="software-engineer") | .id')
 SA_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="role") | .options[] | select(.name=="solutions-architect") | .id')
+PRODPM_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="role") | .options[] | select(.name=="product-manager") | .id')
+SSE_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="role") | .options[] | select(.name=="staff-software-engineer") | .id')
+QA_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="role") | .options[] | select(.name=="qa") | .id')
 ```
 
 If the board doesn't exist, create it:
@@ -55,8 +58,8 @@ gh project create --owner "$REPO_OWNER" --title "$BOARD_NAME" --format json
 ```
 
 Then ensure the `Status` field (options: Todo, In Progress, Review, Done) and the
-`role` field (options: project-manager, software-engineer, solutions-architect)
-exist via `gh project field-create`.
+`role` field (options: product-manager, project-manager, software-engineer,
+solutions-architect, staff-software-engineer, qa) exist via `gh project field-create`.
 
 ## Commands (use the discovered IDs)
 
@@ -114,23 +117,32 @@ gh project item-list <PROJECT_NUM> --owner <REPO_OWNER> --format json
 gh project field-list <PROJECT_NUM> --owner <REPO_OWNER> --format json
 ```
 
-### Open a PR referencing a sub-issue
+### Open a PR referencing a sub-issue (and the epic)
+
+The PR body MUST reference **both** the sub-issue and its epic. GitHub links the
+PR to both issues, which populates the epic's "Linked pull requests" board field
+(referencing only the sub-issue leaves the epic unlinked — this was the bug).
 
 ```
 gh pr create --base main --head <branch> \
-  --title "<summary>" --body "Closes #<sub-issue-number>"
+  --title "<summary>" \
+  --body "Closes #<sub-issue-number>
+Part of #<epic-number>"
 ```
 
 ## Golden rules
 
-- Every **sub-issue** must have a PR that closes it. The sub-issue only reaches
-  `Done` after its PR is merged.
-- An **epic** is a tracking issue. It reaches `Done` only when **every**
-  sub-issue is `Done` (i.e. every sub-issue PR is merged). The epic itself does
-  not need a PR.
+- Every **sub-issue** is implemented by ONE software-engineer (one specific task).
+  The sub-issue moves `In Progress → Review` when the PR is opened. It reaches
+  `Done` only after its PR is merged (which happens only after
+  staff-software-engineer and QA both approve).
+- An **epic** is a tracking issue created by the product-manager. It reaches
+  `Done` only when **every** sub-issue under it is `Done` (all PRs merged).
 - Every sub-issue MUST be linked to its parent epic via `addSubIssue` before
   being added to the board.
-- Every PR body MUST contain `Closes #<sub-issue-number>`.
+- Every PR body MUST contain `Closes #<sub-issue-number>` **and**
+  `Part of #<epic-number>` (so the epic's "Linked pull requests" field populates).
 - Commit messages MUST reference the sub-issue number.
 - One sub-issue → one PR.
+- Only the **orchestrator** merges a PR, and only after QA approves it.
 - The board is the single source of truth for state — always reflect state via `Status`.
