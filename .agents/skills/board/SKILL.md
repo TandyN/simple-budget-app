@@ -40,7 +40,6 @@ ROLE_FIELD_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="role") |
 TODO_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="Status") | .options[] | select(.name=="Todo") | .id')
 IN_PROGRESS_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="Status") | .options[] | select(.name=="In Progress") | .id')
 REVIEW_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="Status") | .options[] | select(.name=="Review") | .id')
-HUMAN_APPROVAL_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="Status") | .options[] | select(.name=="Human Approval") | .id')
 DONE_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="Status") | .options[] | select(.name=="Done") | .id')
 
 # Role option IDs
@@ -55,8 +54,8 @@ If the board doesn't exist, create it:
 gh project create --owner "$REPO_OWNER" --title "$BOARD_NAME" --format json
 ```
 
-Then ensure the `Status` field (options: Todo, In Progress, Review, Human Approval,
-Done) and `role` field (options: project-manager, software-engineer, solutions-architect)
+Then ensure the `Status` field (options: Todo, In Progress, Review, Done) and the
+`role` field (options: project-manager, software-engineer, solutions-architect)
 exist via `gh project field-create`.
 
 ## Commands (use the discovered IDs)
@@ -124,7 +123,11 @@ gh pr create --base main --head <branch> \
 
 ## Golden rules
 
-- Every epic must have a PR. No epic reaches `Done` without a merged PR.
+- Every **sub-issue** must have a PR that closes it. The sub-issue only reaches
+  `Done` after its PR is merged.
+- An **epic** is a tracking issue. It reaches `Done` only when **every**
+  sub-issue is `Done` (i.e. every sub-issue PR is merged). The epic itself does
+  not need a PR.
 - Every sub-issue MUST be linked to its parent epic via `addSubIssue` before
   being added to the board.
 - Every PR body MUST contain `Closes #<sub-issue-number>`.
