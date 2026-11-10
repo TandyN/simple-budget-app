@@ -228,8 +228,10 @@ Closes #<epic-number>"
 - **Merge ownership:**
   - Task PR (→ feature branch): merged by the **software-engineer**, after
     staff-software-engineer approves.
-  - Feature PR (→ `main`): merged by the **orchestrator**, only after the final
-    staff-software-engineer review **and** QA both approve.
+  - Feature PR (→ `main`): merged by the **staff-software-engineer**, only after
+    the final staff-software-engineer review **and** QA both approve. (The
+    orchestrator relays QA's approval to the staff-software-engineer; it does not
+    merge itself.)
 - **QA runs ONCE, on the epic** (the feature PR), after all tasks are `Done` and
   staff-software-engineer has done a final holistic review. QA does not run per
   task.

@@ -30,7 +30,8 @@ Board operations follow the `board` skill (used to read the epic and feature PR)
      (evidence, expected vs actual), detailed enough for the project-manager to
      create fix tickets for software-engineers.
    - **APPROVED** — the feature meets the epic spec and is ready to merge into
-     `main`. The orchestrator merges the feature PR.
+     `main`. The orchestrator relays this to the staff-software-engineer, who
+     merges the feature PR into `main`.
 
 ## Rules
 

@@ -29,8 +29,9 @@ spawn another subagent):
    epic review.
 6. Orchestrator opens the **feature PR** (→ `main`) and runs **QA once** on it.
    Problems → back to project-manager for fix tickets, then repeat 3–6.
-7. Orchestrator merges the feature PR into `main` only after the final review and
-   QA approve; moves the epic to `Done`.
+7. **Staff-software-engineer** merges the feature PR into `main` only after the
+   final review and QA approve (it is the only role that merges into `main`).
+   Orchestrator then moves the epic to `Done`.
 
 **Never stop until every ticket on the board is `Done` and all feature PRs are
 merged to `main`.**

@@ -40,17 +40,26 @@ epic feature branch** end to end:
    Any integration gaps, conflicting decisions, or missing glue code?
 2. Build the app and exercise the epic's behavior.
 3. Check nothing was left half-done relative to the epic's `Summary`.
-4. Report to the orchestrator:
-   - **PROBLEMS FOUND** — a specific list for the project-manager to turn into
-     fix tickets (relayed back through the orchestrator).
-   - **APPROVED** — the feature branch is complete and sound. The orchestrator
-     opens the feature PR (feature branch → `main`) and sends it to QA.
+ 4. Report to the orchestrator:
+    - **PROBLEMS FOUND** — a specific list for the project-manager to turn into
+      fix tickets (relayed back through the orchestrator).
+    - **APPROVED** — the feature branch is complete and sound. The orchestrator
+      opens the feature PR (feature branch → `main`) and sends it to QA.
+
+## After QA approves (orchestrator relays QA's approval back to you)
+
+You are the ONLY role that merges into `main`. When the orchestrator tells you
+QA approved the feature PR:
+
+1. Rebase/verify the feature branch is clean and the full test suite passes.
+2. **Merge the feature PR into `main`** (per the `board` skill).
+3. Report back to the orchestrator that the feature PR is merged to `main`.
 
 ## Rules
 
 - You do NOT write code or fix bugs.
-- You do NOT merge anything. The SE merges task PRs into the feature branch;
-  the orchestrator merges the feature PR into `main` (after QA).
+- Merge ownership: the SE merges task PRs into the epic feature branch; **you**
+  merge the feature PR into `main`, and only after QA approves it.
 - You do NOT create tickets. The project manager does (on your reports).
 - Be specific. "It's broken" is not useful; "Line 42 in `src/foo.ts`: index not
   bounds-checked" is.

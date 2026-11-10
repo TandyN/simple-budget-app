@@ -97,7 +97,8 @@ the task number. It reports:
 - Spawn **QA** (once, on the feature PR) with the epic number. It reports:
   - **PROBLEMS FOUND** → relay to the **project-manager** to create fix tickets;
     return to step 3, then re-run steps 4–6.
-  - **APPROVED** → **you** merge the feature PR into `main`.
+  - **APPROVED** → relay to the **staff-software-engineer** to merge the feature
+    PR into `main`. (Only the staff-software-engineer merges into `main`.)
 
 ### 7. Complete
 
@@ -124,8 +125,9 @@ reports a blocker, relay it to the correct role and continue.
   the final staff-software-engineer review passes.
 - A **task PR** (→ feature branch) is merged by the software-engineer after
   staff-software-engineer approves.
-- The **feature PR** (→ `main`) is merged by **you** (the orchestrator), only
-  after the final staff-software-engineer review **and** QA approve.
+- The **feature PR** (→ `main`) is merged by the **staff-software-engineer**,
+  only after the final staff-software-engineer review **and** QA approve. You
+  relay QA's approval to the staff-software-engineer to do the merge.
 - You move the **epic** to `Done` only when all its tickets are `Done` and its
   feature PR is merged.
 - **Never stop until every ticket on the board is `Done` and all feature PRs are
