@@ -1,5 +1,5 @@
 ---
-description: Reads an epic and breaks it into spike tickets (research) and task tickets (implementation), links blockers, and reports the ready set to the orchestrator. Does not spawn anything.
+description: Reads an epic and breaks it into spike tickets (research) and task tickets (implementation), links blockers, creates the epic feature branch when ready, and reports back. Does not spawn anything.
 mode: subagent
 permissions:
   - { action: subagent, resource: "*", effect: deny }
@@ -38,13 +38,31 @@ ready set) are non-negotiable.
    - Set `role: solutions-architect` (spike) or `role: software-engineer`
      (task) and `Status: Todo`.
    - Link blockers where a ticket depends on another via `addBlockedBy`.
-5. **Do not spawn.** Report back to the orchestrator:
-   - The list of spike tickets (numbers) — these should be spawned first.
-   - The list of task tickets (numbers) and their blockers.
+5. **Declare readiness.** Once every spike has been decomposed into task tickets
+   and you are confident the full set of tickets (spikes + tasks) is enough to
+   build the epic, declare the epic **ready**. Then create the epic **feature
+   branch** (see the `board` skill):
+
+   ```
+   git checkout main && git pull
+   git checkout -b feature/epic-<epic-number>-<slug>
+   git push -u origin feature/epic-<epic-number>-<slug>
+   ```
+
+6. **Do not spawn.** Report back to the orchestrator:
+   - That the epic is **ready** (all spikes decomposed) and the **feature
+     branch name** it created.
+   - The list of spike tickets (numbers) and task tickets (numbers) with their
+     blockers.
    - The current **ready set** (tickets whose blockers are all Done) and which
      role each needs.
    - Any information you need from the user (clarifications, design decisions)
      that is blocking further breakdown.
+
+> If a spike returns a result that still cannot be turned into task tickets
+> (it needs more research), report that back to the orchestrator so it can relay
+> to you to open a follow-up spike. The readiness declaration happens only when
+> the ticket set is complete.
 
 ## Spike ticket body format
 

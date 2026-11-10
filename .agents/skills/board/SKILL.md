@@ -21,7 +21,15 @@ board. This skill is **repo-agnostic**: it discovers IDs from the current reposi
 
 A sub-issue is always either a spike or a task, never both.
 
-## Discover IDs (run once per session)
+## Feature branch (per epic)
+
+Each epic has ONE **feature branch** (`feature/epic-<epic-number>-<slug>`), off
+`main`. The **project-manager creates it** once it has finished decomposing the
+epic and declares readiness. All task tickets for that epic are implemented on
+branches cut from the feature branch and merged **into the feature branch** (not
+`main`). `main` is production and is only changed by the final **feature PR**
+(feature branch → `main`), which opens only after all tasks are `Done` and staff-
+engineer + QA approve.
 
 ## Discover IDs (run once per session)
 
@@ -174,41 +182,70 @@ gh project item-list <PROJECT_NUM> --owner <REPO_OWNER> --format json
 gh project field-list <PROJECT_NUM> --owner <REPO_OWNER> --format json
 ```
 
-### Open a PR referencing a sub-issue (and the epic)
-
-The PR body MUST reference **both** the sub-issue and its epic. GitHub links the
-PR to both issues, which populates the epic's "Linked pull requests" board field
-(referencing only the sub-issue leaves the epic unlinked — this was the bug).
+### Create the epic feature branch (project-manager)
 
 ```
-gh pr create --base main --head <branch> \
+git checkout main && git pull
+git checkout -b feature/epic-<epic-number>-<slug>
+git push -u origin feature/epic-<epic-number>-<slug>
+```
+
+### Open a task PR (task ticket → feature branch)
+
+The PR merges into the epic's **feature branch** (not `main`). The body MUST
+reference **both** the task ticket and the epic so both issues stay linked.
+
+```
+gh pr create --base feature/epic-<epic-number>-<slug> --head feature/<task-number>-<slug> \
   --title "<summary>" \
-  --body "Closes #<sub-issue-number>
+  --body "Closes #<task-number>
 Part of #<epic-number>"
+```
+
+### Open the feature PR (feature branch → main) — only after all tasks Done
+
+```
+gh pr create --base main --head feature/epic-<epic-number>-<slug> \
+  --title "<epic title>" \
+  --body "Part of #<epic-number>
+Closes #<epic-number>"
 ```
 
 ## Golden rules
 
-- **Spike first.** Every spike ticket (research) for an epic MUST reach `Done`
-  before any task ticket it unblocks is spawned. A task is only spawned when it
-  is in the ready set (all blockers `Done`) AND the spike work behind it is done.
+- **Dependency order.** A ticket is only spawned when it is in the **ready set**
+  (all its `blockedBy` are `Done`). Spikes usually go first because tasks are
+  blocked on them, but the rule is blockers, not ticket type. Spikes and tasks
+  can block each other.
 - A **task ticket** is implemented by ONE software-engineer (one specific task).
-  It moves `In Progress → Review` when the PR is opened, and reaches `Done` only
-  after its PR is merged (after staff-software-engineer and QA approve).
+  It moves `In Progress → Review` when its PR is opened. It reaches `Done` only
+  after **staff-software-engineer approves** and the SE merges the PR into the
+  epic feature branch.
 - A **spike ticket** is done by the solutions-architect, produces a plan/report,
   and moves itself to `Done`. No code, no PR.
-- **Only the orchestrator spawns subagents.** No subagent (project-manager,
-  solutions-architect, etc.) can spawn another. When a subagent needs work done
-  by another role, it reports back and the orchestrator spawns that role.
+- **One feature branch per epic.** All task PRs merge into the epic feature
+  branch. **Nothing task-related ever merges directly into `main`.**
+- **Merge ownership:**
+  - Task PR (→ feature branch): merged by the **software-engineer**, after
+    staff-software-engineer approves.
+  - Feature PR (→ `main`): merged by the **orchestrator**, only after the final
+    staff-software-engineer review **and** QA both approve.
+- **QA runs ONCE, on the epic** (the feature PR), after all tasks are `Done` and
+  staff-software-engineer has done a final holistic review. QA does not run per
+  task.
+- **Only the orchestrator spawns subagents.** A subagent that needs another role
+  reports back; the orchestrator spawns that role.
 - **Blockers must be linked** with `addBlockedBy` when a ticket depends on
-  another. The orchestrator only spawns tickets that are in the ready set.
+  another.
+- **`main` is production.** Only the feature PR touches it, and only after
+  approval.
 - An **epic** is a tracking issue created by the product-manager. It reaches
-  `Done` only when **every** sub-issue under it is `Done`.
+  `Done` only when **every** sub-issue under it is `Done` and the feature PR is
+  merged.
 - Every sub-issue MUST be linked to its parent epic via `addSubIssue` before
   being added to the board.
-- Every PR body MUST contain `Closes #<sub-issue-number>` **and**
-  `Part of #<epic-number>` (so the epic's "Linked pull requests" field populates).
-- Commit messages MUST reference the sub-issue number.
-- One task ticket → one PR.
-- Only the **orchestrator** merges a PR, and only after QA approves it.
+- Every PR body MUST reference its ticket and the epic (`Closes #<n>` +
+  `Part of #<epic>`) so the epic's "Linked pull requests" field populates.
+- Commit messages MUST reference the task ticket number.
+- One task ticket → one PR (into the feature branch).
 - The board is the single source of truth for state — always reflect state via `Status`.

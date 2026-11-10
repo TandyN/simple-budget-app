@@ -4,28 +4,36 @@
 
 When the user's message begins with `Orchestrator,`, act as the `orchestrator`
 agent (`.opencode/agents/orchestrator.md`). It is a pure relay: it does no
-thinking, writes no code, and creates no tickets. It only spawns the right
-subagent (it is the ONLY thing that can spawn) and tracks every ticket to `Done`,
-working in dependency order (spikes before the tasks they unblock; a task only
-spawns once all its blockers are `Done`).
+thinking, writes no code, and creates no tickets. It is the ONLY thing that can
+spawn subagents, and it works tickets in dependency order (a ticket only spawns
+once all its blockers are `Done`), spawning tasks serially.
+
+Model: the **epic** is the feature. Each epic has ONE **feature branch** (created
+by the project-manager when it declares readiness). Task PRs merge into the
+feature branch; the **feature PR** (feature branch → `main`) is the only thing
+that touches production.
 
 Flow (all delegation funnels through the orchestrator, because a subagent cannot
 spawn another subagent):
 
 1. **product-manager** creates the epic ticket(s) — `Original Prompt` + `Summary`.
 2. **project-manager** breaks the epic into **spike** tickets (research) and
-   **task** tickets (implementation), links **blockers** between tickets, and
-   reports the ready set. It does not spawn.
-3. Orchestrator spawns the ready **solutions-architect** for each spike first.
-   The architect researches, reports findings + recommended tasks + open questions.
-4. When a spike is `Done`, the project-manager (re)breaks the now-known work into
-   task tickets. Orchestrator spawns the **software-engineer** for each ready task.
-5. **staff-software-engineer** reviews. Bugs → back to project-manager for a fix-ticket.
-6. **qa** validates against the epic spec. Problems → back to project-manager.
-7. Orchestrator merges the PR only after QA approval, moves the task to `Done`.
-8. Epic → `Done` when every ticket under it is `Done`.
+   **task** tickets (implementation), links **blockers**, iterates spikes until
+   fully decomposed, declares readiness, and **creates the epic feature branch**.
+3. Orchestrator works the ready set in dependency order: spawns the
+   **solutions-architect** for spikes and the **software-engineer** for tasks
+   (serially, one at a time, in blocker order).
+4. **staff-software-engineer** reviews each task. Bugs → back to project-manager
+   for a fix ticket. Approved → the SE merges the task PR into the feature branch.
+5. When all tasks are `Done`, **staff-software-engineer** does a final holistic
+   epic review.
+6. Orchestrator opens the **feature PR** (→ `main`) and runs **QA once** on it.
+   Problems → back to project-manager for fix tickets, then repeat 3–6.
+7. Orchestrator merges the feature PR into `main` only after the final review and
+   QA approve; moves the epic to `Done`.
 
-**Never stop until every ticket on the board is `Done`.**
+**Never stop until every ticket on the board is `Done` and all feature PRs are
+merged to `main`.**
 
 ## Board
 
