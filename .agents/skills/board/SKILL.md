@@ -9,6 +9,20 @@ All agents (orchestrator, product-manager, project-manager, software-engineer,
 staff-software-engineer, qa, solutions-architect) drive the same GitHub Projects
 board. This skill is **repo-agnostic**: it discovers IDs from the current repository.
 
+## Ticket types
+
+- **Spike ticket** (`role: solutions-architect`) — research. The
+  solutions-architect investigates a problem, produces a plan / clarifies what is
+  needed, and moves its own spike ticket to `Done`. No code, no PR. Spikes are
+  always done **before** the tasks they unblock.
+- **Task ticket** (`role: software-engineer`) — implementation. One specific,
+  self-contained job for one software-engineer, ending in a PR. Task tickets that
+  depend on other work are linked via **blockers** (below).
+
+A sub-issue is always either a spike or a task, never both.
+
+## Discover IDs (run once per session)
+
 ## Discover IDs (run once per session)
 
 > Parse JSON with `jq` if available, otherwise `python3`. The patterns below
@@ -93,6 +107,49 @@ mutation {
 }'
 ```
 
+### Link a blocker (task depends on another ticket)
+
+Use **issue node IDs**. `<blocked>` is the ticket that cannot start yet;
+`<blocker>` is the ticket it waits for. A ticket is **ready** only when none of
+its `blockedBy` are still open.
+
+```
+gh api graphql -f query='
+mutation {
+  addBlockedBy(input: { issueId: "<blocked-node-id>", blockingIssueId: "<blocker-node-id>" })
+  { issue { number } }
+}'
+```
+
+Remove a blocker when it no longer applies:
+
+```
+gh api graphql -f query='
+mutation {
+  removeBlockedBy(input: { issueId: "<blocked-node-id>", blockingIssueId: "<blocker-node-id>" })
+  { issue { number } }
+}'
+```
+
+### Read a ticket's blockers (to find the ready set)
+
+```
+gh api graphql -f query='
+query {
+  node(id: "<ticket-node-id>") {
+    ... on Issue {
+      number
+      state
+      blockedBy(first: 20) { nodes { number state } }
+    }
+  }
+}'
+```
+
+A ticket is in the **ready set** when every `blockedBy` node is `state: CLOSED`
+(i.e. all its blockers are Done). Spikes (research) are never blockers of each
+other unless explicitly linked; they must finish before the tasks they unblock.
+
 ### Set a field value (status or role)
 
 ```
@@ -132,17 +189,26 @@ Part of #<epic-number>"
 
 ## Golden rules
 
-- Every **sub-issue** is implemented by ONE software-engineer (one specific task).
-  The sub-issue moves `In Progress → Review` when the PR is opened. It reaches
-  `Done` only after its PR is merged (which happens only after
-  staff-software-engineer and QA both approve).
+- **Spike first.** Every spike ticket (research) for an epic MUST reach `Done`
+  before any task ticket it unblocks is spawned. A task is only spawned when it
+  is in the ready set (all blockers `Done`) AND the spike work behind it is done.
+- A **task ticket** is implemented by ONE software-engineer (one specific task).
+  It moves `In Progress → Review` when the PR is opened, and reaches `Done` only
+  after its PR is merged (after staff-software-engineer and QA approve).
+- A **spike ticket** is done by the solutions-architect, produces a plan/report,
+  and moves itself to `Done`. No code, no PR.
+- **Only the orchestrator spawns subagents.** No subagent (project-manager,
+  solutions-architect, etc.) can spawn another. When a subagent needs work done
+  by another role, it reports back and the orchestrator spawns that role.
+- **Blockers must be linked** with `addBlockedBy` when a ticket depends on
+  another. The orchestrator only spawns tickets that are in the ready set.
 - An **epic** is a tracking issue created by the product-manager. It reaches
-  `Done` only when **every** sub-issue under it is `Done` (all PRs merged).
+  `Done` only when **every** sub-issue under it is `Done`.
 - Every sub-issue MUST be linked to its parent epic via `addSubIssue` before
   being added to the board.
 - Every PR body MUST contain `Closes #<sub-issue-number>` **and**
   `Part of #<epic-number>` (so the epic's "Linked pull requests" field populates).
 - Commit messages MUST reference the sub-issue number.
-- One sub-issue → one PR.
+- One task ticket → one PR.
 - Only the **orchestrator** merges a PR, and only after QA approves it.
 - The board is the single source of truth for state — always reflect state via `Status`.
