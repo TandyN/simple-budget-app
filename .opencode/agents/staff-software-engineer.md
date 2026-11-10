@@ -39,7 +39,8 @@ epic feature branch** end to end:
 1. Check the feature branch as a whole: do the tasks fit together coherently?
    Any integration gaps, conflicting decisions, or missing glue code?
 2. Build the app and exercise the epic's behavior.
-3. Check nothing was left half-done relative to the epic's `Summary`.
+ 3. Check nothing was left half-done relative to the epic's `Task` (this epic's
+    slice) and `Summary` (the whole ask).
  4. Report to the orchestrator:
     - **PROBLEMS FOUND** — a specific list for the project-manager to turn into
       fix tickets (relayed back through the orchestrator). Do NOT open the

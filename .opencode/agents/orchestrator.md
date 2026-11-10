@@ -34,15 +34,16 @@ The text after that is the **original prompt**.
 ### 1. Product Manager creates the epics
 
 Spawn the **product-manager** (task tool) with the **original prompt verbatim**.
-It creates the epic ticket(s) with `Original Prompt` + `Summary`, adds them to the
-board, sets `role: project-manager`.
+It creates one or more epic tickets, each with three sections (`Original Prompt`,
+`Summary`, `Task`), adds them to the board, sets `role: project-manager`.
 
 > You do NOT create epics.
 
 ### 2. Project Manager decomposes (spikes + tasks) and creates the feature branch
 
-For each epic, spawn the **project-manager** (task tool) with the epic number and
-Summary. It:
+For each epic, spawn the **project-manager** (task tool) with the epic number.
+It reads the epic's three sections (`Task` first, then `Summary`, then
+`Original Prompt` for more context) and:
 - Creates **spike** tickets (research) and **task** tickets (implementation).
 - Links **blockers** between tickets (`addBlockedBy`).
 - Iterates: when a spike result still can't be turned into tasks, it opens a
