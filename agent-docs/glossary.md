@@ -50,7 +50,8 @@ in its own topic doc, not here.
   model. [budget-app.md](budget-app.md)
 - **backend plan** — the navigable, pre-implementation design for the app's
   backend under `project-plan/` (data model, storage, recurring engine, activity
-  model, portability). [budget-app.md](budget-app.md#the-backend-plan)
+  model, portability, dependency strategy).
+  [budget-app.md](budget-app.md#the-backend-plan)
 - **RecurringRule** — the user-editable "what repeats"; separate from the
   activities it generates. [project-plan/data-model.md](../project-plan/data-model.md)
 - **Activity** — one unified, always-editable record (manual or auto-posted);
@@ -63,9 +64,20 @@ in its own topic doc, not here.
 - **storage adapter** — the thin `open/save/delete/query` seam over IndexedDB;
   the only platform surface the backend depends on.
   [project-plan/storage.md](../project-plan/storage.md)
-- **portability** — backend as a framework-agnostic TS library shared by the PWA
-  and the iOS (Capacitor/WKWebView) shell.
+- **portability** — backend as a framework-agnostic TS library shared by the PWA,
+  the iOS (Capacitor / WebKit), and the Android (Capacitor / Chromium) shells;
+  one bundle, three webview targets.
   [project-plan/portability.md](../project-plan/portability.md)
+- **Capacitor** — the native-shell framework that wraps the same TS bundle into
+  the iOS (WKWebView) and Android (System WebView / Chromium) apps.
+  [project-plan/portability.md](../project-plan/portability.md)
+- **dependency strategy** — the hard constraint of zero production dependencies
+  (runtime uses only Web-platform APIs) plus a curated set of well-maintained
+  dev dependencies.
+  [project-plan/dependency-strategy.md](../project-plan/dependency-strategy.md)
+- **zero-prod-deps** — `package.json` `dependencies` is empty; at runtime the app
+  uses only IndexedDB, WebCrypto, `fetch`, `Date`/`Intl`, and pure TS logic.
+  [project-plan/dependency-strategy.md](../project-plan/dependency-strategy.md)
 
 > As backend / frontend / data topics land, add their terms here and split the
 > area doc into `budget-app/<area>.md` when it grows.

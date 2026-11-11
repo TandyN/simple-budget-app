@@ -19,7 +19,8 @@ Before implementation begins, the backend is **planned** (not yet built). The
 navigable, agent-consumable plan lives at the repo root under
 [`project-plan/`](../project-plan/README.md) — a per-area set of docs covering
 the data model, local secure storage, the recurring-transaction engine, the
-activity model, and platform portability (PWA now / iOS later).
+activity model, platform portability (PWA now / iOS + Android later), and the
+dependency strategy (zero production deps).
 
 | Area | Doc |
 | ---- | --- |
@@ -28,7 +29,8 @@ activity model, and platform portability (PWA now / iOS later).
 | Local secure storage | [project-plan/storage.md](../project-plan/storage.md) |
 | Recurring engine | [project-plan/recurring-engine.md](../project-plan/recurring-engine.md) |
 | Activity model | [project-plan/activity-model.md](../project-plan/activity-model.md) |
-| Portability | [project-plan/portability.md](../project-plan/portability.md) |
+| Portability (PWA / iOS / Android) | [project-plan/portability.md](../project-plan/portability.md) |
+| Dependency strategy | [project-plan/dependency-strategy.md](../project-plan/dependency-strategy.md) |
 
 > The plan is the deliverable of Epic #5. When the backend *ships*, the
 > `budget-app/backend.md` and `budget-app/data.md` area docs above will track
