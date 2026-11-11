@@ -39,6 +39,24 @@ in its own topic doc, not here.
 
 - **budget-app** — the application itself: its backend, frontend, and data
   model. [budget-app.md](budget-app.md)
+- **backend plan** — the navigable, pre-implementation design for the app's
+  backend under `project-plan/` (data model, storage, recurring engine, activity
+  model, portability). [budget-app.md](budget-app.md#the-backend-plan)
+- **RecurringRule** — the user-editable "what repeats"; separate from the
+  activities it generates. [project-plan/data-model.md](../project-plan/data-model.md)
+- **Activity** — one unified, always-editable record (manual or auto-posted);
+  the single source of truth for Available Funds.
+  [project-plan/activity-model.md](../project-plan/activity-model.md)
+- **recurring engine** — idempotent, period-based auto-poster; rule edits affect
+  future periods only. [project-plan/recurring-engine.md](../project-plan/recurring-engine.md)
+- **Available Funds** — derived (income − expense) from the activity log, never
+  stored. [project-plan/activity-model.md](../project-plan/activity-model.md#available-funds--derived-from-the-activity-log)
+- **storage adapter** — the thin `open/save/delete/query` seam over IndexedDB;
+  the only platform surface the backend depends on.
+  [project-plan/storage.md](../project-plan/storage.md)
+- **portability** — backend as a framework-agnostic TS library shared by the PWA
+  and the iOS (Capacitor/WKWebView) shell.
+  [project-plan/portability.md](../project-plan/portability.md)
 
 > As backend / frontend / data topics land, add their terms here and split the
 > area doc into `budget-app/<area>.md` when it grows.
