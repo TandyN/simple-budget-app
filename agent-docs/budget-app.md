@@ -9,9 +9,9 @@ Keep it split by area so a reviewer can read only what they need:
 
 | Area | What it covers | Doc |
 | ---- | -------------- | --- |
-| **backend** | APIs, business logic, validation, persistence | _not yet built — planned_ |
+| **backend** | APIs, business logic, validation, persistence | _not yet built_ — [planned](#the-backend-plan) |
 | **frontend** | UI, components, state, how it talks to the backend | _not yet built_ |
-| **data** | the budget data model, storage, what is persisted | _not yet built — planned_ |
+| **data** | the budget data model, storage, what is persisted | _not yet built_ — [planned](#the-backend-plan) |
 
 ## The backend plan
 
