@@ -26,7 +26,13 @@ in its own topic doc, not here.
   software-engineer, senior-software-engineer, staff-software-engineer, qa,
   docs-agent. [orchestration.md](orchestration.md#roles)
 - **signed comment** — every agent finding/verdict, signed `(role-agent):`.
-  [board.md](board.md#signed-comments)
+  [board.md](board.md#signed-work-products)
+- **body attribution** — the `(role-agent):` signature on the *body* of an issue
+  or PR an agent creates. [board.md](board.md#signed-work-products)
+- **summary/verdict comment** — the signed comment every agent leaves as its last
+  action on the artifact it worked on. [board.md](board.md#signed-work-products)
+- **ticket title prefix** — `Epic:` / `Spike:` / `Task:` prefix on every ticket
+  title. [board.md](board.md#ticket-title-prefix)
 
 ## Board (GitHub Projects workflow)
 
