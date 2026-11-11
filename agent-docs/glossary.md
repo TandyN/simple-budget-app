@@ -33,6 +33,9 @@ in its own topic doc, not here.
   action on the artifact it worked on. [board.md](board.md#signed-work-products)
 - **ticket title prefix** — `Epic:` / `Spike:` / `Task:` prefix on every ticket
   title. [board.md](board.md#ticket-title-prefix)
+- **verification gates** — the orchestrator's mandatory check that the expected
+  signed summary/verdict comment exists on an artifact before proceeding to the
+  next step. [orchestration.md](orchestration.md#verification-gates)
 
 ## Board (GitHub Projects workflow)
 

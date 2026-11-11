@@ -75,6 +75,27 @@ on other work are linked with a **blocker** (`addBlockedBy`); a ticket is in the
 8. staff-software-engineer merges the feature PR into `main`; the epic moves to
    `Done`.
 
+## Verification gates
+
+Before the orchestrator proceeds past a step, it verifies the expected **signed
+summary/verdict comment** (per the `comment-signature` skill) exists on the
+current artifact (ticket or PR). If that comment is **missing or unsigned**, the
+orchestrator does not proceed — it relays the work back to the role that should
+have left it, then re-checks. A missing comment means context is lost and the
+next role cannot act correctly.
+
+| Before the orchestrator ... | it verifies the artifact has |
+| --------------------------- | ---------------------------- |
+| spawn the **senior-software-engineer** to review a task PR | a `(software-engineer-agent):` summary comment |
+| relay **APPROVED** to the **software-engineer** (merge a task PR) | a `(senior-software-engineer-agent):` verdict comment |
+| spawn the **staff-software-engineer** for the final epic review | every task PR has a `(senior-software-engineer-agent):` verdict and is merged |
+| spawn **QA** on the feature PR | a `(staff-software-engineer-agent):` holistic-review comment |
+| spawn the **docs-agent** | a `(qa-agent):` verdict comment (APPROVED) |
+| relay docs-agent **APPROVED** to the **staff-software-engineer** (merge) | a `(docs-agent-agent):` summary comment (APPROVED) |
+
+Source of truth: the **Verification gates** section of
+[`.opencode/agents/orchestrator.md`](../.opencode/agents/orchestrator.md).
+
 ## Docs
 
 The system documents itself in [`agent-docs/`](README.md). The **docs-agent** is
