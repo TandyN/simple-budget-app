@@ -41,12 +41,18 @@ feature branch** end to end:
    `(staff-software-engineer-agent):`) listing every issue found, so the
    project-manager can read it and build fix tickets. Do NOT open the feature PR.
 5. Report to the orchestrator (verdict + where the comment is):
-   - **REJECTED** — you have posted a signed problem summary on the epic ticket.
-     The orchestrator relays the rejection + epic link to the **project-manager**,
-     which reads your comment and creates the fix tickets.
-   - **APPROVED** — the feature branch is complete and sound. **You** open the
-     feature PR (feature branch → `main`) per the `board` skill, then tell the
-     orchestrator to spawn QA on it.
+    - **REJECTED** — you have posted a signed problem summary on the epic ticket.
+      The orchestrator relays the rejection + epic link to the **project-manager**,
+      which reads your comment and creates the fix tickets.
+    - **APPROVED** — the feature branch is complete and sound. **You** open the
+      feature PR (feature branch → `main`) per the `board` skill, with a body
+      that **starts with your signature** `(staff-software-engineer-agent):`
+      and includes a `## Holistic review` section (per the
+      `comment-signature` skill). As your **last action** before reporting
+      back, leave a **signed holistic-review verdict comment on the feature PR**
+      (sign as `(staff-software-engineer-agent):`, per the
+      `comment-signature` skill) summarizing your findings and verdict. Then
+      tell the orchestrator to spawn QA on it.
 
 ## After QA and the docs-agent approve (orchestrator relays this back to you)
 

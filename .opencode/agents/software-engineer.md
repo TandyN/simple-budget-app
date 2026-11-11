@@ -43,24 +43,37 @@ Board operations follow the `board` skill. Its golden rules are non-negotiable.
     keep the relevant `agent-docs/` area doc accurate and add any new key term to
     `agent-docs/glossary.md`. The **docs-agent** does the final, thorough pass
     later; just make sure you did not leave the docs wrong or missing a concept.
-6. Push and open a PR **into the epic feature branch**. The body MUST reference
-   both the task and the epic:
+6. Push and open a PR **into the epic feature branch**. The body MUST be
+   **signed** `(software-engineer-agent):` as its first line (per the
+   `comment-signature` skill) and reference both the task and the epic:
 
    ```
    gh pr create --base <epic-feature-branch> --head feature/<task-number>-<slug> \
-     --title "<summary>" --body "Closes #<task-number>
+     --title "<summary>" \
+     --body "(software-engineer-agent): <1-2 sentence summary of what was implemented>
+   ## Changes
+   - <file/area>: <what changed>
+   ## Reasoning
+   <why this approach>
+   ## Verification
+   <how it was tested/verified>
+   Closes #<task-number>
    Part of #<epic-number>"
    ```
 
 7. Move **your** task ticket to `Review`.
-8. Report back to the orchestrator: task number, PR number, and that it is in
+8. As your **last action** before reporting back, leave a **signed summary
+   comment** on the task PR (sign as `(software-engineer-agent):`, per the
+   `comment-signature` skill): what was implemented, why, and how it was
+   verified. A reader should get the full picture from this comment alone.
+9. Report back to the orchestrator: task number, PR number, and that it is in
    `Review` and ready for senior-software-engineer review.
 
 ## After senior-software-engineer approves (orchestrator relays this back)
 
-9. Rebase onto the current tip of the epic feature branch, re-verify, then
-   **merge the PR into the epic feature branch** (not `main`).
-10. Move **your** task ticket to `Done`.
+10. Rebase onto the current tip of the epic feature branch, re-verify, then
+    **merge the PR into the epic feature branch** (not `main`).
+11. Move **your** task ticket to `Done`.
 
 If the task is larger or more ambiguous than the brief, stop and flag it to the
 orchestrator instead of guessing. Do not start work outside your one task. Never
