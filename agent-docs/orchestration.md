@@ -1,9 +1,23 @@
 # Orchestration (the multi-agent system)
 
-This repo is built by a multi-agent pipeline. A human starts it by sending a
-message that begins with `Orchestrator,`; everything else is done by roles. This
-doc describes how the system works. The detailed per-role behavior lives in
+This repo is built by a multi-agent pipeline. A human starts it by running the
+**`/orchestrator <prompt>`** opencode command; everything else is done by roles.
+This doc describes how the system works. The detailed per-role behavior lives in
 `.opencode/agents/*.md`.
+
+## Activation
+
+The **orchestrator** relay is activated by the opencode command
+**`/orchestrator <prompt>`** (defined in
+[`.opencode/command/orchestrator.md`](../.opencode/command/orchestrator.md)). The
+command binds the `orchestrator` agent and passes the text the user typed as the
+**original prompt** (`$ARGUMENTS`). This is a deterministic, config-driven agent
+binding — it replaces the retired `Orchestrator,` text-prefix nudge (a prose hint
+the base agent could ignore), so the right agent always runs the turn.
+
+The **orchestrator** itself is `mode: primary` (an interactive/relay agent, not a
+spawnable subagent). Once active it is the only role that can spawn, and it drives
+the workflow described below.
 
 ## The model
 
@@ -46,6 +60,23 @@ on other work are linked with a **blocker** (`addBlockedBy`); a ticket is in the
 | **staff-software-engineer** | Final holistic epic review; owns the feature PR end to end (opens + merges to `main`). |
 | **qa** | Validates the feature PR against the epic spec, once per epic. |
 | **docs-agent** | Final documentation pass over `agent-docs/`, once per epic, after QA approves and before the feature PR merges. |
+
+## Subagent roster
+
+The orchestrator spawns the eight `mode: subagent` roles listed above
+(`product-manager`, `project-manager`, `solutions-architect`, `software-engineer`,
+`senior-software-engineer`, `staff-software-engineer`, `qa`, `docs-agent`). Each is
+a file under `.opencode/agents/` with frontmatter `mode: subagent`. The
+**orchestrator** is `mode: primary`, so it is the active relay agent — not one of
+the spawnable subagents.
+
+**Restart requirement.** opencode reads `.opencode/agents/` **once at server
+startup** (no hot-reload). A server that started before a role file was added,
+renamed, or edited holds a **stale snapshot** and may expose only a subset of the
+roster (with stale `description` text) until it is restarted. A clean restart of
+the opencode server makes the full 8-role roster spawnable again. Do not mistake a
+partial roster for a missing source — it is a time-of-start cache, fixed by
+restarting.
 
 ## Branches and merge ownership
 
