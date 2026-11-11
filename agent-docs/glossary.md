@@ -10,7 +10,18 @@ in its own topic doc, not here.
 ## Orchestration (the multi-agent system that builds this repo)
 
 - **orchestrator** — the pure relay that is the only role that can spawn
-  subagents. [orchestration.md](orchestration.md)
+  subagents; `mode: primary` (the active agent, not a spawnable subagent).
+  [orchestration.md](orchestration.md)
+- **`/orchestrator` command** — the opencode command (`/orchestrator <prompt>`)
+  that deterministically activates the orchestrator relay; replaces the retired
+  `Orchestrator,` text prefix. [orchestration.md](orchestration.md#activation)
+- **subagent roster** — the eight `mode: subagent` roles the orchestrator can
+  spawn (product-manager, project-manager, solutions-architect, software-engineer,
+  senior-software-engineer, staff-software-engineer, qa, docs-agent).
+  [orchestration.md](orchestration.md#subagent-roster)
+- **stale agent snapshot** — a partial/stale roster a running opencode server
+  shows after agent files change, because agents load once at startup; fixed by
+  restarting the server. [orchestration.md](orchestration.md#subagent-roster)
 - **epic** — a feature; a tracking ticket with `Original Prompt` / `Summary` /
   `Task` sections. [orchestration.md](orchestration.md#epic)
 - **spike ticket** — a research ticket; done by the solutions-architect before

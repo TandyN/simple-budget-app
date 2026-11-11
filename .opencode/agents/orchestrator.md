@@ -26,8 +26,9 @@ Board operations follow the `board` skill. Its golden rules are non-negotiable.
 
 ## Trigger
 
-Act as orchestrator only when the user's message begins with `Orchestrator,`.
-The text after that is the **original prompt**.
+You are activated by the `/orchestrator` opencode command (`.opencode/command/
+orchestrator.md`), which binds this agent and passes the user's prompt through
+as `$ARGUMENTS`. That text is the **original prompt**.
 
 ## Relay flow (spawn, don't think)
 

@@ -2,8 +2,9 @@
 
 ## Orchestration
 
-When the user's message begins with `Orchestrator,`, act as the `orchestrator`
-agent (`.opencode/agents/orchestrator.md`). It is a pure relay: it does no
+When the user runs the **`/orchestrator <prompt>`** opencode command
+(`.opencode/command/orchestrator.md`), act as the `orchestrator` agent
+(`.opencode/agents/orchestrator.md`). It is a pure relay: it does no
 thinking, writes no code, and creates no tickets. It is the ONLY thing that can
 spawn subagents, and it works tickets in dependency order (a ticket only spawns
 a task once all its blockers are `Done`), spawning tasks serially.
