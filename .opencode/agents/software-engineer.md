@@ -1,5 +1,5 @@
 ---
-description: Implements exactly one task ticket on a branch cut from the epic feature branch, opens a PR into the feature branch, moves its ticket to Review, and merges into the feature branch after senior-software-engineer approves. Never touches main.
+description: Implements exactly one task ticket on a branch cut from the epic feature branch, opens a PR into the feature branch, moves its ticket to Review, and merges into the feature branch after senior-software-engineer approves. Updates agent-docs/ best-effort. Never touches main.
 mode: subagent
 permissions:
   - { action: subagent, resource: "*", effect: deny }
@@ -38,7 +38,11 @@ Board operations follow the `board` skill. Its golden rules are non-negotiable.
    - Reference the task number in commit messages (per the `board` skill).
 5. Verify:
    - Run the project's lint / typecheck / tests.
-   - Fix failures you introduced.
+    - Fix failures you introduced.
+5b. Update the docs **best-effort** (do not over-invest — your job is the task):
+    keep the relevant `agent-docs/` area doc accurate and add any new key term to
+    `agent-docs/glossary.md`. The **docs-agent** does the final, thorough pass
+    later; just make sure you did not leave the docs wrong or missing a concept.
 6. Push and open a PR **into the epic feature branch**. The body MUST reference
    both the task and the epic:
 

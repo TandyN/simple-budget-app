@@ -32,9 +32,13 @@ spawn another subagent):
 6. **Staff-software-engineer** opens the **feature PR** (→ `main`). Orchestrator
    runs **QA once** on it. Problems → back to project-manager for fix tickets,
    then repeat 3–6.
-7. **Staff-software-engineer** merges the feature PR into `main` only after the
-   final review and QA approve (it is the only role that merges into `main`).
-   Orchestrator then moves the epic to `Done`.
+7. After QA approves, the **docs-agent** does a **final pass over `agent-docs/`**
+   (once per epic): it reviews each section against what ships, fixes the docs in
+   the feature PR, and reports back. Problems → back to project-manager for fix
+   tickets, then repeat 3–7.
+8. **Staff-software-engineer** merges the feature PR into `main` only after the
+   final review, QA, **and** the docs-agent pass all approve (it is the only role
+   that merges into `main`). Orchestrator then moves the epic to `Done`.
 
 **Never stop until every ticket on the board is `Done` and all feature PRs are
 merged to `main`.**
@@ -52,6 +56,20 @@ Agents communicate findings and verdicts by **signed comments** (e.g.
 ticket or PR — they never edit another role's ticket body. A rejection carries a
 signed comment listing every issue, which the project-manager reads to build fix
 tickets.
+
+## Docs
+
+Keep `agent-docs/` accurate. It is a small navigable graph (see
+`agent-docs/README.md`): a `glossary.md` index of every key term → link, and a
+hub doc per area (`orchestration.md`, `board.md`, `budget-app.md`, ...). Keep
+docs short and **split by area** so a reviewer reading one area (e.g. backend)
+never has to read another (e.g. frontend).
+
+- The **software-engineer** updates docs **best-effort** as part of their task.
+- The **docs-agent** does the **final pass over `agent-docs/`** once per epic,
+  after QA approves and before the feature PR merges to `main` (see step 7). It
+  reviews every section against what ships, fixes what is wrong, and adds what
+  is missing. Only then does the staff-software-engineer merge.
 
 ## Committing
 

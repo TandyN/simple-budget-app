@@ -26,6 +26,7 @@ The role is the same string used in the board's `role` field. Signatures:
 - `(solutions-architect-agent):`
 - `(staff-software-engineer-agent):`
 - `(qa-agent):`
+- `(docs-agent-agent):`
 
 Only the role part is the signature. The `agent` suffix and the `(...)` wrapper are
 fixed; do not substitute a name, model, or free-form handle.

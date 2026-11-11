@@ -6,9 +6,9 @@ description: GitHub Projects board operations. Use whenever creating, linking, o
 # Board
 
 All agents (orchestrator, product-manager, project-manager, software-engineer,
-senior-software-engineer, staff-software-engineer, qa, solutions-architect) drive
-the same GitHub Projects board. This skill is **repo-agnostic**: it discovers IDs
-from the current repository.
+senior-software-engineer, staff-software-engineer, qa, docs-agent,
+solutions-architect) drive the same GitHub Projects board. This skill is
+**repo-agnostic**: it discovers IDs from the current repository.
 
 ## Ticket types
 
@@ -30,7 +30,8 @@ epic and declares readiness. All task tickets for that epic are implemented on
 branches cut from the feature branch and merged **into the feature branch** (not
 `main`). `main` is production and is only changed by the final **feature PR**
 (feature branch → `main`), which opens only after all tasks are `Done`, the
-staff-software-engineer's final holistic review passes, and QA approves.
+staff-software-engineer's final holistic review passes, QA approves, and the
+docs-agent pass approves.
 
 ## Discover IDs (run once per session)
 
@@ -73,6 +74,7 @@ SA_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="role") | .option
 PRODPM_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="role") | .options[] | select(.name=="product-manager") | .id')
 SSE_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="role") | .options[] | select(.name=="staff-software-engineer") | .id')
 QA_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="role") | .options[] | select(.name=="qa") | .id')
+DOCS_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="role") | .options[] | select(.name=="docs-agent") | .id')
 ```
 
 If the board doesn't exist, create it:
@@ -83,8 +85,8 @@ gh project create --owner "$REPO_OWNER" --title "$BOARD_NAME" --format json
 
 Then ensure the `Status` field (options: Todo, In Progress, Review, Done) and the
 `role` field (options: product-manager, project-manager, software-engineer,
-senior-software-engineer, staff-software-engineer, solutions-architect, qa) exist
-via `gh project field-create`.
+senior-software-engineer, staff-software-engineer, solutions-architect, qa,
+docs-agent) exist via `gh project field-create`.
 
 ## Commands (use the discovered IDs)
 
@@ -232,12 +234,14 @@ Closes #<epic-number>"
   - Task PR (→ feature branch): reviewed/approved by the
     **senior-software-engineer**, then merged by the **software-engineer**.
   - Feature PR (→ `main`): opened and merged by the **staff-software-engineer**,
-    only after its final holistic review **and** QA both approve. (The
-    orchestrator relays QA's approval to the staff-software-engineer; it does not
-    merge itself.)
+    only after its final holistic review **and** QA **and** the docs-agent pass
+    all approve. (The orchestrator relays the approvals to the
+    staff-software-engineer; it does not merge itself.)
 - **QA runs ONCE, on the epic** (the feature PR), after all tasks are `Done` and
   staff-software-engineer has done a final holistic review. QA does not run per
   task.
+- **The docs-agent runs ONCE per epic, after QA approves and before the feature
+  PR merges to `main`.** It fixes `agent-docs/` in the feature PR.
 - **Only the orchestrator spawns subagents.** A subagent that needs another role
   reports back; the orchestrator spawns that role.
 - **Blockers must be linked** with `addBlockedBy` when a ticket depends on

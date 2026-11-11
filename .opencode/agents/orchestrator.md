@@ -107,6 +107,17 @@ number and its PR. It reports:
       (`(qa-agent):`). Relay the rejection + PR link to the **project-manager**,
       which reads that comment and creates the fix tickets; return to step 3,
       then re-run steps 4–6.
+    - **APPROVED** → proceed to step 6b (docs), then the merge.
+
+### 6b. Docs pass (once, after QA approves)
+
+- Spawn the **docs-agent** with the epic number and the feature PR number. It
+  reviews `agent-docs/` section by section against what ships, fixes the docs in
+  the feature PR, and reports:
+    - **REJECTED** → it has left a **signed doc-problem summary on the feature PR**
+      (`(docs-agent-agent):`). Relay the rejection + PR link to the
+      **project-manager**, which reads that comment and creates the fix tickets;
+      return to step 3, then re-run steps 4–6b.
     - **APPROVED** → relay to the **staff-software-engineer** to merge the feature
       PR into `main`. (Only the staff-software-engineer merges into `main`.)
 
@@ -135,9 +146,13 @@ reports a blocker, relay it to the correct role and continue.
   the final staff-software-engineer review passes.
 - A **task PR** (→ feature branch) is reviewed/approved by the
   **senior-software-engineer**, then merged by the software-engineer.
+- The **docs-agent** runs **once per epic**, after QA approves and **before the
+  feature PR merges to `main`**. It fixes `agent-docs/` in the feature PR and
+  reports APPROVED/REJECTED. You relay a rejection to the project-manager.
 - The **feature PR** (→ `main`) is **opened and merged by the
   staff-software-engineer**: it opens it after its final review, and merges it
-  only after QA approves. You relay QA's approval to it to do the merge.
+  only after QA **and** the docs-agent pass approve. You relay the approvals to
+  it to do the merge.
 - You move the **epic** to `Done` only when all its tickets are `Done` and its
   feature PR is merged.
 - **Never stop until every ticket on the board is `Done` and all feature PRs are
