@@ -22,6 +22,22 @@ solutions-architect) drive the same GitHub Projects board. This skill is
 
 A sub-issue is always either a spike or a task, never both.
 
+## Ticket title convention
+
+Every ticket title MUST begin with a **type prefix** so a reader knows the ticket
+type at a glance. The prefix is part of the title, before a space:
+
+| Ticket type | Title starts with |
+| ----------- | ----------------- |
+| Epic | `Epic: <title>` |
+| Spike | `Spike: <title>` |
+| Task | `Task: <title>` |
+
+This is **enforced by the creator**: the **product-manager** writes `Epic:` on the
+epic issue it creates, and the **project-manager** writes `Spike:` / `Task:` on the
+sub-issues it decomposes. A ticket whose title lacks the correct prefix is
+non-conforming.
+
 ## Feature branch (per epic)
 
 Each epic has ONE **feature branch** (`feature/epic-<epic-number>-<slug>`), off
@@ -198,21 +214,28 @@ git push -u origin feature/epic-<epic-number>-<slug>
 ### Open a task PR (task ticket → feature branch)
 
 The PR merges into the epic's **feature branch** (not `main`). The body MUST
-reference **both** the task ticket and the epic so both issues stay linked.
+reference **both** the task ticket and the epic so both issues stay linked, and
+MUST be **signed** by the software-engineer with a summary (see the full format in
+the `comment-signature` skill).
 
 ```
 gh pr create --base feature/epic-<epic-number>-<slug> --head feature/<task-number>-<slug> \
   --title "<summary>" \
-  --body "Closes #<task-number>
+  --body "(software-engineer-agent): <summary of changes>
+Closes #<task-number>
 Part of #<epic-number>"
 ```
 
 ### Open the feature PR (feature branch → main) — only after all tasks Done
 
+The body MUST be **signed** by the staff-software-engineer with a holistic
+summary (see the full format in the `comment-signature` skill).
+
 ```
 gh pr create --base main --head feature/epic-<epic-number>-<slug> \
   --title "<epic title>" \
-  --body "Part of #<epic-number>
+  --body "(staff-software-engineer-agent): <summary of the epic>
+Part of #<epic-number>
 Closes #<epic-number>"
 ```
 
@@ -256,5 +279,10 @@ Closes #<epic-number>"
 - Every PR body MUST reference its ticket and the epic (`Closes #<n>` +
   `Part of #<epic>`) so the epic's "Linked pull requests" field populates.
 - Commit messages MUST reference the task ticket number.
+- **Ticket titles MUST carry a type prefix** — `Epic:`, `Spike:`, or `Task:` —
+  written by the creator (product-manager for epics, project-manager for
+  spikes/tasks). See **Ticket title convention**.
+- **Work-product bodies MUST be signed** by the creating role and end with a
+  signed summary/verdict comment (see the `comment-signature` skill).
 - One task ticket → one PR (into the feature branch).
 - The board is the single source of truth for state — always reflect state via `Status`.

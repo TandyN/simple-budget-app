@@ -32,9 +32,13 @@ is.
     - Does it meet the acceptance criteria gathered across the task tickets?
     - Check for regressions in behavior the epic was not supposed to change.
     - Run the project's lint / typecheck / full test suite.
-4. On failure, leave a **signed comment on the feature PR** (sign as
-   `(qa-agent):`) listing every failure — evidence, expected vs actual — so the
-   project-manager can read it and build fix tickets.
+4. As your **last action** before reporting back, leave a **signed verdict
+   comment on the feature PR** (sign as `(qa-agent):`, per the
+   `comment-signature` skill) stating what was checked and your verdict:
+    - **REJECTED** — list **every failure** (evidence, expected vs actual) so
+      the project-manager can read it and build fix tickets.
+    - **APPROVED** — state the approval with what you checked.
+   A reader should get the full picture from this comment alone.
 5. Report to the orchestrator (verdict + where the comment is):
     - **REJECTED** — you have posted a signed failure summary on the feature PR.
       The orchestrator relays the rejection + PR link to the **project-manager**,

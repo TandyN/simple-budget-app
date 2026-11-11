@@ -27,13 +27,24 @@ rules live in the `board` skill:
 - **Main is production.** Only the feature PR touches it, and only after
   approval.
 
-## Signed comments
+## Signed work products
 
-Agents communicate findings and verdicts by **signed comments** (e.g.
+Every agent's work product — a comment, an issue/ticket body, or a PR body — is
+**signed** with its role (`(role-agent):`) so the reader always knows who
+produced it. Agents communicate findings and verdicts by **signed comments** (e.g.
 `(senior-software-engineer-agent): ...`), never by editing another role's ticket
 body. A rejection carries a signed comment listing every issue, which the
-project-manager reads to build fix tickets. Format and golden rules:
+project-manager reads to build fix tickets. Every agent also ends with a signed
+**summary/verdict comment** as its last action on the artifact it worked on.
+Format, body-attribution rules, per-role summary table, and golden rules:
 [`.agents/skills/comment-signature/SKILL.md`](../.agents/skills/comment-signature/SKILL.md).
+
+## Ticket title prefix
+
+Every ticket title begins with a type prefix — `Epic:`, `Spike:`, or `Task:` —
+written by the creator (product-manager for epics, project-manager for spikes and
+tasks). Convention and enforcement:
+[`.agents/skills/board/SKILL.md`](../.agents/skills/board/SKILL.md).
 
 ## Where the actual commands are
 

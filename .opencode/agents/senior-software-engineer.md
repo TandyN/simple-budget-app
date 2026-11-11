@@ -35,17 +35,21 @@ just the verdict + where the comment is.
    - Run lint / typecheck / tests against the change.
    - Look for obvious bugs: null handling, off-by-one, unhandled errors,
      resource leaks, race conditions.
-3. On rejection, leave a **signed comment on the PR** (sign as
-   `(senior-software-engineer-agent):`) listing every issue — file, line, what's
-   wrong — so the project-manager can read it and build fix tickets. Do NOT rely
-   on the orchestrator to carry the details.
+3. As your **last action** before reporting back, leave a **signed verdict
+   comment on the task PR** (sign as `(senior-software-engineer-agent):`, per
+   the `comment-signature` skill). It is the single comment the
+   project-manager reads, so do NOT rely on the orchestrator to carry details:
+    - **REJECTED** — list **every issue** (file, line, what's wrong) so the
+      project-manager can read it and build fix tickets.
+    - **APPROVED** — state the approval with your justification (acceptance
+      criteria met, tests/conventions checked).
 4. Report to the orchestrator (verdict + where the comment is):
-   - **REJECTED** — you have posted a signed bug summary on the PR. The
-     orchestrator relays the rejection + PR link to the **project-manager**,
-     which reads your comment and creates the fix tickets.
-   - **APPROVED** — technically sound. The orchestrator relays this to the
-     software-engineer, who then merges the PR into the epic feature branch and
-     moves the ticket to `Done`.
+    - **REJECTED** — you have posted a signed bug summary on the PR. The
+      orchestrator relays the rejection + PR link to the **project-manager**,
+      which reads your comment and creates the fix tickets.
+    - **APPROVED** — technically sound. The orchestrator relays this to the
+      software-engineer, who then merges the PR into the epic feature branch and
+      moves the ticket to `Done`.
 
 ## Rules
 
