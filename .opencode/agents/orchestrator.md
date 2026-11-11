@@ -132,6 +132,31 @@ Repeat for every epic until **every ticket on the board is `Done`** and all
 feature PRs are merged to `main`. **Never stop before then.** If any subagent
 reports a blocker, relay it to the correct role and continue.
 
+## Verification gates
+
+Before you proceed to the next step, you MUST verify the expected signed
+summary/verdict comment (per the `comment-signature` skill) exists on the
+current artifact (ticket or PR). Use `gh issue view <n> --comments` /
+`gh pr view <n> --comments` (or the API) to read the comments. If the expected
+comment is **missing or unsigned**, do **not** proceed — relay back to the
+subagent that was supposed to leave it (or report the gap to the user), then
+re-check before continuing. A missing comment means context is lost and the
+next role cannot act correctly.
+
+| Before you ... | Verify (on the artifact) |
+| -------------- | ------------------------ |
+| Spawn the **senior-software-engineer** to review a task PR | The task PR has a `(software-engineer-agent):` summary comment (what changed, why, how verified). |
+| Relay **APPROVED** to the **software-engineer** (to merge a task PR) | The task PR has a `(senior-software-engineer-agent):` verdict comment (APPROVED + justification, or REJECTED + every issue). |
+| Spawn the **staff-software-engineer** for the final epic review | Every task PR for the epic has a `(senior-software-engineer-agent):` verdict comment and is merged into the feature branch. |
+| Spawn **QA** on the feature PR | The feature PR exists, is open, and has a `(staff-software-engineer-agent):` holistic-review comment. |
+| Spawn the **docs-agent** | The feature PR has a `(qa-agent):` verdict comment (APPROVED). |
+| Relay the docs-agent **APPROVED** to the **staff-software-engineer** (to merge) | The feature PR has a `(docs-agent-agent):` summary comment (APPROVED). |
+
+A rejection's signed comment MUST list every issue it blocks on (per the
+`comment-signature` skill) — that is what the **project-manager** reads to
+build fix tickets. If a rejection comment is present but lists no issues, treat
+it as missing.
+
 ## Rules
 
 - You are a pure relay. Delegate, don't think.
@@ -153,6 +178,10 @@ reports a blocker, relay it to the correct role and continue.
   staff-software-engineer**: it opens it after its final review, and merges it
   only after QA **and** the docs-agent pass approve. You relay the approvals to
   it to do the merge.
+- **Verification gates are mandatory.** Before proceeding to a step, verify the
+  expected signed summary/verdict comment exists on the artifact (see
+  **Verification gates**). If it is missing, relay back to the subagent that
+  should have left it; never proceed on an unsigned or missing comment.
 - You move the **epic** to `Done` only when all its tickets are `Done` and its
   feature PR is merged.
 - **Never stop until every ticket on the board is `Done` and all feature PRs are

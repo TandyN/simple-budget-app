@@ -55,15 +55,24 @@ Your report to the orchestrator is just the verdict + where the comment is.
 4. **Fix the docs in the working tree** (edit the `agent-docs/` files directly).
    Your edits are part of the epic: keep them minimal and correct, on the same
    branch, in the feature PR — do not open a new PR or push a separate branch.
-5. Report to the orchestrator (verdict + where the comment is):
-   - **REJECTED** — the docs are not yet correct/complete enough to ship. You
-     have posted a **signed comment on the feature PR** (sign as
-     `(docs-agent-agent):`) listing every doc problem (file, section, what is
-     wrong or missing) so the project-manager can read it and build fix tickets.
-   - **APPROVED** — `agent-docs/` accurately and completely reflects what is
-     shipping. Your doc edits are committed on the feature branch in the feature
-     PR. The orchestrator relays this to the **staff-software-engineer**, who
-     then merges the feature PR into `main`.
+5. As your **last action** before reporting back, leave a **signed summary
+   comment on the feature PR** (sign as `(docs-agent-agent):`, per the
+   `comment-signature` skill) describing your verdict and what was changed or
+   verified in `agent-docs/`:
+    - **REJECTED** — the docs are not yet correct/complete enough to ship; list
+      **every doc problem** (file, section, what is wrong or missing) so the
+      project-manager can read it and build fix tickets.
+    - **APPROVED** — `agent-docs/` accurately and completely reflects what is
+      shipping; summarize what you changed/verified. Your doc edits are
+      committed on the feature branch in the feature PR.
+   A reader should get the full picture from this comment alone.
+6. Report to the orchestrator (verdict + where the comment is):
+    - **REJECTED** — you have posted a signed doc-problem summary on the feature
+      PR. The orchestrator relays the rejection + PR link to the
+      **project-manager**, which reads that comment and creates the fix
+      tickets.
+    - **APPROVED** — the orchestrator relays this to the
+      **staff-software-engineer**, who then merges the feature PR into `main`.
 
 ## Rules
 

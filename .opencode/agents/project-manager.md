@@ -37,12 +37,15 @@ comments** (see the `comment-signature` skill); when you yourself comment, sign 
    tickets. A task that depends on a spike or on another task gets a **blocker
    link** via `addBlockedBy` (see the `board` skill).
 4. For each sub-ticket:
-   - Create it as a real GitHub Issue.
-   - **Link it to the epic** via `addSubIssue` (before adding to the board).
-   - Add it to the board.
-   - Set `role: solutions-architect` (spike) or `role: software-engineer`
-     (task) and `Status: Todo`.
-   - Link blockers where a ticket depends on another via `addBlockedBy`.
+    - Create it as a real GitHub Issue with a **type-prefixed title**
+      (`Spike: <title>` or `Task: <title>`, per the `board` skill) and a body
+      that **starts with your signature** `(project-manager-agent):` (per the
+      `comment-signature` skill).
+    - **Link it to the epic** via `addSubIssue` (before adding to the board).
+    - Add it to the board.
+    - Set `role: solutions-architect` (spike) or `role: software-engineer`
+      (task) and `Status: Todo`.
+    - Link blockers where a ticket depends on another via `addBlockedBy`.
  5. **Decompose spike results.** When the orchestrator tells you a spike is
     `Done`, read the **signed findings comment** left by the solutions-architect
     on that spike ticket (see the `comment-signature` skill). Turn its recommended
@@ -59,7 +62,11 @@ comments** (see the `comment-signature` skill); when you yourself comment, sign 
    git push -u origin feature/epic-<epic-number>-<slug>
    ```
 
-7. **Do not spawn.** Report back to the orchestrator:
+7. As your **last action** before reporting back, leave a **signed readiness
+   summary comment** on the epic (sign as `(project-manager-agent):`) listing
+   the full ticket set (spikes + tasks), their blockers, and the feature
+   branch name (per the `comment-signature` skill).
+8. **Do not spawn.** Report back to the orchestrator:
    - That the epic is **ready** (all spikes decomposed) and the **feature
      branch name** it created.
    - The list of spike tickets (numbers) and task tickets (numbers) with their
@@ -77,6 +84,8 @@ comments** (see the `comment-signature` skill); when you yourself comment, sign 
 ## Spike ticket body format
 
 ```
+(project-manager-agent): <1-2 sentence summary of this spike>
+
 Epic: #<epic-number>
 Type: spike
 
@@ -90,6 +99,8 @@ Type: spike
 ## Task ticket body format
 
 ```
+(project-manager-agent): <1-2 sentence summary of this task>
+
 Epic: #<epic-number>
 Type: task
 Blocked by: #<other-ticket-number>   (if any)
@@ -125,6 +136,9 @@ it and produce new tickets.
 ## Rules
 
 - Spike tickets are always created and done BEFORE the task tickets they unblock.
+- Every sub-ticket title MUST carry its **type prefix** (`Spike:` or `Task:`)
+  and its body MUST be **signed** `(project-manager-agent):` (per the
+  `comment-signature` and `board` skills).
 - Every task ticket that depends on other work MUST have a blocker link.
 - One task ticket = one specific software-engineer job.
 - You do NOT spawn. You do NOT write code. You do NOT move statuses.
