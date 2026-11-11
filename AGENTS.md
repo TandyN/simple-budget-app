@@ -25,16 +25,16 @@ spawn another subagent):
 3. Orchestrator works the ready set in dependency order: spawns the
    **solutions-architect** for spikes and the **software-engineer** for tasks
    (serially, one at a time, in blocker order).
-4. **staff-software-engineer** reviews each task. Bugs → back to project-manager
+4. **senior-software-engineer** reviews each task. Bugs → back to project-manager
    for a fix ticket. Approved → the SE merges the task PR into the feature branch.
- 5. When all tasks are `Done`, **staff-software-engineer** does a final holistic
-    epic review.
- 6. **Staff-software-engineer** opens the **feature PR** (→ `main`). Orchestrator
-    runs **QA once** on it. Problems → back to project-manager for fix tickets,
-    then repeat 3–6.
- 7. **Staff-software-engineer** merges the feature PR into `main` only after the
-    final review and QA approve (it is the only role that merges into `main`).
-    Orchestrator then moves the epic to `Done`.
+5. When all tasks are `Done`, **staff-software-engineer** does a final holistic
+   epic review.
+6. **Staff-software-engineer** opens the **feature PR** (→ `main`). Orchestrator
+   runs **QA once** on it. Problems → back to project-manager for fix tickets,
+   then repeat 3–6.
+7. **Staff-software-engineer** merges the feature PR into `main` only after the
+   final review and QA approve (it is the only role that merges into `main`).
+   Orchestrator then moves the epic to `Done`.
 
 **Never stop until every ticket on the board is `Done` and all feature PRs are
 merged to `main`.**
@@ -48,7 +48,7 @@ operations. Its golden rules are non-negotiable.
 
 Follow the `comment-signature` skill (`.agents/skills/comment-signature/SKILL.md`).
 Agents communicate findings and verdicts by **signed comments** (e.g.
-`(solutions-architect-agent): ...`, `(staff-software-engineer-agent): ...`) on the
+`(solutions-architect-agent): ...`, `(senior-software-engineer-agent): ...`) on the
 ticket or PR — they never edit another role's ticket body. A rejection carries a
 signed comment listing every issue, which the project-manager reads to build fix
 tickets.

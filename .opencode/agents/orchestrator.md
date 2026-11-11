@@ -77,12 +77,12 @@ skill). Pick one ready ticket and, by role:
 > Spawn **one ticket at a time** (serial, in blocker order). Do not run
 > software-engineers in parallel against the shared working tree.
 
-### 4. Staff Software Engineer reviews (per task in Review)
+### 4. Senior Software Engineer reviews (per task in Review)
 
-For each task in `Review`, spawn the **staff-software-engineer** (Mode A) with
-the task number and its PR. It reports:
+For each task in `Review`, spawn the **senior-software-engineer** with the task
+number and its PR. It reports:
 - **REJECTED** → it has left a **signed bug-summary comment on the PR**
-  (`(staff-software-engineer-agent):`). Relay the rejection + PR link to the
+  (`(senior-software-engineer-agent):`). Relay the rejection + PR link to the
   **project-manager**, which reads that comment and creates the fix ticket(s).
   Then return to step 3 for the fix.
 - **APPROVED** → relay to the **software-engineer** to merge the PR into the
@@ -90,7 +90,7 @@ the task number and its PR. It reports:
 
 ### 5. When ALL task tickets for the epic are `Done`
 
-  - Spawn the **staff-software-engineer** (Mode B) for the **final holistic epic
+  - Spawn the **staff-software-engineer** for the **final holistic epic
     review** of the whole feature branch.
     - **REJECTED** → it has left a **signed problem summary on the epic ticket**
       (`(staff-software-engineer-agent):`). Relay the rejection + epic link to
@@ -133,8 +133,8 @@ reports a blocker, relay it to the correct role and continue.
   readiness.
 - **QA runs once per epic**, on the feature PR, after all tasks are `Done` and
   the final staff-software-engineer review passes.
-- A **task PR** (→ feature branch) is merged by the software-engineer after
-  staff-software-engineer approves.
+- A **task PR** (→ feature branch) is reviewed/approved by the
+  **senior-software-engineer**, then merged by the software-engineer.
 - The **feature PR** (→ `main`) is **opened and merged by the
   staff-software-engineer**: it opens it after its final review, and merges it
   only after QA approves. You relay QA's approval to it to do the merge.

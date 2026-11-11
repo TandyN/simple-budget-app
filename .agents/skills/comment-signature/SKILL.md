@@ -22,6 +22,7 @@ The role is the same string used in the board's `role` field. Signatures:
 - `(product-manager-agent):`
 - `(project-manager-agent):`
 - `(software-engineer-agent):`
+- `(senior-software-engineer-agent):`
 - `(solutions-architect-agent):`
 - `(staff-software-engineer-agent):`
 - `(qa-agent):`
@@ -61,5 +62,5 @@ gh pr comment <pr-number> --body "<signed comment>"
 - **The signature is the first thing in the body.** One signature per comment;
   put all of that role's findings under the single signature.
 - **Be self-contained.** A reader should get the full picture from the signed
-  comment alone (e.g. a staff-SE bug summary should list every issue, not just
+  comment alone (e.g. a senior-SE bug summary should list every issue, not just
   point back to chat).

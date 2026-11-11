@@ -106,9 +106,10 @@ Blocked by: #<other-ticket-number>   (if any)
 
 ## Building fix tickets from a rejection
 
-When the orchestrator relays a rejection (from the staff-software-engineer's
-per-task or final review, or from QA) along with a link to the PR or epic ticket
-that carries the **signed comment** describing the problems:
+When the orchestrator relays a rejection (from the senior-software-engineer's
+per-task review, the staff-software-engineer's final epic review, or from QA)
+along with a link to the PR or epic ticket that carries the **signed comment**
+describing the problems:
 
 1. Read that signed comment (per the `comment-signature` skill) end to end.
 2. For each distinct issue, create a **task ticket** (type: task, role:

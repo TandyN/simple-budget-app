@@ -6,8 +6,9 @@ description: GitHub Projects board operations. Use whenever creating, linking, o
 # Board
 
 All agents (orchestrator, product-manager, project-manager, software-engineer,
-staff-software-engineer, qa, solutions-architect) drive the same GitHub Projects
-board. This skill is **repo-agnostic**: it discovers IDs from the current repository.
+senior-software-engineer, staff-software-engineer, qa, solutions-architect) drive
+the same GitHub Projects board. This skill is **repo-agnostic**: it discovers IDs
+from the current repository.
 
 ## Ticket types
 
@@ -28,8 +29,8 @@ Each epic has ONE **feature branch** (`feature/epic-<epic-number>-<slug>`), off
 epic and declares readiness. All task tickets for that epic are implemented on
 branches cut from the feature branch and merged **into the feature branch** (not
 `main`). `main` is production and is only changed by the final **feature PR**
-(feature branch → `main`), which opens only after all tasks are `Done` and staff-
-engineer + QA approve.
+(feature branch → `main`), which opens only after all tasks are `Done`, the
+staff-software-engineer's final holistic review passes, and QA approves.
 
 ## Discover IDs (run once per session)
 
@@ -67,6 +68,7 @@ DONE_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="Status") | .op
 # Role option IDs
 PM_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="role") | .options[] | select(.name=="project-manager") | .id')
 SE_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="role") | .options[] | select(.name=="software-engineer") | .id')
+SENE_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="role") | .options[] | select(.name=="senior-software-engineer") | .id')
 SA_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="role") | .options[] | select(.name=="solutions-architect") | .id')
 PRODPM_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="role") | .options[] | select(.name=="product-manager") | .id')
 SSE_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="role") | .options[] | select(.name=="staff-software-engineer") | .id')
@@ -81,7 +83,8 @@ gh project create --owner "$REPO_OWNER" --title "$BOARD_NAME" --format json
 
 Then ensure the `Status` field (options: Todo, In Progress, Review, Done) and the
 `role` field (options: product-manager, project-manager, software-engineer,
-solutions-architect, staff-software-engineer, qa) exist via `gh project field-create`.
+senior-software-engineer, staff-software-engineer, solutions-architect, qa) exist
+via `gh project field-create`.
 
 ## Commands (use the discovered IDs)
 
@@ -219,17 +222,17 @@ Closes #<epic-number>"
   can block each other.
 - A **task ticket** is implemented by ONE software-engineer (one specific task).
   It moves `In Progress → Review` when its PR is opened. It reaches `Done` only
-  after **staff-software-engineer approves** and the SE merges the PR into the
-  epic feature branch.
+  after the **senior-software-engineer approves** and the SE merges the PR into
+  the epic feature branch.
 - A **spike ticket** is done by the solutions-architect, produces a plan/report,
   and moves itself to `Done`. No code, no PR.
 - **One feature branch per epic.** All task PRs merge into the epic feature
   branch. **Nothing task-related ever merges directly into `main`.**
 - **Merge ownership:**
-  - Task PR (→ feature branch): merged by the **software-engineer**, after
-    staff-software-engineer approves.
-  - Feature PR (→ `main`): merged by the **staff-software-engineer**, only after
-    the final staff-software-engineer review **and** QA both approve. (The
+  - Task PR (→ feature branch): reviewed/approved by the
+    **senior-software-engineer**, then merged by the **software-engineer**.
+  - Feature PR (→ `main`): opened and merged by the **staff-software-engineer**,
+    only after its final holistic review **and** QA both approve. (The
     orchestrator relays QA's approval to the staff-software-engineer; it does not
     merge itself.)
 - **QA runs ONCE, on the epic** (the feature PR), after all tasks are `Done` and
