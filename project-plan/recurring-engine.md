@@ -115,7 +115,8 @@ mark.**
 - **On app start** (after `open()`), and
 - **After any state change** that could make a period due: creating a rule,
   enabling a rule, or the passage of time (the PWA can call the engine on a
-  timer / on focus; iOS can call it on app launch).
+  timer / on focus; iOS and Android can call it on app launch — the engine is
+  idempotent, so calling it on open is always safe).
 
 Running it more often than necessary is safe — the idempotency guard makes it a
 no-op for periods already posted.
