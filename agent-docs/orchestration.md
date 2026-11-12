@@ -70,13 +70,15 @@ a file under `.opencode/agents/` with frontmatter `mode: subagent`. The
 **orchestrator** is `mode: primary`, so it is the active relay agent — not one of
 the spawnable subagents.
 
-**Restart requirement.** opencode reads `.opencode/agents/` **once at server
-startup** (no hot-reload). A server that started before a role file was added,
-renamed, or edited holds a **stale snapshot** and may expose only a subset of the
-roster (with stale `description` text) until it is restarted. A clean restart of
-the opencode server makes the full 8-role roster spawnable again. Do not mistake a
-partial roster for a missing source — it is a time-of-start cache, fixed by
-restarting.
+**Restart requirement.** opencode reads `.opencode/agents/`, `.opencode/command/`,
+and `.agents/skills/` **once at server startup** (no hot-reload). A server that
+started before a role file was added, renamed, or edited holds a **stale snapshot**
+and may expose only a subset of the roster (with stale `description` text) until it
+is restarted. A clean restart of the opencode server makes the full 8-role roster
+spawnable again. Do not mistake a partial roster for a missing source — it is a
+time-of-start cache, fixed by restarting. After any change to these startup-loaded
+surfaces, agents follow the `config-reload` skill: prompt the user to restart
+opencode rather than assuming the change is live.
 
 ## Branches and merge ownership
 

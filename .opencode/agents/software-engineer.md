@@ -69,6 +69,11 @@ Board operations follow the `board` skill. Its golden rules are non-negotiable.
 9. Report back to the orchestrator: task number, PR number, and that it is in
    `Review` and ready for senior-software-engineer review.
 
+   If your change touched `.opencode/agents/`, `.opencode/command/`, or
+   `.agents/skills/` (config opencode loads only at startup), follow the
+   `config-reload` skill and tell the orchestrator/user that a restart of opencode
+   is required for the change to take effect.
+
 ## After senior-software-engineer approves (orchestrator relays this back)
 
 10. Rebase onto the current tip of the epic feature branch, re-verify, then
