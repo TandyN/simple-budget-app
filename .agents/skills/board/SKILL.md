@@ -225,7 +225,7 @@ gh project item-list <PROJECT_NUM> --owner <REPO_OWNER> --format json
 gh project field-list <PROJECT_NUM> --owner <REPO_OWNER> --format json
 ```
 
-### Create the epic feature branch (project-manager)
+### Create the epic feature branch
 
 ```
 git checkout main && git pull
