@@ -69,7 +69,7 @@ context is never lost. One signature per comment. A rejection's comment MUST lis
 summary alone.
 
 > **Who leaves the summary and on which surface** (a task PR, the feature PR, the
-> spike ticket, the epic ticket) is role-specific policy that lives in each role's
+> spike ticket, the story ticket) is role-specific policy that lives in each role's
 > persona. This skill only defines that the summary must be signed and
 > self-contained.
 
@@ -92,10 +92,10 @@ summary, then sections, then the ticket links:
 <how it was tested/verified>
 
 Closes #<ticket-number>
-Part of #<epic-number>
+Part of #<story-number>
 ```
 
-(For a feature PR, the sections are the epic's `Part of` / `Closes` references and
+(For a feature PR, the sections are the story's `Part of` / `Closes` references and
 a holistic-review summary instead of per-task `Changes` / `Verification`.)
 
 ## Commands

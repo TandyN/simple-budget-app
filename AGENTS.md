@@ -9,7 +9,7 @@ thinking, writes no code, and creates no tickets. It is the ONLY thing that can
 spawn subagents, and it works tickets in dependency order (a ticket only spawns
 a task once all its blockers are `Done`), spawning tasks serially.
 
-Model: the **epic** is the feature. Each epic has ONE **feature branch** (created
+Model: the **story** is the feature. Each story has ONE **feature branch** (created
 by the project-manager when it declares readiness). Task PRs merge into the
 feature branch; the **feature PR** (feature branch → `main`) is the only thing
 that touches production.
@@ -17,29 +17,29 @@ that touches production.
 Flow (all delegation funnels through the orchestrator, because a subagent cannot
 spawn another subagent):
 
-1. **product-manager** creates the epic ticket(s), each with three sections:
+1. **product-manager** creates the story ticket(s), each with three sections:
    `Original Prompt` (verbatim), `Summary` (the user's whole ask), and `Task`
-   (this epic's specific slice). Together the epics solve the full prompt.
-2. **project-manager** breaks the epic into **spike** tickets (research) and
+   (this story's specific slice). Together the stories solve the full prompt.
+2. **project-manager** breaks the story into **spike** tickets (research) and
    **task** tickets (implementation), links **blockers**, iterates spikes until
-   fully decomposed, declares readiness, and **creates the epic feature branch**.
+   fully decomposed, declares readiness, and **creates the feature branch**.
 3. Orchestrator works the ready set in dependency order: spawns the
    **solutions-architect** for spikes and the **software-engineer** for tasks
    (serially, one at a time, in blocker order).
 4. **senior-software-engineer** reviews each task. Bugs → back to project-manager
    for a fix ticket. Approved → the SE merges the task PR into the feature branch.
 5. When all tasks are `Done`, **staff-software-engineer** does a final holistic
-   epic review.
+   story review.
 6. **Staff-software-engineer** opens the **feature PR** (→ `main`). Orchestrator
    runs **QA once** on it. Problems → back to project-manager for fix tickets,
    then repeat 3–6.
 7. After QA approves, the **docs-agent** does a **final pass over `agent-docs/`**
-   (once per epic): it reviews each section against what ships, fixes the docs in
+   (once per story): it reviews each section against what ships, fixes the docs in
    the feature PR, and reports back. Problems → back to project-manager for fix
    tickets, then repeat 3–7.
 8. **Staff-software-engineer** merges the feature PR into `main` only after the
    final review, QA, **and** the docs-agent pass all approve (it is the only role
-   that merges into `main`). Orchestrator then moves the epic to `Done`.
+   that merges into `main`). Orchestrator then moves the story to `Done`.
 
 **Never stop until every ticket on the board is `Done` and all feature PRs are
 merged to `main`.**
@@ -67,7 +67,7 @@ docs short and **split by area** so a reviewer reading one area (e.g. backend)
 never has to read another (e.g. frontend).
 
 - The **software-engineer** updates docs **best-effort** as part of their task.
-- The **docs-agent** does the **final pass over `agent-docs/`** once per epic,
+- The **docs-agent** does the **final pass over `agent-docs/`** once per story,
   after QA approves and before the feature PR merges to `main` (see step 7). It
   reviews every section against what ships, fixes what is wrong, and adds what
   is missing. Only then does the staff-software-engineer merge.

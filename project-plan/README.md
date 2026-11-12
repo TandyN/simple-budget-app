@@ -4,10 +4,10 @@ This is the **backend plan** for the simple budget app. It is a navigable,
 agent-consumable set of documents: this file is the index, and each of the six
 per-area docs is a self-contained hub you can read on its own.
 
-Grounded in the user's ask (Epic #5) and the solutions-architect's design
-findings (signed comment on spike #6), and extended by **Epic #21** to add
+Grounded in the user's ask (Story #5) and the solutions-architect's design
+findings (signed comment on spike #6), and extended by **Story #21** to add
 **Android** as a first-class platform and a codified **dependency strategy**
-(spike #22). **No code in this epic** — the deliverable is this plan. A
+(spike #22). **No code in this story** — the deliverable is this plan. A
 software-engineer should be able to decompose it into task tickets and start
 implementing.
 
@@ -20,7 +20,7 @@ README.md  (you are here — what this is, MVP scope, links, out-of-scope)
    ├── recurring-engine.md     — how recurring income/expense auto-posts (idempotent)
    ├── activity-model.md       — the unified, editable Activity record
    ├── portability.md          — PWA + iOS + Android boundary + interfaces
-   └── dependency-strategy.md  — zero prod deps + justified dev deps (Epic #21)
+   └── dependency-strategy.md  — zero prod deps + justified dev deps (Story #21)
 ```
 
 Read in this order for a first pass: **data-model → storage →
@@ -67,7 +67,7 @@ links to the others where the boundary matters.
   the boundary.
 - **Bi-weekly / weekly schedules and custom dates** — the recurring engine is
   designed to generalize, but the MVP only implements `monthly` (1st of month).
-- **iOS + Android app shells** — shipping the Capacitor wrappers is a later epic;
+- **iOS + Android app shells** — shipping the Capacitor wrappers is a later story;
   this plan just guarantees the backend is portable enough to run inside all
   three targets (PWA, iOS, Android).
 - **Analytics / insights** — tags are captured now (stored on each Activity) but

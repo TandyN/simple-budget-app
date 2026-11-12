@@ -1,6 +1,6 @@
 ---
 name: board
-description: GitHub Projects board operations. Use whenever creating, linking, or updating board items (epics, sub-issues, status, role). All agents follow this skill.
+description: GitHub Projects board operations. Use whenever creating, linking, or updating board items (stories, sub-issues, status, role). All agents follow this skill.
 ---
 
 # Board
@@ -29,36 +29,43 @@ type at a glance. The prefix is part of the title, before a space:
 
 | Ticket type | Title starts with |
 | ----------- | ----------------- |
-| Epic | `Epic: <title>` |
+| Story | `Story: <title>` |
 | Spike | `Spike: <title>` |
 | Task | `Task: <title>` |
 | Bug | `Bug: <title>` |
 
-The ticket's creator sets the prefix (an epic is `Epic:`, a sub-issue is `Spike:`,
+The ticket's creator sets the prefix (a story is `Story:`, a sub-issue is `Spike:`,
 `Task:`, or `Bug:`). A ticket whose title lacks the correct prefix is
 non-conforming.
 
 **Where a bug goes:** an **in-scope / blocking** bug found during review becomes a
-`Bug:` ticket **linked as a sub-issue of the epic** (the finding is recorded as a
-`Bug:`; the fix itself is a `Task:` worked in the same epic flow). An
+`Bug:` ticket **linked as a sub-issue of the story** (the finding is recorded as a
+`Bug:`; the fix itself is a `Task:` worked in the same story flow). An
 **unrelated, non-blocking** bug goes to the **Back Log** instead — follow the
 `backlog` skill for the dedupe-first / file-or-comment flow — and is **not** a
-sub-issue of the epic.
+sub-issue of the story.
 
 **Back Log semantics:** a Back Log item is a **parked, independent issue** —
-never a sub-issue of any epic. It is **done-equivalent** for the epic's
-done-criteria (parked/resolved, not a blocker), so it sits outside the epic's
+never a sub-issue of any story. It is **done-equivalent** for the story's
+done-criteria (parked/resolved, not a blocker), so it sits outside the story's
 "all sub-issues Done" gate. The GitHub issue stays **OPEN** with `Status: Back
 Log`. See the `backlog` skill.
 
-## Feature branch (per epic)
+**Will Not Do semantics:** a `Will Not Do` item is a **decision not to do this,
+for whatever reason** — a **terminal state**. It is distinct from `Back Log`
+(might do later, parked, done-equivalent) and from `Done` (completed). Like
+`Back Log` it is a terminal/excluded state that sits **outside** the story's
+"all sub-issues Done" gate: it will not block the story's done-criteria. The
+GitHub issue stays **OPEN** with `Status: Will Not Do`.
 
-Each epic has ONE **feature branch** (`feature/epic-<epic-number>-<slug>`), off
-`main`. It is created once the epic is decomposed and declared ready. All task
-tickets for that epic are implemented on branches cut from the feature branch and
+## Feature branch (per story)
+
+Each story has ONE **feature branch** (`feature/<story-number>-<slug>`), off
+`main`. It is created once the story is decomposed and declared ready. All task
+tickets for that story are implemented on branches cut from the feature branch and
 merged **into the feature branch** (not `main`). `main` is production and is only
 changed by the final **feature PR** (feature branch → `main`), which opens only
-after all tasks are `Done` and the final reviews (holistic epic review, QA, and
+after all tasks are `Done` and the final reviews (holistic story review, QA, and
 the docs pass) approve.
 
 ## Discover IDs (run once per session)
@@ -94,6 +101,7 @@ IN_PROGRESS_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="Status"
 REVIEW_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="Status") | .options[] | select(.name=="Review") | .id')
 DONE_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="Status") | .options[] | select(.name=="Done") | .id')
 BACKLOG_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="Status") | .options[] | select(.name=="Back Log") | .id')
+WILLNOTDO_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="Status") | .options[] | select(.name=="Will Not Do") | .id')
 
 # Role option IDs
 PM_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="role") | .options[] | select(.name=="project-manager") | .id')
@@ -122,9 +130,10 @@ gh project link "$NEW_PROJECT_NUM" --owner "$REPO_OWNER" --repo "$REPO"
 > `addProjectV2ItemById` step. Both are required, and they are different things.
 
 Then ensure the `Status` field (options: Todo, In Progress, Review, Done,
-Back Log) and the `role` field (options: product-manager, project-manager,
-software-engineer, senior-software-engineer, staff-software-engineer,
-solutions-architect, qa, docs-agent) exist via `gh project field-create`.
+Back Log, Will Not Do) and the `role` field (options: product-manager,
+project-manager, software-engineer, senior-software-engineer,
+staff-software-engineer, solutions-architect, qa, docs-agent) exist via
+`gh project field-create`.
 
 ## Commands (use the discovered IDs)
 
@@ -148,12 +157,12 @@ mutation {
 }'
 ```
 
-### Link a sub-issue to its epic (use node IDs)
+### Link a sub-issue to its story (use node IDs)
 
 ```
 gh api graphql -f query='
 mutation {
-  addSubIssue(input: { issueId: "<epic-node-id>", subIssueId: "<sub-issue-node-id>" })
+  addSubIssue(input: { issueId: "<story-node-id>", subIssueId: "<sub-issue-node-id>" })
   { subIssue { id number } }
 }'
 ```
@@ -225,27 +234,27 @@ gh project item-list <PROJECT_NUM> --owner <REPO_OWNER> --format json
 gh project field-list <PROJECT_NUM> --owner <REPO_OWNER> --format json
 ```
 
-### Create the epic feature branch
+### Create the feature branch
 
 ```
 git checkout main && git pull
-git checkout -b feature/epic-<epic-number>-<slug>
-git push -u origin feature/epic-<epic-number>-<slug>
+git checkout -b feature/<story-number>-<slug>
+git push -u origin feature/<story-number>-<slug>
 ```
 
 ### Open a task PR (task ticket → feature branch)
 
-The PR merges into the epic's **feature branch** (not `main`). The body MUST
-reference **both** the task ticket and the epic so both issues stay linked, and
+The PR merges into the story's **feature branch** (not `main`). The body MUST
+reference **both** the task ticket and the story so both issues stay linked, and
 MUST be **signed** with a summary by the role opening it (see the full format in
 the `comment-signature` skill).
 
 ```
-gh pr create --base feature/epic-<epic-number>-<slug> --head feature/<task-number>-<slug> \
+gh pr create --base feature/<story-number>-<slug> --head feature/<task-number>-<slug> \
   --title "<summary>" \
   --body "(<role>-agent): <summary of changes>
 Closes #<task-number>
-Part of #<epic-number>"
+Part of #<story-number>"
 ```
 
 ### Open the feature PR (feature branch → main) — only after all tasks Done
@@ -254,11 +263,11 @@ The body MUST be **signed** with a holistic summary by the role opening it (see
 the full format in the `comment-signature` skill).
 
 ```
-gh pr create --base main --head feature/epic-<epic-number>-<slug> \
-  --title "<epic title>" \
-  --body "(<role>-agent): <summary of the epic>
-Part of #<epic-number>
-Closes #<epic-number>"
+gh pr create --base main --head feature/<story-number>-<slug> \
+  --title "<story title>" \
+  --body "(<role>-agent): <summary of the story>
+Part of #<story-number>
+Closes #<story-number>"
 ```
 
 ## Golden rules
@@ -274,16 +283,16 @@ Closes #<epic-number>"
   can block each other.
 - **Blockers must be linked** with `addBlockedBy` when a ticket depends on
   another.
-- **One feature branch per epic.** All task PRs merge into the epic feature
+- **One feature branch per story.** All task PRs merge into the story feature
   branch. **Nothing task-related ever merges directly into `main`.** `main` is
   production and is only changed by the final feature PR, and only after the
   final reviews approve.
-- Every sub-issue MUST be linked to its parent epic via `addSubIssue` **before**
+- Every sub-issue MUST be linked to its parent story via `addSubIssue` **before**
   being added to the board.
-- Every PR body MUST reference its ticket and the epic (`Closes #<n>` +
-  `Part of #<epic>`) so the epic's "Linked pull requests" field populates.
+- Every PR body MUST reference its ticket and the story (`Closes #<n>` +
+  `Part of #<story>`) so the story's "Linked pull requests" field populates.
 - Commit messages MUST reference the ticket number.
-- **Ticket titles MUST carry a type prefix** — `Epic:`, `Spike:`, `Task:`, or
+- **Ticket titles MUST carry a type prefix** — `Story:`, `Spike:`, `Task:`, or
   `Bug:` — set by the ticket's creator. See **Ticket title convention**.
 - **Work-product bodies MUST be signed** and end with a signed
   summary/verdict comment (see the `comment-signature` skill).
