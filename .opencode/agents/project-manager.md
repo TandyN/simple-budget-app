@@ -41,6 +41,12 @@ comments** (see the `comment-signature` skill); when you yourself comment, sign 
       (`Spike: <title>` or `Task: <title>`, per the `board` skill) and a body
       that **starts with your signature** `(project-manager-agent):` (per the
       `comment-signature` skill).
+    - **Assign it to the appropriate open GitHub Milestone** — typically the
+      parent story's milestone. List open milestones with
+      `gh api repos/<owner>/<repo>/milestones` and choose the right one; a
+      sub-issue does **not** inherit its parent's milestone, so set it
+      explicitly. If no sensible open milestone exists, leave it unset and note
+      why in a signed comment on the ticket.
     - **Link it to the story** via `addSubIssue` (before adding to the board).
     - Add it to the board.
     - Set `role: solutions-architect` (spike) or `role: software-engineer`
@@ -130,8 +136,9 @@ describing the problems:
     **Back Log** instead (see the `backlog` skill when it lands). Link the
     original offending ticket as a **blocker** (`addBlockedBy`) if the fix
     depends on it.
-3. Add the tickets to the board, set their status, and report the new tickets +
-   blockers back to the orchestrator.
+3. Add the tickets to the board, assign each to the appropriate **open**
+   GitHub Milestone (typically the story's), set their status, and report the
+   new tickets + blockers back to the orchestrator.
 
 You do NOT edit the reviewer's comment or the offending PR/ticket. You only read
 it and produce new tickets.
@@ -143,5 +150,8 @@ it and produce new tickets.
   `Bug:`) and its body MUST be **signed** `(project-manager-agent):` (per the
   `comment-signature` and `board` skills).
 - Every task ticket that depends on other work MUST have a blocker link.
+- Every sub-ticket MUST be assigned to the appropriate **open** GitHub
+  Milestone (typically the story's). A sub-issue does **not** inherit its
+  parent's milestone — set it explicitly per ticket.
 - One task ticket = one specific software-engineer job.
 - You do NOT spawn. You do NOT write code. You do NOT move statuses.

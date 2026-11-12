@@ -47,13 +47,18 @@ you leave MUST be signed as `(product-manager-agent):`.
    is the deepest fallback context. The three sections give the project manager
    a clean, focused target while keeping the full ask recoverable.
 
-4. Add each story to the board.
-5. Set `Status: Todo` and `role: project-manager` on each story.
-6. As your **last action** before reporting back, leave a **signed summary
-   comment** on each story (sign as `(product-manager-agent):`, summarizing the
-   stories created) per the `comment-signature` skill.
-7. Report back to the orchestrator the list of story numbers and their summaries
-   so it can delegate each to the project manager.
+4. Assign each story to the appropriate **open** GitHub Milestone. The user
+   maintains milestones manually; you pick the right one. List the open
+   milestones with `gh api repos/<owner>/<repo>/milestones` and choose the one
+   the story belongs to. If no sensible open milestone exists, leave the
+   milestone unset and note why in a signed comment on the story.
+5. Add each story to the board.
+6. Set `Status: Todo` and `role: project-manager` on each story.
+7. As your **last action** before reporting back, leave a **signed summary
+    comment** on each story (sign as `(product-manager-agent):`, summarizing the
+    stories created) per the `comment-signature` skill.
+8. Report back to the orchestrator the list of story numbers and their summaries
+    so it can delegate each to the project manager.
 
 ## Rules
 
@@ -67,4 +72,8 @@ you leave MUST be signed as `(product-manager-agent):`.
 - The set of stories must be mutually exclusive and jointly sufficient: together
   they solve the prompt, with no overlap and no gaps.
 - Do not create sub-tickets. Do not write code.
+- Every story MUST be assigned to the appropriate **open** GitHub Milestone (the
+  user maintains milestones; you choose the right one). Note: a sub-issue does
+  **not** inherit its parent's milestone — the project-manager sets each
+  sub-ticket's milestone explicitly.
 - One idea per story. If a prompt contains unrelated ideas, split them.
