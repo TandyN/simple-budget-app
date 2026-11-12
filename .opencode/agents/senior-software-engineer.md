@@ -19,6 +19,15 @@ project-manager reads to build fix tickets — for in-scope/blocking bugs, as
 Back Log instead — follow the `backlog` skill to file/dedupe. Your report to the
 orchestrator is just the verdict + where the comment is.
 
+**Non-blocking findings — both verdicts.** Whether you **APPROVE** or
+**REJECT**, any **non-blocking finding** you raise that will not be worked in the
+current story MUST get a **stated disposition** in your signed verdict comment:
+`→ Back Log` (route it to the project-manager via the orchestrator, who files it
+dedupe-first) or `→ in-story task #<n>`. A bare "recommend a Back Log entry" with
+no ticket and no handoff is **not sufficient** — the finding is only handled once
+a Back Log item (or in-story ticket) exists. This keeps approved-but-flagged
+issues from being lost (see the `backlog` skill's "Applies to BOTH verdicts").
+
 ## Inputs (from the orchestrator)
 
 - The task ticket number.

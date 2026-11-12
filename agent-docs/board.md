@@ -9,8 +9,9 @@ rules live in the `board` skill:
 ## Fields
 
 - **Status** — `Todo` → `In Progress` → `Review` → `Done`, plus `Back Log`
-  (parked, done-equivalent) and `Will Not Do` (a terminal decision not to do
-  this).
+  (parked, done-equivalent). The "won't do this" decision is not a status — it is
+  the **`wontfix` label flow** (see below): label the issue `wontfix`, comment
+  the reason, and close it.
 - **role** — which agent owns the ticket (product-manager, project-manager,
   solutions-architect, software-engineer, senior-software-engineer,
   staff-software-engineer, qa, docs-agent).
@@ -57,19 +58,25 @@ orchestrator treats `Status: Back Log` as **done-equivalent**. The GitHub issue
 stays **OPEN** (parked, not closed). Filing it is **dedupe-first**: search open
 issues for a matching bug, and if a Back Log entry already exists, comment your
 findings on it instead of creating a duplicate. An in-scope / blocking bug is
-**not** a Back Log item — it is a `Bug:` sub-issue of the story. Flow, search
-heuristic, and signed-comment rule:
+**not** a Back Log item — it is a `Bug:` sub-issue of the story. A reviewer's
+**non-blocking finding** is captured here **on both the APPROVED and REJECTED
+paths** — the reviewer states a disposition (`→ Back Log` or `→ in-story task`)
+in the signed verdict so it is never lost. Flow, search heuristic, signed-comment
+rule, and the both-verdicts rule:
 [`.agents/skills/backlog/SKILL.md`](../.agents/skills/backlog/SKILL.md).
 
-## Will Not Do
+## wontfix
 
-**Will Not Do** is a `Status` option for a **decision not to do this, for
-whatever reason** — a **terminal state**. It is distinct from `Back Log`
-(might do later, parked, done-equivalent) and from `Done` (completed). Like
-`Back Log` it is a terminal/excluded state that sits **outside** a story's "all
-sub-issues Done" gate, so it will not block the story's done-criteria. The
-GitHub issue stays **OPEN** with `Status: Will Not Do`. Semantics and the
-authoritative board rules:
+**`wontfix`** is the marker for a **decision not to do this, for whatever
+reason** — a **terminal, closed** state. The flow is: (1) apply the GitHub
+**`wontfix`** label to the issue
+(confirm the label exists; create it if missing), (2) add a **signed** comment
+explaining **why** it is no longer being done, and (3) **close** the issue. It is
+distinct from `Back Log` (parked, *might do later*, done-equivalent, and the
+issue stays **OPEN**) — `wontfix` is a **closed, decided-not-to-do** issue — and
+from `Done` (completed). Like `Back Log` it sits **outside** a story's "all
+sub-issues Done" gate, so it will not block the story's done-criteria. Semantics
+and the authoritative board rules:
 [`.agents/skills/board/SKILL.md`](../.agents/skills/board/SKILL.md).
 
 ## Ticket title prefix
