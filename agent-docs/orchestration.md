@@ -138,6 +138,18 @@ short and reusable, and puts each role's obligations where they belong.
 8. staff-software-engineer merges the feature PR into `main`; the story moves to
    `Done`.
 
+### Non-blocking findings — never lost
+
+A reviewer's verdict is **APPROVED** or **REJECTED**. Either way, if they raise a
+**non-blocking finding** that will not be worked in the current story, it MUST get
+a **stated disposition** in the signed verdict comment: `→ Back Log` (the
+project-manager files it, dedupe-first) or `→ in-story task #<n>`. A bare "recommend
+a Back Log entry" with no ticket and no handoff is **not sufficient** — the finding
+is only handled once a Back Log item (or an in-story ticket) exists. This applies to
+**both** verdicts so that approved-but-flagged issues are never silently dropped.
+The shared rule lives in the [`backlog` skill](../.agents/skills/backlog/SKILL.md)
+("Applies to BOTH verdicts"); each reviewer's obligation is in their persona.
+
 ## Verification gates
 
 Before the orchestrator proceeds past a step, it verifies the expected **signed

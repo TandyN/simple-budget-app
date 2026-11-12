@@ -57,8 +57,11 @@ orchestrator treats `Status: Back Log` as **done-equivalent**. The GitHub issue
 stays **OPEN** (parked, not closed). Filing it is **dedupe-first**: search open
 issues for a matching bug, and if a Back Log entry already exists, comment your
 findings on it instead of creating a duplicate. An in-scope / blocking bug is
-**not** a Back Log item — it is a `Bug:` sub-issue of the story. Flow, search
-heuristic, and signed-comment rule:
+**not** a Back Log item — it is a `Bug:` sub-issue of the story. A reviewer's
+**non-blocking finding** is captured here **on both the APPROVED and REJECTED
+paths** — the reviewer states a disposition (`→ Back Log` or `→ in-story task`)
+in the signed verdict so it is never lost. Flow, search heuristic, signed-comment
+rule, and the both-verdicts rule:
 [`.agents/skills/backlog/SKILL.md`](../.agents/skills/backlog/SKILL.md).
 
 ## Will Not Do

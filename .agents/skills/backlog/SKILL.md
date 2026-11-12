@@ -22,6 +22,24 @@ A bug that **is** in-scope or **is** blocking for the current story is **not** a
 Back Log item — it is a `Bug:` ticket **linked as a sub-issue of the story** (see
 the `board` skill's "Where a bug goes").
 
+### Applies to BOTH verdicts (approval **and** rejection)
+
+This rule is **not** only for rejections. **Any reviewer** — whether they
+**APPROVE** or **REJECT** — who raises a **non-blocking finding** that will not
+be worked in the current story MUST give it a **stated disposition** in their
+signed verdict comment, so it is never left as an untracked mention:
+
+- `→ Back Log` — the reviewer flags it and routes it to the **project-manager**
+  (via the orchestrator), who files it here (dedupe-first) so it is captured and
+  traceable; **or**
+- `→ in-story task` — it is being worked as a sub-issue of the current story.
+
+A bare "recommend a Back Log entry" with **no ticket and no explicit handoff is
+NOT sufficient** — the finding is only considered handled once a Back Log item
+exists (or an in-story ticket does). The reviewer who flags it is responsible for
+making the disposition explicit; the **project-manager** owns actually creating
+the Back Log ticket from a flagged finding.
+
 ## Why a `Status` option (not a sub-issue)
 
 - A Back Log item is an **independent issue** — it is **NOT** a sub-issue of any
