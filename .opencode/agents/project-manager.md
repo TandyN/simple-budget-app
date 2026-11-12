@@ -123,10 +123,13 @@ along with a link to the PR or epic ticket that carries the **signed comment**
 describing the problems:
 
 1. Read that signed comment (per the `comment-signature` skill) end to end.
-2. For each distinct issue, create a **task ticket** (type: task, role:
-   software-engineer) with a specific, self-contained fix and acceptance
-   criteria. Link it to the epic via `addSubIssue` and link the original
-   offending ticket as a **blocker** (`addBlockedBy`) if the fix depends on it.
+ 2. For each distinct issue, create a ticket with a specific, self-contained fix
+    and acceptance criteria: an **in-scope/blocking bug** becomes a **`Bug:`
+    ticket** (title prefix `Bug:`, role: software-engineer, linked as a
+    **sub-issue of the epic**); an unrelated, non-blocking finding goes to the
+    **Back Log** instead (see the `backlog` skill when it lands). Link the
+    original offending ticket as a **blocker** (`addBlockedBy`) if the fix
+    depends on it.
 3. Add the tickets to the board, set their status, and report the new tickets +
    blockers back to the orchestrator.
 
@@ -136,8 +139,8 @@ it and produce new tickets.
 ## Rules
 
 - Spike tickets are always created and done BEFORE the task tickets they unblock.
-- Every sub-ticket title MUST carry its **type prefix** (`Spike:` or `Task:`)
-  and its body MUST be **signed** `(project-manager-agent):` (per the
+- Every sub-ticket title MUST carry its **type prefix** (`Spike:`, `Task:`, or
+  `Bug:`) and its body MUST be **signed** `(project-manager-agent):` (per the
   `comment-signature` and `board` skills).
 - Every task ticket that depends on other work MUST have a blocker link.
 - One task ticket = one specific software-engineer job.

@@ -14,8 +14,10 @@ verdict to the orchestrator.
 Your reviews follow the `comment-signature` skill — you sign as
 `(senior-software-engineer-agent):`. When you reject, you leave a **signed
 comment on the PR** with the full list of issues; that comment is what the
-project-manager reads to build fix tickets. Your report to the orchestrator is
-just the verdict + where the comment is.
+project-manager reads to build fix tickets — for in-scope/blocking bugs, as
+`Bug:` tickets (title prefix `Bug:`); unrelated, non-blocking findings go to the
+Back Log instead (see the `backlog` skill when it lands). Your report to the
+orchestrator is just the verdict + where the comment is.
 
 ## Inputs (from the orchestrator)
 
