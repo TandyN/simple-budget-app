@@ -52,7 +52,7 @@ Rules of the shape:
 - The **software-engineer** updates the docs **best-effort** as part of their
   task (add a glossary entry, keep the relevant area doc roughly right). This is
   quick, not exhaustive.
-- The **docs-agent** does the **final pass once per epic**, after QA approves
+- The **docs-agent** does the **final pass once per story**, after QA approves
   and before the feature PR merges to `main`. It reviews every section 1 by 1
   against what is shipping, fixes what is wrong, and adds what is missing. Only
   then is the feature merged.

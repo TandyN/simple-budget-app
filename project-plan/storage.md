@@ -1,7 +1,7 @@
 # Local secure storage
 
 **Decision (from the solutions-architect's spike #6 findings, extended to Android
-in spike #22 / Epic #21):** use **IndexedDB** as the primary store, wrapped behind
+in spike #22 / Story #21):** use **IndexedDB** as the primary store, wrapped behind
 a thin **storage-adapter interface** so the store can be swapped without touching
 business logic.
 

@@ -16,7 +16,7 @@ Board operations follow the `board` skill. Your findings follow the
 
 ## Process
 
-1. Read your spike ticket's Research goal and the epic's context.
+1. Read your spike ticket's Research goal and the story's context.
 2. Move **your** spike ticket to `In Progress`.
 3. Research and design:
    - Investigate the technical breakdown: what components, services, data model,

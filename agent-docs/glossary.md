@@ -26,13 +26,13 @@ in its own topic doc, not here.
   (`.opencode/agents`, `.opencode/command`, `.agents/skills`), prompt the user to
   restart opencode; the change is inert until restart.
   [orchestration.md](orchestration.md#subagent-roster)
-- **epic** — a feature; a tracking ticket with `Original Prompt` / `Summary` /
-  `Task` sections. [orchestration.md](orchestration.md#epic)
+- **story** — a feature; a tracking ticket with `Original Prompt` / `Summary` /
+  `Task` sections. [orchestration.md](orchestration.md#story)
 - **spike ticket** — a research ticket; done by the solutions-architect before
   the tasks it unblocks. [orchestration.md](orchestration.md#ticket-types)
 - **task ticket** — an implementation ticket; one job for one software-engineer,
   ends in a PR. [orchestration.md](orchestration.md#ticket-types)
-- **feature branch** — one per epic; all task PRs merge into it. [orchestration.md](orchestration.md#branches-and-merge-ownership)
+- **feature branch** — one per story; all task PRs merge into it. [orchestration.md](orchestration.md#branches-and-merge-ownership)
 - **feature PR** — feature branch → `main`; the only thing that touches
   production. [orchestration.md](orchestration.md#branches-and-merge-ownership)
 - **blocker** — a ticket another ticket waits on; a ticket is ready only when
@@ -46,7 +46,7 @@ in its own topic doc, not here.
   or PR an agent creates. [board.md](board.md#signed-work-products)
 - **summary/verdict comment** — the signed comment every agent leaves as its last
   action on the artifact it worked on. [board.md](board.md#signed-work-products)
-- **ticket title prefix** — `Epic:` / `Spike:` / `Task:` / `Bug:` prefix on every
+- **ticket title prefix** — `Story:` / `Spike:` / `Task:` / `Bug:` prefix on every
   ticket title. [board.md](board.md#ticket-title-prefix)
 - **verification gates** — the orchestrator's mandatory check that the expected
   signed summary/verdict comment exists on an artifact before proceeding to the
@@ -62,10 +62,10 @@ in its own topic doc, not here.
 - **Back Log** — a `Status` option for unrelated, non-blocking bugs; independent
   (not a sub-issue), done-equivalent, and deduped-first. [board.md](board.md#back-log)
 - **Will Not Do** — a `Status` option for a terminal decision not to do this;
-  distinct from `Back Log` and `Done`, and excluded from the epic's done-gate.
+  distinct from `Back Log` and `Done`, and excluded from the story's done-gate.
   [board.md](board.md#will-not-do)
 - **`Bug:` ticket** — a `Bug:`-titled ticket for an in-scope / blocking bug found
-  during review, linked as a sub-issue of the epic. [board.md](board.md#ticket-title-prefix)
+  during review, linked as a sub-issue of the story. [board.md](board.md#ticket-title-prefix)
 - **`backlog` skill** — the shared, role-agnostic dedupe-first flow to file or
   comment on a Back Log entry.
   [board.md](board.md#back-log)

@@ -1,6 +1,6 @@
 # Dependency strategy
 
-**Decision (Epic #21 / spike #22):** the backend has **zero production
+**Decision (Story #21 / spike #22):** the backend has **zero production
 dependencies** and a small set of **well-maintained, industry-standard dev
 dependencies**. This is a hard constraint, not a preference.
 
