@@ -100,7 +100,7 @@ opencode rather than assuming the change is live.
 
 ## Branches and merge ownership
 
-- **One feature branch per story** (`feature/story-<n>-<slug>`), created by the
+- **One feature branch per story** (`feature/<story-number>-<slug>`), created by the
   project-manager when it declares readiness.
 - **Task PR** (task branch → feature branch): approved by the
   senior-software-engineer, merged by the software-engineer.

@@ -50,7 +50,7 @@ It reads the story's three sections (`Task` first, then `Summary`, then
 - Iterates: when a spike result still can't be turned into tasks, it opens a
   follow-up spike.
 - **Declares readiness** when all spikes are decomposed, then **creates the story
-  feature branch** (`feature/story-<n>-<slug>` off `main`).
+   feature branch** (`feature/<story-number>-<slug>` off `main`).
 - Reports the feature-branch name, the ticket list + blockers, and the ready set.
 
 > You do NOT decompose. The project manager does.
