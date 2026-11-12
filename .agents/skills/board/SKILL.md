@@ -42,8 +42,15 @@ prefix is non-conforming.
 **Where a bug goes:** an **in-scope / blocking** bug found during review becomes a
 `Bug:` ticket **linked as a sub-issue of the epic** (the finding is recorded as a
 `Bug:`; the fix itself is a `Task:` worked in the same epic flow). An
-**unrelated, non-blocking** bug goes to the **Back Log** instead (see the
-`backlog` skill when it lands) and is **not** a sub-issue of the epic.
+**unrelated, non-blocking** bug goes to the **Back Log** instead — follow the
+`backlog` skill for the dedupe-first / file-or-comment flow — and is **not** a
+sub-issue of the epic.
+
+**Back Log done-criteria:** the **orchestrator treats `Status: Back Log` as
+done-equivalent** (parked/resolved, not a blocker) and **excludes Back Log items
+from the epic's "all sub-issues Done" gate**. A Back Log item is an **independent
+issue** — never a sub-issue of any epic — so it sits outside that gate. The
+GitHub issue stays **OPEN** with `Status: Back Log`. See the `backlog` skill.
 
 ## Feature branch (per epic)
 
@@ -88,6 +95,7 @@ TODO_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="Status") | .op
 IN_PROGRESS_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="Status") | .options[] | select(.name=="In Progress") | .id')
 REVIEW_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="Status") | .options[] | select(.name=="Review") | .id')
 DONE_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="Status") | .options[] | select(.name=="Done") | .id')
+BACKLOG_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="Status") | .options[] | select(.name=="Back Log") | .id')
 
 # Role option IDs
 PM_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="role") | .options[] | select(.name=="project-manager") | .id')
@@ -106,10 +114,10 @@ If the board doesn't exist, create it:
 gh project create --owner "$REPO_OWNER" --title "$BOARD_NAME" --format json
 ```
 
-Then ensure the `Status` field (options: Todo, In Progress, Review, Done) and the
-`role` field (options: product-manager, project-manager, software-engineer,
-senior-software-engineer, staff-software-engineer, solutions-architect, qa,
-docs-agent) exist via `gh project field-create`.
+Then ensure the `Status` field (options: Todo, In Progress, Review, Done,
+Back Log) and the `role` field (options: product-manager, project-manager,
+software-engineer, senior-software-engineer, staff-software-engineer,
+solutions-architect, qa, docs-agent) exist via `gh project field-create`.
 
 ## Commands (use the discovered IDs)
 

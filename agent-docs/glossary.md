@@ -52,8 +52,10 @@ in its own topic doc, not here.
 
 - **board** — the GitHub Projects board that is the single source of truth for
   ticket state. [board.md](board.md)
-- **Status** — Todo / In Progress / Review / Done. [board.md](board.md)
+- **Status** — Todo / In Progress / Review / Done / Back Log. [board.md](board.md)
 - **role field** — which agent owns a ticket. [board.md](board.md)
+- **Back Log** — a `Status` option for unrelated, non-blocking bugs; independent
+  (not a sub-issue), done-equivalent, and deduped-first. [board.md](board.md#back-log)
 
 ## The budget app (the product being built)
 
