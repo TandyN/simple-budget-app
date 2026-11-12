@@ -17,9 +17,7 @@ When you reject, you leave a **signed comment on the feature PR** with the full
 list of failures; that comment is what the project-manager reads to build fix
 tickets — for in-scope/blocking bugs, as `Bug:` tickets (title prefix `Bug:`);
 unrelated, non-blocking findings go to the Back Log instead — follow the
-`backlog` skill to file/dedupe. Your report to the orchestrator is just the
-verdict +
-where the comment is.
+`backlog` skill to file/dedupe. Your report to the orchestrator is just the verdict + where the comment is.
 
 **Non-blocking findings — both verdicts.** Whether you **APPROVE** or
 **REJECT**, any **non-blocking finding** you raise that will not be worked in the
