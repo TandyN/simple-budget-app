@@ -8,13 +8,19 @@ rules live in the `board` skill:
 
 ## Fields
 
-- **Status** — `Todo` → `In Progress` → `Review` → `Done`.
+- **Status** — `Todo` → `In Progress` → `Review` → `Done`, plus `Back Log`
+  (parked, done-equivalent).
 - **role** — which agent owns the ticket (product-manager, project-manager,
   solutions-architect, software-engineer, senior-software-engineer,
   staff-software-engineer, qa, docs-agent).
 
 ## Key concepts
 
+- **Board creation is create + link.** A Projects v2 board is owner-scoped by
+  default; connecting it to the repo is the separate `gh project link` step. So
+  board creation runs `gh project create` **then** `gh project link`. The link
+  (board ↔ repo) is distinct from item connection (`addProjectV2ItemById`) —
+  both are required.
 - **Dependency order.** A ticket spawns only when it is in the ready set (all
   its blockers are `Done`). Spikes usually go first because tasks are blocked
   on them, but the rule is blockers, not ticket type.
@@ -36,15 +42,39 @@ produced it. Agents communicate findings and verdicts by **signed comments** (e.
 body. A rejection carries a signed comment listing every issue, which the
 project-manager reads to build fix tickets. Every agent also ends with a signed
 **summary/verdict comment** as its last action on the artifact it worked on.
-Format, body-attribution rules, per-role summary table, and golden rules:
+Format and golden rules:
 [`.agents/skills/comment-signature/SKILL.md`](../.agents/skills/comment-signature/SKILL.md).
+Which role signs what, and where each role's summary goes, is role-specific policy
+in each role's persona under `.opencode/agents/`.
+
+## Back Log
+
+**Back Log** is a `Status` option for an **unrelated, non-blocking** bug found
+while working or reviewing. It is an **independent issue — never a sub-issue of
+an epic** — so it sits outside an epic's "all sub-issues Done" gate; the
+orchestrator treats `Status: Back Log` as **done-equivalent**. The GitHub issue
+stays **OPEN** (parked, not closed). Filing it is **dedupe-first**: search open
+issues for a matching bug, and if a Back Log entry already exists, comment your
+findings on it instead of creating a duplicate. An in-scope / blocking bug is
+**not** a Back Log item — it is a `Bug:` sub-issue of the epic. Flow, search
+heuristic, and signed-comment rule:
+[`.agents/skills/backlog/SKILL.md`](../.agents/skills/backlog/SKILL.md).
 
 ## Ticket title prefix
 
-Every ticket title begins with a type prefix — `Epic:`, `Spike:`, or `Task:` —
-written by the creator (product-manager for epics, project-manager for spikes and
-tasks). Convention and enforcement:
+Every ticket title begins with a type prefix — `Epic:`, `Spike:`, `Task:`, or
+`Bug:` — written by the creator (product-manager for epics, project-manager for
+spikes and tasks/bugs). Convention and enforcement:
 [`.agents/skills/board/SKILL.md`](../.agents/skills/board/SKILL.md).
+
+## Role-agnostic skills
+
+The shared skills (`board`, `backlog`, `comment-signature`, `config-reload`) are
+**role-agnostic**: they describe the mechanics any role can follow, and they
+discover IDs from the current repository. **Role-specific policy** — which role
+does what (who creates the feature branch, who approves a task PR, who opens or
+merges the feature PR, who leaves which summary and where) — lives in each role's
+persona under `.opencode/agents/`, not in the skills.
 
 ## Where the actual commands are
 

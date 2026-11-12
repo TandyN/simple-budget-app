@@ -5,22 +5,22 @@ description: GitHub Projects board operations. Use whenever creating, linking, o
 
 # Board
 
-All agents (orchestrator, product-manager, project-manager, software-engineer,
-senior-software-engineer, staff-software-engineer, qa, docs-agent,
-solutions-architect) drive the same GitHub Projects board. This skill is
-**repo-agnostic**: it discovers IDs from the current repository.
+Every agent drives the same GitHub Projects board. This skill is **repo-agnostic**
+(it discovers IDs from the current repository) and **role-agnostic** (it describes
+how to operate the board, not which role does what — role-specific policy lives in
+each role's persona under `.opencode/agents/`).
 
 ## Ticket types
 
-- **Spike ticket** (`role: solutions-architect`) — research. The
-  solutions-architect investigates a problem, produces a plan / clarifies what is
-  needed, and moves its own spike ticket to `Done`. No code, no PR. Spikes are
-  always done **before** the tasks they unblock.
-- **Task ticket** (`role: software-engineer`) — implementation. One specific,
-  self-contained job for one software-engineer, ending in a PR. Task tickets that
-  depend on other work are linked via **blockers** (below).
+- **Spike ticket** (`role: solutions-architect`) — research: investigate a
+  problem, produce a plan / clarify what is needed, and move the ticket to `Done`.
+  No code, no PR. Spikes are done **before** the tasks they unblock.
+- **Task ticket** (`role: software-engineer`) — implementation: one specific,
+  self-contained job, ending in a PR. Task tickets that depend on other work are
+  linked via **blockers** (below).
 
-A sub-issue is always either a spike or a task, never both.
+A sub-issue is a spike, a task, or a `Bug:` (see the title convention below), never
+a mix.
 
 ## Ticket title convention
 
@@ -32,22 +32,34 @@ type at a glance. The prefix is part of the title, before a space:
 | Epic | `Epic: <title>` |
 | Spike | `Spike: <title>` |
 | Task | `Task: <title>` |
+| Bug | `Bug: <title>` |
 
-This is **enforced by the creator**: the **product-manager** writes `Epic:` on the
-epic issue it creates, and the **project-manager** writes `Spike:` / `Task:` on the
-sub-issues it decomposes. A ticket whose title lacks the correct prefix is
+The ticket's creator sets the prefix (an epic is `Epic:`, a sub-issue is `Spike:`,
+`Task:`, or `Bug:`). A ticket whose title lacks the correct prefix is
 non-conforming.
+
+**Where a bug goes:** an **in-scope / blocking** bug found during review becomes a
+`Bug:` ticket **linked as a sub-issue of the epic** (the finding is recorded as a
+`Bug:`; the fix itself is a `Task:` worked in the same epic flow). An
+**unrelated, non-blocking** bug goes to the **Back Log** instead — follow the
+`backlog` skill for the dedupe-first / file-or-comment flow — and is **not** a
+sub-issue of the epic.
+
+**Back Log semantics:** a Back Log item is a **parked, independent issue** —
+never a sub-issue of any epic. It is **done-equivalent** for the epic's
+done-criteria (parked/resolved, not a blocker), so it sits outside the epic's
+"all sub-issues Done" gate. The GitHub issue stays **OPEN** with `Status: Back
+Log`. See the `backlog` skill.
 
 ## Feature branch (per epic)
 
 Each epic has ONE **feature branch** (`feature/epic-<epic-number>-<slug>`), off
-`main`. The **project-manager creates it** once it has finished decomposing the
-epic and declares readiness. All task tickets for that epic are implemented on
-branches cut from the feature branch and merged **into the feature branch** (not
-`main`). `main` is production and is only changed by the final **feature PR**
-(feature branch → `main`), which opens only after all tasks are `Done`, the
-staff-software-engineer's final holistic review passes, QA approves, and the
-docs-agent pass approves.
+`main`. It is created once the epic is decomposed and declared ready. All task
+tickets for that epic are implemented on branches cut from the feature branch and
+merged **into the feature branch** (not `main`). `main` is production and is only
+changed by the final **feature PR** (feature branch → `main`), which opens only
+after all tasks are `Done` and the final reviews (holistic epic review, QA, and
+the docs pass) approve.
 
 ## Discover IDs (run once per session)
 
@@ -81,6 +93,7 @@ TODO_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="Status") | .op
 IN_PROGRESS_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="Status") | .options[] | select(.name=="In Progress") | .id')
 REVIEW_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="Status") | .options[] | select(.name=="Review") | .id')
 DONE_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="Status") | .options[] | select(.name=="Done") | .id')
+BACKLOG_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="Status") | .options[] | select(.name=="Back Log") | .id')
 
 # Role option IDs
 PM_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="role") | .options[] | select(.name=="project-manager") | .id')
@@ -93,16 +106,25 @@ QA_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="role") | .option
 DOCS_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="role") | .options[] | select(.name=="docs-agent") | .id')
 ```
 
-If the board doesn't exist, create it:
+If the board doesn't exist, create it — **create, then link** to the repo:
 
 ```bash
-gh project create --owner "$REPO_OWNER" --title "$BOARD_NAME" --format json
+# A Projects v2 board is owner-scoped by default; connecting it to the repo is
+# the separate `gh project link` step (create alone does NOT link it).
+CREATE_JSON=$(gh project create --owner "$REPO_OWNER" --title "$BOARD_NAME" --format json)
+NEW_PROJECT_NUM=$(echo "$CREATE_JSON" | jq -r '.number')
+gh project link "$NEW_PROJECT_NUM" --owner "$REPO_OWNER" --repo "$REPO"
 ```
 
-Then ensure the `Status` field (options: Todo, In Progress, Review, Done) and the
-`role` field (options: product-manager, project-manager, software-engineer,
-senior-software-engineer, staff-software-engineer, solutions-architect, qa,
-docs-agent) exist via `gh project field-create`.
+> **Board ↔ repo connection (the `link`) ≠ item connection.** `gh project link`
+> associates the board with the repository (visible under the repo's
+> Projects). Adding tickets to the board is the separate
+> `addProjectV2ItemById` step. Both are required, and they are different things.
+
+Then ensure the `Status` field (options: Todo, In Progress, Review, Done,
+Back Log) and the `role` field (options: product-manager, project-manager,
+software-engineer, senior-software-engineer, staff-software-engineer,
+solutions-architect, qa, docs-agent) exist via `gh project field-create`.
 
 ## Commands (use the discovered IDs)
 
@@ -203,7 +225,7 @@ gh project item-list <PROJECT_NUM> --owner <REPO_OWNER> --format json
 gh project field-list <PROJECT_NUM> --owner <REPO_OWNER> --format json
 ```
 
-### Create the epic feature branch (project-manager)
+### Create the epic feature branch
 
 ```
 git checkout main && git pull
@@ -215,74 +237,56 @@ git push -u origin feature/epic-<epic-number>-<slug>
 
 The PR merges into the epic's **feature branch** (not `main`). The body MUST
 reference **both** the task ticket and the epic so both issues stay linked, and
-MUST be **signed** by the software-engineer with a summary (see the full format in
+MUST be **signed** with a summary by the role opening it (see the full format in
 the `comment-signature` skill).
 
 ```
 gh pr create --base feature/epic-<epic-number>-<slug> --head feature/<task-number>-<slug> \
   --title "<summary>" \
-  --body "(software-engineer-agent): <summary of changes>
+  --body "(<role>-agent): <summary of changes>
 Closes #<task-number>
 Part of #<epic-number>"
 ```
 
 ### Open the feature PR (feature branch → main) — only after all tasks Done
 
-The body MUST be **signed** by the staff-software-engineer with a holistic
-summary (see the full format in the `comment-signature` skill).
+The body MUST be **signed** with a holistic summary by the role opening it (see
+the full format in the `comment-signature` skill).
 
 ```
 gh pr create --base main --head feature/epic-<epic-number>-<slug> \
   --title "<epic title>" \
-  --body "(staff-software-engineer-agent): <summary of the epic>
+  --body "(<role>-agent): <summary of the epic>
 Part of #<epic-number>
 Closes #<epic-number>"
 ```
 
 ## Golden rules
 
-- **Dependency order.** A ticket is only spawned when it is in the **ready set**
+> These are the **mechanics** of the board. **Role-specific policy** — which role
+> spawns, which role creates a branch, who approves a task PR, who merges the
+> feature PR to `main`, the QA/docs cadence — lives in each role's persona under
+> `.opencode/agents/`, not here.
+
+- **Dependency order.** A ticket is only worked when it is in the **ready set**
   (all its `blockedBy` are `Done`). Spikes usually go first because tasks are
   blocked on them, but the rule is blockers, not ticket type. Spikes and tasks
   can block each other.
-- A **task ticket** is implemented by ONE software-engineer (one specific task).
-  It moves `In Progress → Review` when its PR is opened. It reaches `Done` only
-  after the **senior-software-engineer approves** and the SE merges the PR into
-  the epic feature branch.
-- A **spike ticket** is done by the solutions-architect, produces a plan/report,
-  and moves itself to `Done`. No code, no PR.
-- **One feature branch per epic.** All task PRs merge into the epic feature
-  branch. **Nothing task-related ever merges directly into `main`.**
-- **Merge ownership:**
-  - Task PR (→ feature branch): reviewed/approved by the
-    **senior-software-engineer**, then merged by the **software-engineer**.
-  - Feature PR (→ `main`): opened and merged by the **staff-software-engineer**,
-    only after its final holistic review **and** QA **and** the docs-agent pass
-    all approve. (The orchestrator relays the approvals to the
-    staff-software-engineer; it does not merge itself.)
-- **QA runs ONCE, on the epic** (the feature PR), after all tasks are `Done` and
-  staff-software-engineer has done a final holistic review. QA does not run per
-  task.
-- **The docs-agent runs ONCE per epic, after QA approves and before the feature
-  PR merges to `main`.** It fixes `agent-docs/` in the feature PR.
-- **Only the orchestrator spawns subagents.** A subagent that needs another role
-  reports back; the orchestrator spawns that role.
 - **Blockers must be linked** with `addBlockedBy` when a ticket depends on
   another.
-- **`main` is production.** Only the feature PR touches it, and only after
-  approval.
-- An **epic** is a tracking issue created by the product-manager. It reaches
-  `Done` only when **every** sub-issue under it is `Done` and the feature PR is
-  merged.
-- Every sub-issue MUST be linked to its parent epic via `addSubIssue` before
+- **One feature branch per epic.** All task PRs merge into the epic feature
+  branch. **Nothing task-related ever merges directly into `main`.** `main` is
+  production and is only changed by the final feature PR, and only after the
+  final reviews approve.
+- Every sub-issue MUST be linked to its parent epic via `addSubIssue` **before**
   being added to the board.
 - Every PR body MUST reference its ticket and the epic (`Closes #<n>` +
   `Part of #<epic>`) so the epic's "Linked pull requests" field populates.
-- Commit messages MUST reference the task ticket number.
-- **Ticket titles MUST carry a type prefix** — `Epic:`, `Spike:`, or `Task:` —
-  written by the creator (product-manager for epics, project-manager for
-  spikes/tasks). See **Ticket title convention**.
-- **Work-product bodies MUST be signed** by the creating role and end with a
-  signed summary/verdict comment (see the `comment-signature` skill).
+- Commit messages MUST reference the ticket number.
+- **Ticket titles MUST carry a type prefix** — `Epic:`, `Spike:`, `Task:`, or
+  `Bug:` — set by the ticket's creator. See **Ticket title convention**.
+- **Work-product bodies MUST be signed** and end with a signed
+  summary/verdict comment (see the `comment-signature` skill).
 - One task ticket → one PR (into the feature branch).
-- The board is the single source of truth for state — always reflect state via `Status`.
+- The board is the single source of truth for state — always reflect state via
+  `Status`.

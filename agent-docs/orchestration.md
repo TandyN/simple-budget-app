@@ -43,8 +43,11 @@ epic has three sections, read in this priority order:
   unblocks.
 - **task ticket** (`role: software-engineer`) — implementation. One self-contained
   job, ends in a PR into the feature branch.
+- **`Bug:` ticket** (`role: software-engineer`) — an in-scope / blocking bug
+  found during review; title prefix `Bug:`, linked as a sub-issue of the epic.
+  Filed by the project-manager from a reviewer's signed rejection.
 
-A sub-issue is always either a spike or a task, never both. Tickets that depend
+A sub-issue is a spike, a task, or a `Bug:` — never a mix. Tickets that depend
 on other work are linked with a **blocker** (`addBlockedBy`); a ticket is in the
 **ready set** (spawnable) only when all its blockers are `Done`.
 
@@ -70,13 +73,15 @@ a file under `.opencode/agents/` with frontmatter `mode: subagent`. The
 **orchestrator** is `mode: primary`, so it is the active relay agent — not one of
 the spawnable subagents.
 
-**Restart requirement.** opencode reads `.opencode/agents/` **once at server
-startup** (no hot-reload). A server that started before a role file was added,
-renamed, or edited holds a **stale snapshot** and may expose only a subset of the
-roster (with stale `description` text) until it is restarted. A clean restart of
-the opencode server makes the full 8-role roster spawnable again. Do not mistake a
-partial roster for a missing source — it is a time-of-start cache, fixed by
-restarting.
+**Restart requirement.** opencode reads `.opencode/agents/`, `.opencode/command/`,
+and `.agents/skills/` **once at server startup** (no hot-reload). A server that
+started before a role file was added, renamed, or edited holds a **stale snapshot**
+and may expose only a subset of the roster (with stale `description` text) until it
+is restarted. A clean restart of the opencode server makes the full 8-role roster
+spawnable again. Do not mistake a partial roster for a missing source — it is a
+time-of-start cache, fixed by restarting. After any change to these startup-loaded
+surfaces, agents follow the `config-reload` skill: prompt the user to restart
+opencode rather than assuming the change is live.
 
 ## Branches and merge ownership
 
@@ -88,6 +93,17 @@ restarting.
   staff-software-engineer, only after its final review **and** QA **and** the
   docs-agent pass all approve.
 - `main` is production; only the feature PR touches it.
+
+## Role-agnostic skills
+
+The shared skills (`board`, `backlog`, `comment-signature`, `config-reload`) are
+**role-agnostic**: each is a job any role can follow, describing mechanics (how to
+operate the board, how to sign a work product, how to file a Back Log entry, how
+to prompt a restart) — not who does what. **Role-specific policy** — which role
+does what (who creates the feature branch, who approves a task PR, who opens or
+merges the feature PR, who leaves which summary and where) — lives in each role's
+persona under `.opencode/agents/`, not in the skills. This keeps the shared skills
+short and reusable, and puts each role's obligations where they belong.
 
 ## The flow
 

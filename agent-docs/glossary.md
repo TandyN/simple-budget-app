@@ -22,6 +22,10 @@ in its own topic doc, not here.
 - **stale agent snapshot** — a partial/stale roster a running opencode server
   shows after agent files change, because agents load once at startup; fixed by
   restarting the server. [orchestration.md](orchestration.md#subagent-roster)
+- **config-reload skill** — after a change to startup-loaded config
+  (`.opencode/agents`, `.opencode/command`, `.agents/skills`), prompt the user to
+  restart opencode; the change is inert until restart.
+  [orchestration.md](orchestration.md#subagent-roster)
 - **epic** — a feature; a tracking ticket with `Original Prompt` / `Summary` /
   `Task` sections. [orchestration.md](orchestration.md#epic)
 - **spike ticket** — a research ticket; done by the solutions-architect before
@@ -42,8 +46,8 @@ in its own topic doc, not here.
   or PR an agent creates. [board.md](board.md#signed-work-products)
 - **summary/verdict comment** — the signed comment every agent leaves as its last
   action on the artifact it worked on. [board.md](board.md#signed-work-products)
-- **ticket title prefix** — `Epic:` / `Spike:` / `Task:` prefix on every ticket
-  title. [board.md](board.md#ticket-title-prefix)
+- **ticket title prefix** — `Epic:` / `Spike:` / `Task:` / `Bug:` prefix on every
+  ticket title. [board.md](board.md#ticket-title-prefix)
 - **verification gates** — the orchestrator's mandatory check that the expected
   signed summary/verdict comment exists on an artifact before proceeding to the
   next step. [orchestration.md](orchestration.md#verification-gates)
@@ -52,8 +56,17 @@ in its own topic doc, not here.
 
 - **board** — the GitHub Projects board that is the single source of truth for
   ticket state. [board.md](board.md)
-- **Status** — Todo / In Progress / Review / Done. [board.md](board.md)
+- **Status** — Todo / In Progress / Review / Done / Back Log. [board.md](board.md)
 - **role field** — which agent owns a ticket. [board.md](board.md)
+- **Back Log** — a `Status` option for unrelated, non-blocking bugs; independent
+  (not a sub-issue), done-equivalent, and deduped-first. [board.md](board.md#back-log)
+- **`Bug:` ticket** — a `Bug:`-titled ticket for an in-scope / blocking bug found
+  during review, linked as a sub-issue of the epic. [board.md](board.md#ticket-title-prefix)
+- **`backlog` skill** — the shared, role-agnostic dedupe-first flow to file or
+  comment on a Back Log entry.
+  [board.md](board.md#back-log)
+- **board ↔ repo link** — `gh project link` connects a Projects board to the
+  repository; board creation is create + link. [board.md](board.md#key-concepts)
 
 ## The budget app (the product being built)
 
