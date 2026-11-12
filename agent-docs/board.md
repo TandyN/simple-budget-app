@@ -9,7 +9,8 @@ rules live in the `board` skill:
 ## Fields
 
 - **Status** — `Todo` → `In Progress` → `Review` → `Done`, plus `Back Log`
-  (parked, done-equivalent).
+  (parked, done-equivalent) and `Will Not Do` (a terminal decision not to do
+  this).
 - **role** — which agent owns the ticket (product-manager, project-manager,
   solutions-architect, software-engineer, senior-software-engineer,
   staff-software-engineer, qa, docs-agent).
@@ -59,6 +60,17 @@ findings on it instead of creating a duplicate. An in-scope / blocking bug is
 **not** a Back Log item — it is a `Bug:` sub-issue of the epic. Flow, search
 heuristic, and signed-comment rule:
 [`.agents/skills/backlog/SKILL.md`](../.agents/skills/backlog/SKILL.md).
+
+## Will Not Do
+
+**Will Not Do** is a `Status` option for a **decision not to do this, for
+whatever reason** — a **terminal state**. It is distinct from `Back Log`
+(might do later, parked, done-equivalent) and from `Done` (completed). Like
+`Back Log` it is a terminal/excluded state that sits **outside** an epic's "all
+sub-issues Done" gate, so it will not block the epic's done-criteria. The
+GitHub issue stays **OPEN** with `Status: Will Not Do`. Semantics and the
+authoritative board rules:
+[`.agents/skills/board/SKILL.md`](../.agents/skills/board/SKILL.md).
 
 ## Ticket title prefix
 
