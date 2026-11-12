@@ -3,7 +3,7 @@
 The **product** this repository builds: a simple budget app. Unlike the
 orchestration system (which already exists and is documented in
 [orchestration.md](orchestration.md)), the app is **built over time** by the
-pipeline. This doc tracks what is real **now** and grows as each epic ships.
+pipeline. This doc tracks what is real **now** and grows as each story ships.
 
 Keep it split by area so a reviewer can read only what they need:
 
@@ -32,7 +32,7 @@ dependency strategy (zero production deps).
 | Portability (PWA / iOS / Android) | [project-plan/portability.md](../project-plan/portability.md) |
 | Dependency strategy | [project-plan/dependency-strategy.md](../project-plan/dependency-strategy.md) |
 
-> The plan is the deliverable of Epic #5. When the backend *ships*, the
+> The plan is the deliverable of Story #5. When the backend *ships*, the
 > `budget-app/backend.md` and `budget-app/data.md` area docs above will track
 > what is real in code; the plan stays as the design-of-record.
 

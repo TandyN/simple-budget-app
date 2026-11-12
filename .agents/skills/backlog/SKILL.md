@@ -7,7 +7,7 @@ description: Use when an agent finds an unrelated, non-blocking bug while workin
 
 The **Back Log** is where an **unrelated, non-blocking** bug found while working
 or reviewing goes. It is a **`Status` option** on the board (not a tracker issue
-and **not** a sub-issue of any epic). This skill is **role-agnostic**: any agent
+and **not** a sub-issue of any story). This skill is **role-agnostic**: any agent
 (senior-software-engineer, staff-software-engineer, qa, docs-agent, ...) that
 stumbles on such a bug follows it.
 
@@ -15,20 +15,20 @@ stumbles on such a bug follows it.
 
 Use this flow **only** for a bug that is:
 
-- **unrelated** to the current epic/task, and
+- **unrelated** to the current story/task, and
 - **non-blocking** — not required for, and not blocking, the work in front of you.
 
-A bug that **is** in-scope or **is** blocking for the current epic is **not** a
-Back Log item — it is a `Bug:` ticket **linked as a sub-issue of the epic** (see
+A bug that **is** in-scope or **is** blocking for the current story is **not** a
+Back Log item — it is a `Bug:` ticket **linked as a sub-issue of the story** (see
 the `board` skill's "Where a bug goes").
 
 ## Why a `Status` option (not a sub-issue)
 
 - A Back Log item is an **independent issue** — it is **NOT** a sub-issue of any
-  epic, so it sits **outside** an epic's "all sub-issues Done" gate.
+  story, so it sits **outside** a story's "all sub-issues Done" gate.
 - The **orchestrator's done-criteria treats `Status: Back Log` as
   done-equivalent** (parked/resolved, not a blocker). It is therefore excluded
-  from the epic done gate.
+  from the story done gate.
 - The GitHub issue stays **OPEN** with `Status: Back Log` — it remains visible
   and re-filable. Do **not** close it.
 
@@ -51,7 +51,7 @@ the `board` skill's "Where a bug goes").
 
 3. **No match exists** → create a new **`Bug:`-titled** issue (per the `board`
    skill's title convention), add it to the board with **`Status: Back Log`**,
-   and keep it **independent — do NOT link it as a sub-issue of any epic**.
+   and keep it **independent — do NOT link it as a sub-issue of any story**.
 
 4. **Match is ambiguous** (the search is inconclusive — a near-miss, a different
    symptom, or you can't tell) → do **not** guess. Escalate to the
@@ -62,11 +62,11 @@ the `board` skill's "Where a bug goes").
 - **Dedupe first.** Never create a second Back Log entry for a bug that is
   already parked; comment on the existing one instead.
 - **Independent, not a sub-issue.** Back Log items are never sub-issues of an
-  epic, so they never block an epic's done-criteria.
+  story, so they never block a story's done-criteria.
 - **Done-equivalent.** The orchestrator treats `Status: Back Log` as done and
   ignores it in the "all sub-issues Done" gate.
 - **Issue stays OPEN.** Parked, not closed.
 - **Signed.** Every comment you leave (dedupe or new) is signed per the
   `comment-signature` skill.
 - **Non-blocking only.** In-scope or blocking bugs are `Bug:` sub-issues of the
-  epic, not Back Log items.
+  story, not Back Log items.

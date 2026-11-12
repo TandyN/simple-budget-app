@@ -1,6 +1,6 @@
 # Platform portability
 
-**Decision (spike #6, extended to Android in spike #22 / Epic #21):** shape the
+**Decision (spike #6, extended to Android in spike #22 / Story #21):** shape the
 backend as a **pure, framework-agnostic TypeScript library** — business logic +
 data model + a single **storage-adapter** interface — and consume the *identical*
 library from all three targets:
@@ -241,7 +241,7 @@ documented, recommended, and *not blocking* the MVP.
 | "store data purely locally and securely" | on-device IndexedDB, zero network egress (see [storage.md](storage.md)) |
 | "download it as a PWA using GitHub Pages" | the library is a plain TS bundle a PWA can import; front-end = PWA UI shell |
 | "create an iOS app (developer subscription purchased)" | Capacitor + WKWebView (WebKit) runs the *same* library; only the shell differs |
-| "make it compatible for all platforms" (Epic #21) | Android is a third webview target — Capacitor + Chromium WebView runs the *same* library; see **Android-specific considerations** above |
+| "make it compatible for all platforms" (Story #21) | Android is a third webview target — Capacitor + Chromium WebView runs the *same* library; see **Android-specific considerations** above |
 | "the same code runs in a PWA now and an iOS/Android app later" | framework-agnostic TS library + storage-adapter seam (this doc) |
-| "shouldn't need any additional packages in production" (Epic #21) | zero production dependencies — Web-platform APIs only (see [dependency-strategy.md](dependency-strategy.md)) |
+| "shouldn't need any additional packages in production" (Story #21) | zero production dependencies — Web-platform APIs only (see [dependency-strategy.md](dependency-strategy.md)) |
 | "backend should support … so a front-end can be built on top" | the `BudgetApi` public interface is the contract the front-end implements against |
