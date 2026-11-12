@@ -60,14 +60,15 @@ in its own topic doc, not here.
 
 - **board** — the GitHub Projects board that is the single source of truth for
   ticket state. [board.md](board.md)
-- **Status** — Todo / In Progress / Review / Done / Back Log / Will Not Do.
+- **Status** — Todo / In Progress / Review / Done / Back Log.
   [board.md](board.md)
 - **role field** — which agent owns a ticket. [board.md](board.md)
 - **Back Log** — a `Status` option for unrelated, non-blocking bugs; independent
   (not a sub-issue), done-equivalent, and deduped-first. [board.md](board.md#back-log)
-- **Will Not Do** — a `Status` option for a terminal decision not to do this;
-  distinct from `Back Log` and `Done`, and excluded from the story's done-gate.
-  [board.md](board.md#will-not-do)
+- **`wontfix`** — a GitHub **label** (not a status) marking a terminal, closed
+  "we will not do this" decision; the flow is label + signed reason comment +
+  close. Distinct from `Back Log` (open, parked, done-equivalent) and `Done`
+  (completed), and excluded from the story's done-gate. [board.md](board.md#wontfix)
 - **`Bug:` ticket** — a `Bug:`-titled ticket for an in-scope / blocking bug found
   during review, linked as a sub-issue of the story. [board.md](board.md#ticket-title-prefix)
 - **`backlog` skill** — the shared, role-agnostic dedupe-first flow to file or
