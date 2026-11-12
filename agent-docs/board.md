@@ -16,6 +16,11 @@ rules live in the `board` skill:
 
 ## Key concepts
 
+- **Board creation is create + link.** A Projects v2 board is owner-scoped by
+  default; connecting it to the repo is the separate `gh project link` step. So
+  board creation runs `gh project create` **then** `gh project link`. The link
+  (board ↔ repo) is distinct from item connection (`addProjectV2ItemById`) —
+  both are required.
 - **Dependency order.** A ticket spawns only when it is in the ready set (all
   its blockers are `Done`). Spikes usually go first because tasks are blocked
   on them, but the rule is blockers, not ticket type.
