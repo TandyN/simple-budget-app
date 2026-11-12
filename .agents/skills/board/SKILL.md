@@ -51,6 +51,13 @@ done-criteria (parked/resolved, not a blocker), so it sits outside the epic's
 "all sub-issues Done" gate. The GitHub issue stays **OPEN** with `Status: Back
 Log`. See the `backlog` skill.
 
+**Will Not Do semantics:** a `Will Not Do` item is a **decision not to do this,
+for whatever reason** — a **terminal state**. It is distinct from `Back Log`
+(might do later, parked, done-equivalent) and from `Done` (completed). Like
+`Back Log` it is a terminal/excluded state that sits **outside** the epic's
+"all sub-issues Done" gate: it will not block the epic's done-criteria. The
+GitHub issue stays **OPEN** with `Status: Will Not Do`.
+
 ## Feature branch (per epic)
 
 Each epic has ONE **feature branch** (`feature/epic-<epic-number>-<slug>`), off
@@ -94,6 +101,7 @@ IN_PROGRESS_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="Status"
 REVIEW_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="Status") | .options[] | select(.name=="Review") | .id')
 DONE_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="Status") | .options[] | select(.name=="Done") | .id')
 BACKLOG_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="Status") | .options[] | select(.name=="Back Log") | .id')
+WILLNOTDO_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="Status") | .options[] | select(.name=="Will Not Do") | .id')
 
 # Role option IDs
 PM_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="role") | .options[] | select(.name=="project-manager") | .id')
@@ -122,9 +130,10 @@ gh project link "$NEW_PROJECT_NUM" --owner "$REPO_OWNER" --repo "$REPO"
 > `addProjectV2ItemById` step. Both are required, and they are different things.
 
 Then ensure the `Status` field (options: Todo, In Progress, Review, Done,
-Back Log) and the `role` field (options: product-manager, project-manager,
-software-engineer, senior-software-engineer, staff-software-engineer,
-solutions-architect, qa, docs-agent) exist via `gh project field-create`.
+Back Log, Will Not Do) and the `role` field (options: product-manager,
+project-manager, software-engineer, senior-software-engineer,
+staff-software-engineer, solutions-architect, qa, docs-agent) exist via
+`gh project field-create`.
 
 ## Commands (use the discovered IDs)
 
