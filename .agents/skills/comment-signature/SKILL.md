@@ -51,48 +51,35 @@ fixed; do not substitute a name, model, or free-form handle.
 ## Body attribution (issues, tickets, PRs)
 
 The same signature rule applies to the **body** of any work product an agent
-creates. When an agent opens or authors an issue, ticket, or PR, the body MUST
-begin with that agent's signature. Keep the existing signed-comment rules for
-comments; this extends them to bodies.
+creates. When a role opens or authors an issue, ticket, or PR, the body MUST begin
+with **that role's** signature. The signature is the first line of the body,
+followed by the role's summary. Every other part of the body (sections, links,
+`Closes #n`) stays as-is.
 
-| Creator | Artifact | Body starts with |
-| ------- | -------- | ---------------- |
-| product-manager | epic issue body | `(product-manager-agent):` |
-| project-manager | sub-issue (spike/task) body | `(project-manager-agent):` |
-| software-engineer | task PR body | `(software-engineer-agent):` |
-| staff-software-engineer | feature PR body | `(staff-software-engineer-agent):` |
-
-The signature is the first line of the body, followed by the role's summary
-(see **PR body format** below for the task/feature PR shapes). Every other part
-of the body (sections, links, `Closes #n`) stays as-is.
+> **Which role signs** is role-specific policy — each role's persona under
+> `.opencode/agents/` states what it signs and where. This skill only defines the
+> format.
 
 ## Summary / verdict comments
 
-As the **LAST action** an agent takes on a work product (before reporting back to
-the orchestrator), it MUST leave one signed summary/verdict comment on the
-appropriate surface, so the context is never lost. One signature per comment.
-
-| Role | Surface (where the comment goes) | Content of the summary |
-| ---- | ------------------------------- | ---------------------- |
-| software-engineer | the task PR | summary of all changes: what was implemented, why, how verified |
-| senior-software-engineer | the task PR | review findings + verdict (`APPROVED` / `REJECTED` + **every issue** if rejected) |
-| staff-software-engineer | the feature PR | holistic review findings + verdict |
-| qa | the feature PR | what was checked + verdict (`APPROVED` / `REJECTED`) |
-| docs-agent | the feature PR | what was changed / verified in `agent-docs/` |
-| solutions-architect | the spike ticket | findings + recommended tasks (already required) |
-| product-manager | the epic ticket | summary of the epics created |
-| project-manager | the epic ticket | readiness summary with the ticket list |
-
-A rejection's comment MUST list every issue it blocks on; a project-manager reads
-these to build fix tickets. A reader should get the full picture from the signed
+As the **LAST action** a role takes on a work product (before reporting back), it
+MUST leave one signed summary/verdict comment on the appropriate surface, so the
+context is never lost. One signature per comment. A rejection's comment MUST list
+**every issue** it blocks on, so a reader gets the full picture from the signed
 summary alone.
+
+> **Who leaves the summary and on which surface** (a task PR, the feature PR, the
+> spike ticket, the epic ticket) is role-specific policy that lives in each role's
+> persona. This skill only defines that the summary must be signed and
+> self-contained.
 
 ## PR body format
 
-Task PR (opened by the **software-engineer**):
+A PR body (task PR or feature PR) starts with the opening role's signature, then a
+summary, then sections, then the ticket links:
 
 ```
-(software-engineer-agent): <1-2 sentence summary of what was implemented>
+(<role>-agent): <1-2 sentence summary>
 
 ## Changes
 - <file/area>: <what changed>
@@ -104,22 +91,12 @@ Task PR (opened by the **software-engineer**):
 ## Verification
 <how it was tested/verified>
 
-Closes #<task-number>
+Closes #<ticket-number>
 Part of #<epic-number>
 ```
 
-Feature PR (opened by the **staff-software-engineer**):
-
-```
-(staff-software-engineer-agent): <1-2 sentence summary of the epic>
-
-## Epic
-Part of #<epic-number>
-Closes #<epic-number>
-
-## Holistic review
-<summary of the final review findings>
-```
+(For a feature PR, the sections are the epic's `Part of` / `Closes` references and
+a holistic-review summary instead of per-task `Changes` / `Verification`.)
 
 ## Commands
 
