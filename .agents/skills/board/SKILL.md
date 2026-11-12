@@ -32,11 +32,18 @@ type at a glance. The prefix is part of the title, before a space:
 | Epic | `Epic: <title>` |
 | Spike | `Spike: <title>` |
 | Task | `Task: <title>` |
+| Bug | `Bug: <title>` |
 
 This is **enforced by the creator**: the **product-manager** writes `Epic:` on the
-epic issue it creates, and the **project-manager** writes `Spike:` / `Task:` on the
-sub-issues it decomposes. A ticket whose title lacks the correct prefix is
-non-conforming.
+epic issue it creates, and the **project-manager** writes `Spike:` / `Task:` /
+`Bug:` on the sub-issues it decomposes. A ticket whose title lacks the correct
+prefix is non-conforming.
+
+**Where a bug goes:** an **in-scope / blocking** bug found during review becomes a
+`Bug:` ticket **linked as a sub-issue of the epic** (the finding is recorded as a
+`Bug:`; the fix itself is a `Task:` worked in the same epic flow). An
+**unrelated, non-blocking** bug goes to the **Back Log** instead (see the
+`backlog` skill when it lands) and is **not** a sub-issue of the epic.
 
 ## Feature branch (per epic)
 
@@ -279,9 +286,9 @@ Closes #<epic-number>"
 - Every PR body MUST reference its ticket and the epic (`Closes #<n>` +
   `Part of #<epic>`) so the epic's "Linked pull requests" field populates.
 - Commit messages MUST reference the task ticket number.
-- **Ticket titles MUST carry a type prefix** — `Epic:`, `Spike:`, or `Task:` —
-  written by the creator (product-manager for epics, project-manager for
-  spikes/tasks). See **Ticket title convention**.
+- **Ticket titles MUST carry a type prefix** — `Epic:`, `Spike:`, `Task:`, or
+  `Bug:` — written by the creator (product-manager for epics, project-manager for
+  spikes/tasks/bugs). See **Ticket title convention**.
 - **Work-product bodies MUST be signed** by the creating role and end with a
   signed summary/verdict comment (see the `comment-signature` skill).
 - One task ticket → one PR (into the feature branch).

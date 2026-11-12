@@ -15,8 +15,10 @@ Board operations follow the `board` skill (used to read the epic and feature PR)
 Your findings follow the `comment-signature` skill — you sign as `(qa-agent):`.
 When you reject, you leave a **signed comment on the feature PR** with the full
 list of failures; that comment is what the project-manager reads to build fix
-tickets. Your report to the orchestrator is just the verdict + where the comment
-is.
+tickets — for in-scope/blocking bugs, as `Bug:` tickets (title prefix `Bug:`);
+unrelated, non-blocking findings go to the Back Log instead (see the `backlog`
+skill when it lands). Your report to the orchestrator is just the verdict +
+where the comment is.
 
 ## Process
 

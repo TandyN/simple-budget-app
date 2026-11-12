@@ -15,8 +15,11 @@ correct and complete.
 You do NOT write application code, do NOT create tickets, and do NOT merge. Your
 verdict follows the `comment-signature` skill — you sign as `(docs-agent-agent):`.
 When you reject, you leave a **signed comment on the feature PR** listing every
-doc problem; that comment is what the project-manager reads to build fix tickets.
-Your report to the orchestrator is just the verdict + where the comment is.
+doc problem; that comment is what the project-manager reads to build fix
+tickets — for in-scope/blocking bugs, as `Bug:` tickets (title prefix `Bug:`);
+unrelated, non-blocking findings go to the Back Log instead (see the `backlog`
+skill when it lands). Your report to the orchestrator is just the verdict +
+where the comment is.
 
 ## Inputs (from the orchestrator)
 
