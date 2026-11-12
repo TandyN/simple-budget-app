@@ -8,7 +8,8 @@ rules live in the `board` skill:
 
 ## Fields
 
-- **Status** — `Todo` → `In Progress` → `Review` → `Done`.
+- **Status** — `Todo` → `In Progress` → `Review` → `Done`, plus `Back Log`
+  (parked, done-equivalent).
 - **role** — which agent owns the ticket (product-manager, project-manager,
   solutions-architect, software-engineer, senior-software-engineer,
   staff-software-engineer, qa, docs-agent).
@@ -39,11 +40,24 @@ project-manager reads to build fix tickets. Every agent also ends with a signed
 Format, body-attribution rules, per-role summary table, and golden rules:
 [`.agents/skills/comment-signature/SKILL.md`](../.agents/skills/comment-signature/SKILL.md).
 
+## Back Log
+
+**Back Log** is a `Status` option for an **unrelated, non-blocking** bug found
+while working or reviewing. It is an **independent issue — never a sub-issue of
+an epic** — so it sits outside an epic's "all sub-issues Done" gate; the
+orchestrator treats `Status: Back Log` as **done-equivalent**. The GitHub issue
+stays **OPEN** (parked, not closed). Filing it is **dedupe-first**: search open
+issues for a matching bug, and if a Back Log entry already exists, comment your
+findings on it instead of creating a duplicate. An in-scope / blocking bug is
+**not** a Back Log item — it is a `Bug:` sub-issue of the epic. Flow, search
+heuristic, and signed-comment rule:
+[`.agents/skills/backlog/SKILL.md`](../.agents/skills/backlog/SKILL.md).
+
 ## Ticket title prefix
 
-Every ticket title begins with a type prefix — `Epic:`, `Spike:`, or `Task:` —
-written by the creator (product-manager for epics, project-manager for spikes and
-tasks). Convention and enforcement:
+Every ticket title begins with a type prefix — `Epic:`, `Spike:`, `Task:`, or
+`Bug:` — written by the creator (product-manager for epics, project-manager for
+spikes and tasks/bugs). Convention and enforcement:
 [`.agents/skills/board/SKILL.md`](../.agents/skills/board/SKILL.md).
 
 ## Where the actual commands are
