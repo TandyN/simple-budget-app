@@ -108,11 +108,20 @@ QA_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="role") | .option
 DOCS_ID=$(echo "$FIELDS_JSON" | jq -r '.fields[] | select(.name=="role") | .options[] | select(.name=="docs-agent") | .id')
 ```
 
-If the board doesn't exist, create it:
+If the board doesn't exist, create it — **create, then link** to the repo:
 
 ```bash
-gh project create --owner "$REPO_OWNER" --title "$BOARD_NAME" --format json
+# A Projects v2 board is owner-scoped by default; connecting it to the repo is
+# the separate `gh project link` step (create alone does NOT link it).
+CREATE_JSON=$(gh project create --owner "$REPO_OWNER" --title "$BOARD_NAME" --format json)
+NEW_PROJECT_NUM=$(echo "$CREATE_JSON" | jq -r '.number')
+gh project link "$NEW_PROJECT_NUM" --owner "$REPO_OWNER" --repo "$REPO"
 ```
+
+> **Board ↔ repo connection (the `link`) ≠ item connection.** `gh project link`
+> associates the board with the repository (visible under the repo's
+> Projects). Adding tickets to the board is the separate
+> `addProjectV2ItemById` step. Both are required, and they are different things.
 
 Then ensure the `Status` field (options: Todo, In Progress, Review, Done,
 Back Log) and the `role` field (options: product-manager, project-manager,
