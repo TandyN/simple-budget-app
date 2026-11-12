@@ -43,8 +43,11 @@ epic has three sections, read in this priority order:
   unblocks.
 - **task ticket** (`role: software-engineer`) — implementation. One self-contained
   job, ends in a PR into the feature branch.
+- **`Bug:` ticket** (`role: software-engineer`) — an in-scope / blocking bug
+  found during review; title prefix `Bug:`, linked as a sub-issue of the epic.
+  Filed by the project-manager from a reviewer's signed rejection.
 
-A sub-issue is always either a spike or a task, never both. Tickets that depend
+A sub-issue is a spike, a task, or a `Bug:` — never a mix. Tickets that depend
 on other work are linked with a **blocker** (`addBlockedBy`); a ticket is in the
 **ready set** (spawnable) only when all its blockers are `Done`.
 
@@ -90,6 +93,17 @@ opencode rather than assuming the change is live.
   staff-software-engineer, only after its final review **and** QA **and** the
   docs-agent pass all approve.
 - `main` is production; only the feature PR touches it.
+
+## Role-agnostic skills
+
+The shared skills (`board`, `backlog`, `comment-signature`, `config-reload`) are
+**role-agnostic**: each is a job any role can follow, describing mechanics (how to
+operate the board, how to sign a work product, how to file a Back Log entry, how
+to prompt a restart) — not who does what. **Role-specific policy** — which role
+does what (who creates the feature branch, who approves a task PR, who opens or
+merges the feature PR, who leaves which summary and where) — lives in each role's
+persona under `.opencode/agents/`, not in the skills. This keeps the shared skills
+short and reusable, and puts each role's obligations where they belong.
 
 ## The flow
 

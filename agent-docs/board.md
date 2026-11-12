@@ -42,8 +42,10 @@ produced it. Agents communicate findings and verdicts by **signed comments** (e.
 body. A rejection carries a signed comment listing every issue, which the
 project-manager reads to build fix tickets. Every agent also ends with a signed
 **summary/verdict comment** as its last action on the artifact it worked on.
-Format, body-attribution rules, per-role summary table, and golden rules:
+Format and golden rules:
 [`.agents/skills/comment-signature/SKILL.md`](../.agents/skills/comment-signature/SKILL.md).
+Which role signs what, and where each role's summary goes, is role-specific policy
+in each role's persona under `.opencode/agents/`.
 
 ## Back Log
 
@@ -64,6 +66,15 @@ Every ticket title begins with a type prefix — `Epic:`, `Spike:`, `Task:`, or
 `Bug:` — written by the creator (product-manager for epics, project-manager for
 spikes and tasks/bugs). Convention and enforcement:
 [`.agents/skills/board/SKILL.md`](../.agents/skills/board/SKILL.md).
+
+## Role-agnostic skills
+
+The shared skills (`board`, `backlog`, `comment-signature`, `config-reload`) are
+**role-agnostic**: they describe the mechanics any role can follow, and they
+discover IDs from the current repository. **Role-specific policy** — which role
+does what (who creates the feature branch, who approves a task PR, who opens or
+merges the feature PR, who leaves which summary and where) — lives in each role's
+persona under `.opencode/agents/`, not in the skills.
 
 ## Where the actual commands are
 
