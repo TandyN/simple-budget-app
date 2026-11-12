@@ -44,5 +44,5 @@ area's detail into this file — keep it a short map.
 
 - A **software-engineer** updating an area should keep the matching
   `budget-app/<area>.md` accurate and add new glossary terms.
-- The **docs-agent** reconciles everything here against the code before a feature
-  merges to `main`.
+- The **docs-agent** reconciles everything here against the code before the
+  feature PR merges to `main`.

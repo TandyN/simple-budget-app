@@ -21,7 +21,8 @@ the workflow described below.
 
 ## The model
 
-- The **story** is the feature. Each story gets ONE **feature branch**.
+- The **story** is the top-level unit of work (not necessarily a code feature —
+  it may be research or requirements). Each story gets ONE **feature branch**.
 - Task PRs merge into the feature branch. The **feature PR** (feature branch →
   `main`) is the only thing that touches production.
 - A subagent **cannot spawn another subagent**. All delegation funnels through

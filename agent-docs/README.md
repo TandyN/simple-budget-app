@@ -55,4 +55,4 @@ Rules of the shape:
 - The **docs-agent** does the **final pass once per story**, after QA approves
   and before the feature PR merges to `main`. It reviews every section 1 by 1
   against what is shipping, fixes what is wrong, and adds what is missing. Only
-  then is the feature merged.
+  then is the feature PR merged.

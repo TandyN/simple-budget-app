@@ -26,8 +26,9 @@ in its own topic doc, not here.
   (`.opencode/agents`, `.opencode/command`, `.agents/skills`), prompt the user to
   restart opencode; the change is inert until restart.
   [orchestration.md](orchestration.md#subagent-roster)
-- **story** — a feature; a tracking ticket with `Original Prompt` / `Summary` /
-  `Task` sections. [orchestration.md](orchestration.md#story)
+- **story** — the top-level unit of work (a tracking ticket that may be code,
+  research, or requirements — not necessarily a feature); has `Original Prompt` /
+  `Summary` / `Task` sections. [orchestration.md](orchestration.md#story)
 - **spike ticket** — a research ticket; done by the solutions-architect before
   the tasks it unblocks. [orchestration.md](orchestration.md#ticket-types)
 - **task ticket** — an implementation ticket; one job for one software-engineer,
