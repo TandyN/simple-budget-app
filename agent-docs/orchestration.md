@@ -51,6 +51,21 @@ A sub-issue is a spike, a task, or a `Bug:` — never a mix. Tickets that depend
 on other work are linked with a **blocker** (`addBlockedBy`); a ticket is in the
 **ready set** (spawnable) only when all its blockers are `Done`.
 
+## Milestones
+
+The **product-manager** assigns each story, and the **project-manager** assigns
+each sub-ticket (spike, task, `Bug:`), to the appropriate **open** GitHub
+Milestone when creating the ticket. The user maintains milestones manually; the
+agent chooses the right open one (`gh api repos/<owner>/<repo>/milestones`). If
+no sensible open milestone exists, leave it unset and note why in a signed
+comment.
+
+**Sub-issues do NOT inherit their parent's milestone.** Verified against the
+GitHub API: a sub-issue linked via `addSubIssue` keeps whatever milestone it was
+created with (unset stays unset; a pre-set milestone is not overwritten by the
+parent's). So every ticket's milestone must be set explicitly — never assume a
+sub-ticket inherited the story's milestone.
+
 ## Roles
 
 | Role | Job |

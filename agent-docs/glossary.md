@@ -37,6 +37,9 @@ in its own topic doc, not here.
   production. [orchestration.md](orchestration.md#branches-and-merge-ownership)
 - **blocker** — a ticket another ticket waits on; a ticket is ready only when
   all its blockers are `Done`. [orchestration.md](orchestration.md#ticket-types)
+- **milestone** — the user-maintained open GitHub milestone every story and
+  sub-ticket is assigned to at creation; sub-issues do NOT inherit the parent's
+  milestone, so it is set explicitly per ticket. [orchestration.md](orchestration.md#milestones)
 - **roles** — product-manager, project-manager, solutions-architect,
   software-engineer, senior-software-engineer, staff-software-engineer, qa,
   docs-agent. [orchestration.md](orchestration.md#roles)
