@@ -69,6 +69,10 @@ in its own topic doc, not here.
   "we will not do this" decision; the flow is label + signed reason comment +
   close. Distinct from `Back Log` (open, parked, done-equivalent) and `Done`
   (completed), and excluded from the story's done-gate. [board.md](board.md#wontfix)
+- **non-blocking finding** — a reviewer's incidental, non-blocking issue; on
+  **both** the APPROVED and REJECTED verdicts it MUST get a stated disposition
+  (`→ Back Log` or `→ in-story task`) in the signed verdict so it is never lost.
+  [board.md](board.md#back-log)
 - **`Bug:` ticket** — a `Bug:`-titled ticket for an in-scope / blocking bug found
   during review, linked as a sub-issue of the story. [board.md](board.md#ticket-title-prefix)
 - **`backlog` skill** — the shared, role-agnostic dedupe-first flow to file or
