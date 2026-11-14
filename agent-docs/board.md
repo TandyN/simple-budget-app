@@ -23,15 +23,21 @@ rules live in the `board` skill:
   board creation runs `gh project create` **then** `gh project link`. The link
   (board ↔ repo) is distinct from item connection (`addProjectV2ItemById`) —
   both are required.
-- **Dependency order.** A ticket spawns only when it is in the ready set (all
-  its blockers are `Done`). Spikes usually go first because tasks are blocked
-  on them, but the rule is blockers, not ticket type.
+- **Dependency order and done-gate.** A ticket spawns only when it is in the
+  ready set (all its blockers satisfy the **done-gate**). A sub-issue or blocker
+  satisfies the **done-gate** when its board `Status` is `Done` and its GitHub
+  issue is `CLOSED`, OR it is closed (`CLOSED`) with the `wontfix` label;
+  unrelated `Status: Back Log` items are independent open issues (never
+  sub-issues or blockers) and sit outside the story's done-gate. Spikes usually
+  go first because tasks are blocked on them, but the rule is blockers, not
+  ticket type.
 - **One feature branch per story.** All task PRs merge into the story feature
   branch; nothing task-related ever merges directly into `main`.
-- **Merge ownership** — task PR: approved by senior-software-engineer, merged by
-  software-engineer; feature PR (→ `main`): opened + merged by
-  staff-software-engineer, only after final review, QA, and the docs-agent pass
-  all approve.
+- **Merge ownership** — task PR: the `software-engineer` merges the task PR
+  (into the feature branch) after the `senior-software-engineer`'s `APPROVED`
+  verdict; the `senior-software-engineer` never merges. Feature PR (→ `main`):
+  opened + merged by `staff-software-engineer`, only after final review, QA, and
+  the `docs-agent` pass all approve.
 - **Main is production.** Only the feature PR touches it, and only after
   approval.
 
@@ -41,8 +47,11 @@ Every agent's work product — a comment, an issue/ticket body, or a PR body —
 **signed** with its role (`(role-agent):`) so the reader always knows who
 produced it. Agents communicate findings and verdicts by **signed comments** (e.g.
 `(senior-software-engineer-agent): ...`), never by editing another role's ticket
-body. A rejection carries a signed comment listing every issue, which the
-project-manager reads to build fix tickets. Every agent also ends with a signed
+body. A rejection carries a signed comment listing every issue: **story-level**
+rejections (`staff-software-engineer`, `qa`, `docs-agent`) are read by the
+`project-manager` to build `Bug:` fix tickets, whereas **pre-merge task-PR**
+rejections (`senior-software-engineer`) are read by the `software-engineer` to
+fix on that same task PR. Every agent also ends with a signed
 **summary/verdict comment** as its last action on the artifact it worked on.
 Format and golden rules:
 [`.agents/skills/comment-signature/SKILL.md`](../.agents/skills/comment-signature/SKILL.md).
