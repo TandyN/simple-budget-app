@@ -7,9 +7,13 @@ description: Use when an agent finds an unrelated, non-blocking bug while workin
 
 The **Back Log** is where an **unrelated, non-blocking** bug found while working
 or reviewing goes. It is a **`Status` option** on the board (not a tracker issue
-and **not** a sub-issue of any story). This skill is **role-agnostic**: any agent
-(senior-software-engineer, staff-software-engineer, qa, docs-agent, ...) that
-stumbles on such a bug follows it.
+and **not** a sub-issue of any story). Reviewer subagents
+(`senior-software-engineer`, `staff-software-engineer`, `qa`, `docs-agent`) do
+**not** create GitHub issues directly; they flag unrelated, non-blocking findings
+with `-> Back Log: <summary and details>` in their signed verdict comment. When a
+verdict comment (`APPROVED` **or** `REJECTED`) contains a `-> Back Log` finding,
+the **orchestrator** spawns the **project-manager**, which executes the
+dedupe-and-create procedure below.
 
 ## When to use
 
@@ -29,9 +33,9 @@ This rule is **not** only for rejections. **Any reviewer** — whether they
 be worked in the current story MUST give it a **stated disposition** in their
 signed verdict comment, so it is never left as an untracked mention:
 
-- `→ Back Log` — the reviewer flags it and routes it to the **project-manager**
-  (via the orchestrator), who files it here (dedupe-first) so it is captured and
-  traceable; **or**
+- `-> Back Log: <summary and details>` — the reviewer flags it and routes it to
+  the **project-manager** (via the orchestrator), who files it here
+  (dedupe-first) so it is captured and traceable; **or**
 - `→ in-story task` — it is being worked as a sub-issue of the current story.
 
 A bare "recommend a Back Log entry" with **no ticket and no explicit handoff is
@@ -51,6 +55,13 @@ the Back Log ticket from a flagged finding.
   and re-filable. Do **not** close it.
 
 ## Procedure (dedupe first)
+
+Reviewer subagents (`senior-software-engineer`, `staff-software-engineer`, `qa`,
+`docs-agent`) do **not** create GitHub issues directly; they flag unrelated,
+non-blocking findings with `-> Back Log: <summary and details>` in their signed
+verdict comment. When a verdict comment (`APPROVED` **or** `REJECTED`) contains a
+`-> Back Log` finding, the **orchestrator** spawns the **project-manager**, which
+executes the dedupe-and-create procedure below:
 
 1. **Dedupe before filing.** Search the repo's open issues for a matching bug:
 
