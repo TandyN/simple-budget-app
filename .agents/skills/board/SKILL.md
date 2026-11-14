@@ -38,9 +38,13 @@ The ticket's creator sets the prefix (a story is `Story:`, a sub-issue is `Spike
 `Task:`, or `Bug:`). A ticket whose title lacks the correct prefix is
 non-conforming.
 
-**Where a bug goes:** an **in-scope / blocking** bug found during review becomes a
-`Bug:` ticket **linked as a sub-issue of the story** (the finding is recorded as a
-`Bug:`; the fix itself is a `Task:` worked in the same story flow). An
+**Where a bug goes:** pre-merge issues on an unmerged Task PR are fixed by the
+`software-engineer` on that same Task PR. An **in-scope / blocking** bug found
+during story-level review (`staff-software-engineer`, `qa`, `docs-agent`) becomes
+a `Bug:` ticket (`role: software-engineer`, title prefix `Bug:`) **linked as a
+sub-issue of the story**. That `Bug:` ticket is itself the single actionable
+implementation ticket (worked by a `software-engineer` → 1 fix PR into the
+feature branch), not a separate tracker that spawns a second `Task:` ticket. An
 **unrelated, non-blocking** bug goes to the **Back Log** instead — follow the
 `backlog` skill for the dedupe-first / file-or-comment flow — and is **not** a
 sub-issue of the story.
@@ -63,12 +67,13 @@ closed, wontfix issue is not a blocker).
 ## Feature branch (per story)
 
 Each story has ONE **feature branch** (`feature/<story-number>-<slug>`), off
-`main`. It is created once the story is decomposed and declared ready. All task
-tickets for that story are implemented on branches cut from the feature branch and
-merged **into the feature branch** (not `main`). `main` is production and is only
-changed by the final **feature PR** (feature branch → `main`), which opens only
-after all tasks are `Done` and the final reviews (holistic story review, QA, and
-the docs pass) approve.
+`main`. It is created (or reused) by the project-manager on its initial pass for
+the story so unblocked tasks can branch immediately. All task tickets for that
+story are implemented on branches cut from the feature branch and merged **into
+the feature branch** (not `main`). `main` is production and is only changed by
+the final **feature PR** (feature branch → `main`), which opens only after all
+tasks are `Done` and the final reviews (holistic story review, QA, and the docs
+pass) approve.
 
 ## Discover IDs (run once per session)
 
@@ -140,12 +145,29 @@ staff-software-engineer, solutions-architect, qa, docs-agent) exist via
 
 ### Create a real GitHub Issue
 
-```
-gh api graphql -f query='
-mutation {
-  createIssue(input: { repositoryId: "<REPO_ID>", title: "<title>", body: "<body>" })
-  { issue { id number } }
-}'
+```bash
+# Discover open milestones (pick the appropriate open milestone's title)
+gh api "repos/$REPO_OWNER/$REPO_NAME/milestones?state=open"
+
+# Create issue safely using a single-quoted heredoc (prevents bash backtick/$VAR expansion)
+# and parameterized GraphQL variables (-f handles multi-line bodies and quotes):
+BODY=$(cat <<'EOF'
+(<role>-agent): <issue body>
+EOF
+)
+gh api graphql \
+  -f repoId="$REPO_ID" \
+  -f title="<title>" \
+  -f body="$BODY" \
+  -f query='
+  mutation($repoId: ID!, $title: String!, $body: String!) {
+    createIssue(input: { repositoryId: $repoId, title: $title, body: $body }) {
+      issue { id number }
+    }
+  }'
+
+# Assign the issue to the chosen open milestone (sub-issues do NOT inherit milestones)
+gh issue edit <issue-number> --milestone "<milestone-title>"
 ```
 
 ### Add an issue to the board
@@ -208,8 +230,41 @@ query {
 ```
 
 A ticket is in the **ready set** when every `blockedBy` node is `state: CLOSED`
-(i.e. all its blockers are Done). Spikes (research) are never blockers of each
-other unless explicitly linked; they must finish before the tasks they unblock.
+(i.e. all its blockers satisfy the done-gate). Spikes (research) are never
+blockers of each other unless explicitly linked; they must finish before the
+tasks they unblock.
+
+> A **sub-issue or blocker** of a story satisfies the done-gate when its board `Status` is `Done` **AND** its GitHub Issue is `state: CLOSED`, **OR** it is closed (`state: CLOSED`) with the `wontfix` label. (`Status: Back Log` issues are independent issues—never linked as sub-issues or blockers of a story—so they stay `state: OPEN` and sit outside the story's done-gate.)
+
+Because merging a Task PR into a story feature branch does not auto-close GitHub
+issues, `solutions-architect` (for spikes) and `software-engineer` (for
+tasks/`Bug:` tickets) MUST explicitly run `gh issue close <ticket-number>` when
+setting `Status: Done`.
+
+### List a story's sub-issues (to verify all sub-issues are Done)
+
+```bash
+gh api graphql -f nodeId="<story-node-id>" -f query='
+query($nodeId: ID!) {
+  node(id: $nodeId) {
+    ... on Issue {
+      subIssues(first: 50) {
+        nodes {
+          id number title state
+          labels(first: 10) { nodes { name } }
+          projectItems(first: 5) {
+            nodes {
+              fieldValueByName(name: "Status") {
+                ... on ProjectV2ItemFieldSingleSelectValue { name }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}'
+```
 
 ### Set a field value (status or role)
 
@@ -237,9 +292,9 @@ gh project field-list <PROJECT_NUM> --owner <REPO_OWNER> --format json
 
 ### Create the feature branch
 
-```
+```bash
 git checkout main && git pull
-git checkout -b feature/<story-number>-<slug>
+git checkout feature/<story-number>-<slug> 2>/dev/null || git checkout -b feature/<story-number>-<slug>
 git push -u origin feature/<story-number>-<slug>
 ```
 
@@ -248,14 +303,30 @@ git push -u origin feature/<story-number>-<slug>
 The PR merges into the story's **feature branch** (not `main`). The body MUST
 reference **both** the task ticket and the story so both issues stay linked, and
 MUST be **signed** with a summary by the role opening it (see the full format in
-the `comment-signature` skill).
+the `comment-signature` skill). Pass the body via `--body-file - <<'EOF'` so
+markdown backticks and quotes are never expanded by bash (**the closing `EOF`
+must be at column 0 with no leading spaces/tabs, and no body line may be
+literally `EOF`**, applying to `createIssue` above as well):
 
-```
+```bash
+# Open a task PR (task ticket -> feature branch)
 gh pr create --base feature/<story-number>-<slug> --head feature/<task-number>-<slug> \
   --title "<summary>" \
-  --body "(<role>-agent): <summary of changes>
+  --body-file - <<'EOF'
+(<role>-agent): <summary of changes>
+
+## Changes
+- <file/area>: <what changed>
+
+## Reasoning
+<why this approach>
+
+## Verification
+<how it was tested/verified>
+
 Closes #<task-number>
-Part of #<story-number>"
+Part of #<story-number>
+EOF
 ```
 
 ### Open the feature PR (feature branch → main) — only after all tasks Done
@@ -263,12 +334,55 @@ Part of #<story-number>"
 The body MUST be **signed** with a holistic summary by the role opening it (see
 the full format in the `comment-signature` skill).
 
-```
+```bash
+# Open the feature PR (feature branch -> main) — only after all tasks Done
 gh pr create --base main --head feature/<story-number>-<slug> \
   --title "<story title>" \
-  --body "(<role>-agent): <summary of the story>
+  --body-file - <<'EOF'
+(<role>-agent): <summary of the story>
+
+## Holistic review
+<holistic review summary>
+
 Part of #<story-number>
-Closes #<story-number>"
+Closes #<story-number>
+EOF
+```
+
+### Merge an approved task PR into the feature branch (`software-engineer`)
+
+Only rebase if the feature branch advanced, and check out the target branch
+*before* running `gh pr merge --delete-branch` so local branch deletion never
+fails:
+
+```bash
+git fetch origin
+git checkout feature/<task-number>-<slug> && git pull
+if ! git merge-base --is-ancestor origin/feature/<story-number>-<slug> HEAD; then
+  git rebase origin/feature/<story-number>-<slug>   # on conflicts: see note below (return to senior review)
+  # re-run verification before pushing
+  git push --force-with-lease origin feature/<task-number>-<slug>
+fi
+git checkout feature/<story-number>-<slug>
+gh pr merge <task-pr-number> --merge --delete-branch
+git pull origin feature/<story-number>-<slug>
+gh issue close <task-number>
+```
+
+> **Rebase & merge safeguards (`C13`):** If the rebase hits conflicts, resolve
+> them, `git rebase --continue`, re-verify, push, post a new signed
+> `(software-engineer-agent):` comment describing the conflict resolution, move
+> the ticket back to `Review`, and report back for **senior re-review** instead
+> of merging (never leave the shared working tree mid-rebase). If `gh pr merge`
+> fails with `Head branch was modified`, wait ~5 seconds and retry once.
+> **Never** pass `--admin` to `gh pr merge`.
+
+### Merge an approved feature PR into `main` (`staff-software-engineer`)
+
+```bash
+git checkout main
+gh pr merge <feature-pr-number> --merge --delete-branch
+git pull origin main
 ```
 
 ## Golden rules
