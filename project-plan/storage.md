@@ -78,7 +78,7 @@ a minimal, adapter-agnostic filter (e.g. `{ field: 'sourceRuleId', eq: ruleId }`
   user's budget is not visible to another.
 - **Optional hardening: client-side encryption with WebCrypto**, keyed by a
   user-provided passphrase. This is **deferred** (see
-  [open decisions](portability.md#open-decisions)) — on-device + no-network
+  [resolved MVP defaults](portability.md#resolved-mvp-defaults)) — on-device + no-network
   already satisfies "purely locally and securely" for the MVP. WebCrypto is
   available in WebKit (iOS), Chromium (Android), and the PWA, so this can be
   added behind the same adapter without a rewrite.
@@ -93,11 +93,11 @@ a minimal, adapter-agnostic filter (e.g. `{ field: 'sourceRuleId', eq: ruleId }`
 > **Threat model:** local-only storage protects against **remote** exposure. It
 > does not protect against someone with the same device account / physical access
 > reading the raw IndexedDB files. Passphrase encryption (WebCrypto) is the
-> mitigation for that class of threat, and is an open decision.
+> mitigation for that class of threat, and is a **deferred** future option.
 
-## Open decision (carried to the index)
+## Resolved MVP default (carried to the index)
 
-- **Is client-side encryption (WebCrypto, user passphrase) in scope for the MVP
-  or deferred?** Recommendation: **defer** — on-device, no-network already
-  satisfies the requirement. Tracked in
-  [portability.md → open decisions](portability.md#open-decisions).
+- **Client-side encryption (WebCrypto, user passphrase) is deferred for the MVP** —
+  on-device IndexedDB + zero network egress already satisfies the MVP
+  requirement. Tracked in
+  [portability.md → resolved MVP defaults](portability.md#resolved-mvp-defaults).
