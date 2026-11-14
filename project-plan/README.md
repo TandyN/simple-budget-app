@@ -1,8 +1,8 @@
 # Budget App — Backend Plan
 
 This is the **backend plan** for the simple budget app. It is a navigable,
-agent-consumable set of documents: this file is the index, and each of the six
-per-area docs is a self-contained hub you can read on its own.
+agent-consumable set of documents: this file is the index, and each of the
+seven per-area docs is a self-contained hub you can read on its own.
 
 Grounded in the user's ask (Story #5) and the solutions-architect's design
 findings (signed comment on spike #6), and extended by **Story #21** to add
@@ -20,11 +20,12 @@ README.md  (you are here — what this is, MVP scope, links, out-of-scope)
    ├── recurring-engine.md     — how recurring income/expense auto-posts (idempotent)
    ├── activity-model.md       — the unified, editable Activity record
    ├── portability.md          — PWA + iOS + Android boundary + interfaces
-   └── dependency-strategy.md  — zero prod deps + justified dev deps (Story #21)
+   ├── dependency-strategy.md  — zero prod deps + justified dev deps (Story #21)
+   └── testing.md              — Testing & CI/CD strategy (unit, integration, E2E, headless live-test rules)
 ```
 
 Read in this order for a first pass: **data-model → storage →
-recurring-engine → activity-model → portability → dependency-strategy**. Each doc
+recurring-engine → activity-model → portability → dependency-strategy → testing**. Each doc
 links to the others where the boundary matters.
 
 ## MVP scope (what the backend must support)
@@ -59,6 +60,7 @@ links to the others where the boundary matters.
 | 4 | Transaction / activity model | [activity-model.md](activity-model.md) |
 | 5 | Platform portability | [portability.md](portability.md) |
 | 6 | Dependency strategy | [dependency-strategy.md](dependency-strategy.md) |
+| 7 | Testing & CI/CD strategy (unit, integration, E2E, headless live-test rules) | [testing.md](testing.md) |
 
 ## Out of scope / future (explicitly NOT in the MVP)
 
@@ -72,4 +74,4 @@ links to the others where the boundary matters.
   three targets (PWA, iOS, Android).
 - **Analytics / insights** — tags are captured now (stored on each Activity) but
   no analytics features ship in the MVP.
-- **Client-side encryption** — see the [open decisions](portability.md#open-decisions).
+- **Client-side encryption** — see the [resolved MVP defaults](portability.md#resolved-mvp-defaults).
