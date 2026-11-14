@@ -113,9 +113,11 @@ Available Funds = Σ amount(activities where type ∈ {income, deposit})
 
 ```ts
 function computeAvailableFunds(activities: Activity[]): number {
-  return activities.reduce((sum, a) => {
-    return a.type === "expense" ? sum - a.amount : sum + a.amount;
+  const totalCents = activities.reduce((sumCents, a) => {
+    const cents = Math.round(a.amount * 100);
+    return a.type === "expense" ? sumCents - cents : sumCents + cents;
   }, 0);
+  return totalCents / 100;
 }
 ```
 
@@ -131,8 +133,8 @@ Why derive it:
 
 Note: `deposit` is treated as **money in** in this sum (same sign as `income`).
 Whether `deposit` should instead be a distinct kind, or folded into `income`
-with a tag, is an **open decision** — see
-[portability.md → open decisions](portability.md#open-decisions).
+with a tag, is a **resolved MVP default** (`deposit` is confirmed as a first-class `ActivityType` for the MVP) — see
+[portability.md → resolved MVP defaults](portability.md#resolved-mvp-defaults).
 
 ## Mapping the user's ask → activity model
 

@@ -40,6 +40,12 @@ you leave MUST be signed as `(product-manager-agent):`.
    so describe exactly what THIS story must deliver, its goal, scope, and what
    "done" looks like. This is what the project manager reads first to create
    sub-tickets.>
+
+   ### Assumptions
+   - <what you are assuming is true to make this story buildable and valuable>
+
+   ### Out of scope
+   - <what this story explicitly does NOT do (either deferred to later stories or excluded from the ask) to prevent scope creep>
    ```
 
    Section priority for the reader: **Task** is what to build for this story;

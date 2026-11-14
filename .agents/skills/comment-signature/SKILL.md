@@ -100,17 +100,25 @@ a holistic-review summary instead of per-task `Changes` / `Verification`.)
 
 ## Commands
 
-Comment on a ticket/issue:
+Pass multi-line markdown comments via `--body-file - <<'EOF'` (single-quoted
+`'EOF'` prevents bash from executing markdown `` `backticks` `` as shell command
+substitutions or expanding `$VARIABLES`):
 
-```
-gh issue comment <issue-number> --body "<signed comment>"
+```bash
+# Comment on a ticket/issue (single-quoted 'EOF' prevents bash expansion of backticks and $VARS):
+gh issue comment <issue-number> --body-file - <<'EOF'
+(<role>-agent): <signed comment>
+EOF
+
+# Comment on a PR (general PR comment, best for review summaries):
+gh pr comment <pr-number> --body-file - <<'EOF'
+(<role>-agent): <signed comment>
+EOF
 ```
 
-Comment on a PR (general PR comment, best for review summaries):
-
-```
-gh pr comment <pr-number> --body "<signed comment>"
-```
+> **Heredoc rule (`W1`):** The closing `EOF` must be at column 0 (the very start
+> of its line, with no leading spaces or tabs), and no line inside the body may
+> be literally `EOF`.
 
 ## Golden rules
 

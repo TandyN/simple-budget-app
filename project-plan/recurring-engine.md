@@ -224,9 +224,9 @@ activities. The activities are independent records; they keep their
 by `sourceRuleId` for an already-posted activity). This is the
 **"change-without-losing-history"** guarantee made explicit.
 
-## Notes and open questions
+## Notes and resolved defaults
 
-- **Back-fill on re-enable is the default.** Because the engine only posts
+- **Resolved MVP default — back-fill on re-enable.** Because the engine only posts
   `(lastPostPeriod, now]` for *active* rules and `lastPostPeriod` is not advanced
   while a rule is disabled, re-enabling a rule back-fills every due period that
   was skipped. Each back-filled period is still idempotency-guarded by

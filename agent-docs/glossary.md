@@ -26,6 +26,10 @@ in its own topic doc, not here.
   (`.opencode/agents`, `.opencode/command`, `.agents/skills`), prompt the user to
   restart opencode; the change is inert until restart.
   [orchestration.md](orchestration.md#subagent-roster)
+- **conventional-commits skill** — the role-agnostic commit format
+  `<type>(<scope>): <summary> (#<ticket>) (agent-generated)` every agent follows
+  when authoring a commit; agent commits carry the `(agent-generated)` marker and a
+  ticket reference. [orchestration.md](orchestration.md#role-agnostic-skills)
 - **story** — the top-level unit of work (a tracking ticket that may be code,
   research, or requirements — not necessarily a feature); has `Original Prompt` /
   `Summary` / `Task` sections. [orchestration.md](orchestration.md#story)
@@ -52,6 +56,10 @@ in its own topic doc, not here.
   action on the artifact it worked on. [board.md](board.md#signed-work-products)
 - **ticket title prefix** — `Story:` / `Spike:` / `Task:` / `Bug:` prefix on every
   ticket title. [board.md](board.md#ticket-title-prefix)
+- **done-gate** — a sub-issue or blocker is `Done` when its board `Status` is
+  `Done` **AND** its GitHub issue is `CLOSED`, OR it is closed with the `wontfix`
+  label; a ticket is in the ready set only when all its blockers satisfy it.
+  [orchestration.md](orchestration.md#ticket-types)
 - **verification gates** — the orchestrator's mandatory check that the expected
   signed summary/verdict comment exists on an artifact before proceeding to the
   next step. [orchestration.md](orchestration.md#verification-gates)
@@ -87,7 +95,7 @@ in its own topic doc, not here.
   model. [budget-app.md](budget-app.md)
 - **backend plan** — the navigable, pre-implementation design for the app's
   backend under `project-plan/` (data model, storage, recurring engine, activity
-  model, portability, dependency strategy).
+  model, portability, dependency strategy, testing).
   [budget-app.md](budget-app.md#the-backend-plan)
 - **RecurringRule** — the user-editable "what repeats"; separate from the
   activities it generates. [project-plan/data-model.md](../project-plan/data-model.md)
@@ -115,6 +123,7 @@ in its own topic doc, not here.
 - **zero-prod-deps** — `package.json` `dependencies` is empty; at runtime the app
   uses only IndexedDB, WebCrypto, `fetch`, `Date`/`Intl`, and pure TS logic.
   [project-plan/dependency-strategy.md](../project-plan/dependency-strategy.md)
+- **testing strategy** — the 3-layer test pyramid (Vitest unit/integration, Playwright E2E/regression, QA headless live spec check) and GitHub Actions CI gates, conditional on code infrastructure existing. [project-plan/testing.md](../project-plan/testing.md)
 
 > As backend / frontend / data topics land, add their terms here and split the
 > area doc into `budget-app/<area>.md` when it grows.

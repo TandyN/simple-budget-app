@@ -10,9 +10,9 @@ spawn subagents, and it works tickets in dependency order (a ticket only spawns
 a task once all its blockers are `Done`), spawning tasks serially.
 
 Model: the **story** is the feature. Each story has ONE **feature branch** (created
-by the project-manager when it declares readiness). Task PRs merge into the
-feature branch; the **feature PR** (feature branch → `main`) is the only thing
-that touches production.
+or reused by the project-manager on its **initial pass** so unblocked tasks can
+branch immediately). Task PRs merge into the feature branch; the **feature PR**
+(feature branch → `main`) is the only thing that touches production.
 
 Flow (all delegation funnels through the orchestrator, because a subagent cannot
 spawn another subagent):
@@ -20,26 +20,33 @@ spawn another subagent):
 1. **product-manager** creates the story ticket(s), each with three sections:
    `Original Prompt` (verbatim), `Summary` (the user's whole ask), and `Task`
    (this story's specific slice). Together the stories solve the full prompt.
-2. **project-manager** breaks the story into **spike** tickets (research) and
-   **task** tickets (implementation), links **blockers**, iterates spikes until
-   fully decomposed, declares readiness, and **creates the feature branch**.
+2. **project-manager** creates or reuses the story **feature branch** on its
+   **initial pass** so unblocked tasks can branch immediately, breaks the story
+   into **spike** tickets (research) and **task** tickets (implementation),
+   links **blockers**, iterates spikes until fully decomposed, and declares full
+   decomposition readiness once all spikes are decomposed.
 3. Orchestrator works the ready set in dependency order: spawns the
-   **solutions-architect** for spikes and the **software-engineer** for tasks
-   (serially, one at a time, in blocker order).
-4. **senior-software-engineer** reviews each task. Bugs → back to project-manager
-   for a fix ticket. Approved → the SE merges the task PR into the feature branch.
-5. When all tasks are `Done`, **staff-software-engineer** does a final holistic
-   story review.
-6. **Staff-software-engineer** opens the **feature PR** (→ `main`). Orchestrator
-   runs **QA once** on it. Problems → back to project-manager for fix tickets,
-   then repeat 3–6.
+   **solutions-architect** for spikes and the **software-engineer** for both
+   `Task:` and `Bug:` sub-issues (serially, one at a time, in blocker order).
+4. **senior-software-engineer** reviews each task PR. Rejections on an unmerged
+   task PR go back to the **software-engineer** on that same task ticket and
+   branch to push fixes; unrelated non-blocking findings (`-> Back Log`) go to
+   the **project-manager**. Approved -> the SE merges the task PR into the
+   feature branch and closes the task issue.
+5. When all sub-issues of the story (spikes, tasks, `Bug:` tickets) satisfy the
+   done-gate (`Done` + `CLOSED`, or closed with `wontfix`),
+   **staff-software-engineer** does a final holistic story review.
+6. **Staff-software-engineer** opens (or reuses, after a rejection loop) the
+   **feature PR** (-> `main`). Orchestrator runs **QA once** on it. Problems ->
+   back to project-manager for fix tickets, then repeat 3–6.
 7. After QA approves, the **docs-agent** does a **final pass over `agent-docs/`**
    (once per story): it reviews each section against what ships, fixes the docs in
    the feature PR, and reports back. Problems → back to project-manager for fix
    tickets, then repeat 3–7.
 8. **Staff-software-engineer** merges the feature PR into `main` only after the
    final review, QA, **and** the docs-agent pass all approve (it is the only role
-   that merges into `main`). Orchestrator then moves the story to `Done`.
+   that merges into `main`). Orchestrator then closes the story GitHub issue
+   (`gh issue close`) and moves the story to `Done`.
 
 **Never stop until every ticket on the board is `Done` and all feature PRs are
 merged to `main`.**
@@ -55,8 +62,9 @@ Follow the `comment-signature` skill (`.agents/skills/comment-signature/SKILL.md
 Agents communicate findings and verdicts by **signed comments** (e.g.
 `(solutions-architect-agent): ...`, `(senior-software-engineer-agent): ...`) on the
 ticket or PR — they never edit another role's ticket body. A rejection carries a
-signed comment listing every issue, which the project-manager reads to build fix
-tickets.
+signed comment listing every issue: a **story-level** rejection comment is read by
+the `project-manager` to build `Bug:` fix tickets, whereas a **pre-merge task-PR**
+rejection comment is read by the `software-engineer` to fix on that same task PR.
 
 ## Docs
 
@@ -75,6 +83,10 @@ never has to read another (e.g. frontend).
 ## Committing
 
 Follow the `conventional-commits` skill (`.agents/skills/conventional-commits/SKILL.md`).
+
+## Workspace Hygiene
+
+- **Never read or glob inside `.opencode/node_modules/` or `node_modules/`.** Those directories contain third-party package READMEs and changelogs that are unrelated to this repository and waste context.
 
 ## Golden rules
 
