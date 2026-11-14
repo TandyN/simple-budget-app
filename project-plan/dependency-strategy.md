@@ -51,7 +51,7 @@ runtime that a browser / WebView does not already provide.
 ## Dev dependencies (the allowed set)
 
 Each is chosen because it is the **current best-practice, well-maintained**
-package in its category. All four are actively maintained. None is a runtime /
+package in its category. All are actively maintained. None is a runtime /
 framework dependency — all are used only at build/test/lint time.
 
 | Area | Recommended | Why (as of plan date) |
@@ -59,13 +59,12 @@ framework dependency — all are used only at build/test/lint time.
 | Package manager | **pnpm** | strict/flat `node_modules`, fast, disk-efficient; the de-facto TS standard. (npm is the zero-config fallback.) |
 | Build / bundler | **Vite** | the current best web build tool; `build.lib` emits the shared bundle; pairs with Vitest. |
 | Testing | **Vitest** | the "best" TS test framework today — fast, ESM/TS-native, zero babel config, Vite-compatible, large community. |
+| E2E / browser testing | **Playwright (`@playwright/test`)** | the current standard for fast, reliable headless browser E2E testing across Chromium and WebKit. |
+| IndexedDB test polyfill | **`fake-indexeddb`** | pure-JS in-memory IndexedDB implementation so `src/storage/indexeddb.ts` can be unit-tested in Vitest (Node) alongside browser E2E tests. |
 | Lint + format | **Biome** | one tool (lint + format), sub-ms (Rust), no plugin config. (ESLint 9 + Prettier is the fallback if a plugin ecosystem is later needed.) |
 | Type check | **tsc** | the compiler itself; `tsc --noEmit` runs in CI. |
 
-**The full `devDependencies` set:** `vite`, `vitest`, `@biomejs/biome`,
-`typescript`. **No framework runtime deps** — not even React/Vue at runtime,
-because the backend is a framework-agnostic library and the PWA/shell UI is
-separate work ([portability.md](portability.md)).
+**The full `devDependencies` set:** `vite`, `vitest`, `fake-indexeddb`, `@playwright/test`, `@biomejs/biome`, `typescript`. **No framework runtime deps** — `dependencies` (production) MUST remain completely empty.
 
 ## What this buys
 
