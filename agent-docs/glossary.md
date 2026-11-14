@@ -87,7 +87,7 @@ in its own topic doc, not here.
   model. [budget-app.md](budget-app.md)
 - **backend plan** — the navigable, pre-implementation design for the app's
   backend under `project-plan/` (data model, storage, recurring engine, activity
-  model, portability, dependency strategy).
+  model, portability, dependency strategy, testing).
   [budget-app.md](budget-app.md#the-backend-plan)
 - **RecurringRule** — the user-editable "what repeats"; separate from the
   activities it generates. [project-plan/data-model.md](../project-plan/data-model.md)
@@ -115,6 +115,7 @@ in its own topic doc, not here.
 - **zero-prod-deps** — `package.json` `dependencies` is empty; at runtime the app
   uses only IndexedDB, WebCrypto, `fetch`, `Date`/`Intl`, and pure TS logic.
   [project-plan/dependency-strategy.md](../project-plan/dependency-strategy.md)
+- **testing strategy** — the 3-layer test pyramid (Vitest unit/integration, Playwright E2E/regression, QA headless live spec check) and GitHub Actions CI gates, conditional on code infrastructure existing. [project-plan/testing.md](../project-plan/testing.md)
 
 > As backend / frontend / data topics land, add their terms here and split the
 > area doc into `budget-app/<area>.md` when it grows.

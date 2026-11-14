@@ -12,6 +12,7 @@ Keep it split by area so a reviewer can read only what they need:
 | **backend** | APIs, business logic, validation, persistence | _not yet built_ — [planned](#the-backend-plan) |
 | **frontend** | UI, components, state, how it talks to the backend | _not yet built_ |
 | **data** | the budget data model, storage, what is persisted | _not yet built_ — [planned](#the-backend-plan) |
+| **testing** | test pyramid (Vitest, Playwright), CI pipeline, headless CLI verification rules | _not yet built_ — [planned](#the-backend-plan) |
 
 ## The backend plan
 
@@ -19,8 +20,8 @@ Before implementation begins, the backend is **planned** (not yet built). The
 navigable, agent-consumable plan lives at the repo root under
 [`project-plan/`](../project-plan/README.md) — a per-area set of docs covering
 the data model, local secure storage, the recurring-transaction engine, the
-activity model, platform portability (PWA now / iOS + Android later), and the
-dependency strategy (zero production deps).
+activity model, platform portability (PWA now / iOS + Android later), the
+dependency strategy (zero production deps), and the testing & CI/CD strategy.
 
 | Area | Doc |
 | ---- | --- |
@@ -31,6 +32,7 @@ dependency strategy (zero production deps).
 | Activity model | [project-plan/activity-model.md](../project-plan/activity-model.md) |
 | Portability (PWA / iOS / Android) | [project-plan/portability.md](../project-plan/portability.md) |
 | Dependency strategy | [project-plan/dependency-strategy.md](../project-plan/dependency-strategy.md) |
+| Testing & CI/CD strategy | [project-plan/testing.md](../project-plan/testing.md) |
 
 > The plan is the deliverable of Story #5. When the backend *ships*, the
 > `budget-app/backend.md` and `budget-app/data.md` area docs above will track
