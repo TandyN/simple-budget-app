@@ -30,7 +30,7 @@ Board operations follow the `board` skill. Your findings follow the
     - Specific proposed task tickets (each one a single software-engineer job).
     - Any open questions that need an answer from the user or the
       product/project-manager before the tasks can be defined.
-5. Move **your** spike ticket to `Done`.
+5. Move **your** spike ticket to `Done` on the board **and close the GitHub issue (`gh issue close <spike-number>`)** so downstream `blockedBy` GraphQL queries immediately see `state: CLOSED`.
 6. Report back to the orchestrator: the spike number and a short summary that
    your signed findings comment is on the ticket (plus any open questions that
    block further breakdown).
