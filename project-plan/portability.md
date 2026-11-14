@@ -190,10 +190,9 @@ only differences are:
 (a) the note that the IndexedDB adapter is shared with Android, (b) the
 secure-context check, and (c) Android named as a supported platform.
 
-## Open decisions
+## Resolved MVP defaults
 
-These are carried across the plan and summarized here. They are **open** —
-documented, recommended, and *not blocking* the MVP.
+These three design questions have locked-in **MVP defaults** so engineering tasks never block waiting for product-owner sign-off. Alternative approaches are documented as future options.
 
 ### A. Client-side encryption — in scope for the MVP or deferred?
 
@@ -205,8 +204,7 @@ documented, recommended, and *not blocking* the MVP.
 - **Why it's a decision:** encryption changes the UX (passphrase prompt, key
   recovery if forgotten) and the threat model. It does not change the data shape
   or the API surface, so deferring it costs nothing structurally.
-- **Decision needed by:** the product/project owner, before the storage
-  implementation ticket is built.
+- **MVP status: RESOLVED.** Use the recommended default above for the MVP; do not block implementation tickets on this item.
 
 ### B. Is `deposit` a first-class type, or an income-type Activity with a tag?
 
@@ -220,19 +218,16 @@ documented, recommended, and *not blocking* the MVP.
 - **Alternative:** model a deposit as `type: "income"` + `tags: ["deposit"]`.
   This removes a type value but muddies "money in" (salary) vs. "money in
   (deposit)" in reports.
-- **Decision needed by:** product owner. It is a **one-line** change to the
-  `ActivityType` union either way — cheap to make now or later.
+- **MVP status: RESOLVED.** Use the recommended default above for the MVP; do not block implementation tickets on this item.
 
 ### C. Back-fill on re-enable (from the recurring engine)
 
 - Current behavior: **re-enabling a disabled rule back-fills** every due period
   that was skipped, idempotency-guarded (see
-  [recurring-engine.md → notes](recurring-engine.md#notes-and-open-questions)).
+  [recurring-engine.md → notes](recurring-engine.md#notes-and-resolved-defaults)).
 - **Alternative:** advance `lastPostPeriod` to `now` when a rule is disabled, so
   a re-enabled rule does *not* back-fill (treats skipped periods as forgiven).
-- **Decision needed by:** product owner. Both are small, localized changes;
-  back-fill is the current recommendation because it preserves the user's
-  obligations.
+- **MVP status: RESOLVED.** Use the recommended default above for the MVP; do not block implementation tickets on this item.
 
 ## Mapping the user's ask → portability
 
