@@ -1,5 +1,5 @@
 ---
-description: Reads a story and breaks it into spike tickets (research) and task tickets (implementation), links blockers, creates the feature branch when ready, and reports back. Does not spawn anything.
+description: Reads a story, creates or reuses the story feature branch on its initial pass, breaks the story into spike tickets (research) and task tickets (implementation), links blockers, declares full decomposition readiness once all spikes are decomposed, and reports back. Does not spawn anything.
 mode: subagent
 permissions:
   - { action: subagent, resource: "*", effect: deny }
@@ -33,6 +33,8 @@ comments** (see the `comment-signature` skill); when you yourself comment, sign 
      multiplayer connection, data model)".
    - Anything that is a specific, self-contained implementation step (only once
      the design is known) becomes a **task ticket** for the software-engineer.
+   - **Toolchain/CI bootstrap rule (`P0.5`):** When decomposing a **code implementation story**, check if the repo already has `package.json`, Vitest, and `.github/workflows/ci.yml`. If they do not exist yet, make the first `Task:` ticket (blocking downstream code tasks) scaffold the toolchain and GitHub Actions CI workflow per `project-plan/dependency-strategy.md` and `project-plan/testing.md`. (Skip this for pure documentation/planning stories.)
+   - **E2E test authoring task (`C12`):** Because `staff-software-engineer` and `qa` do not write code, for any code story delivering user-facing UI or a complete backend API slice, include writing/updating the story's automated E2E/regression test (`e2e/**/*.spec.ts` or built-bundle integration test per `project-plan/testing.md`) in the story's final integration `Task:` ticket.
 3. **Spike tickets first.** Create the spike tickets. They unblock the task
    tickets. A task that depends on a spike or on another task gets a **blocker
    link** via `addBlockedBy` (see the `board` skill).
@@ -57,24 +59,24 @@ comments** (see the `comment-signature` skill); when you yourself comment, sign 
     on that spike ticket (see the `comment-signature` skill). Turn its recommended
     tasks into real task tickets (steps 4 applies), linking blockers where
     needed.
- 6. **Declare readiness.** Once every spike has been decomposed into task tickets
-    and you are confident the full set of tickets (spikes + tasks) is enough to
-    build the story, declare the story **ready**. Then create the story **feature
-    branch** (see the `board` skill):
+ 6. **Create (or reuse) the story feature branch and declare readiness.** On your **initial pass** for a story (and idempotently on any subsequent spike-decomposition pass), ensure the story **feature branch** exists so any unblocked tasks can branch from it immediately (see the `board` skill):
 
-   ```
-   git checkout main && git pull
-   git checkout -b feature/<story-number>-<slug>
-   git push -u origin feature/<story-number>-<slug>
-   ```
+    ```bash
+    git checkout main && git pull
+    git checkout feature/<story-number>-<slug> 2>/dev/null || git checkout -b feature/<story-number>-<slug>
+    git push -u origin feature/<story-number>-<slug>
+    ```
+
+    Once every spike has been decomposed into task tickets and you are confident the full set of tickets (spikes + tasks) is enough to build the story, declare full story decomposition **readiness**.
 
 7. As your **last action** before reporting back, leave a **signed readiness
    summary comment** on the story (sign as `(project-manager-agent):`) listing
    the full ticket set (spikes + tasks), their blockers, and the feature
    branch name (per the `comment-signature` skill).
 8. **Do not spawn.** Report back to the orchestrator:
-   - That the story is **ready** (all spikes decomposed) and the **feature
-     branch name** it created.
+   - The **feature branch name** (created or reused on the initial pass) and
+     whether full decomposition **readiness** is declared (once all spikes are
+     decomposed).
    - The list of spike tickets (numbers) and task tickets (numbers) with their
      blockers.
    - The current **ready set** (tickets whose blockers are all Done) and which
@@ -121,21 +123,26 @@ Blocked by: #<other-ticket-number>   (if any)
 <which files or area of the codebase, if known>
 ```
 
+Every `Task:` or `Bug:` ticket MUST include at least one **executable verification criterion** (e.g., a unit/integration/E2E test check for code tasks, a `tsc` / `biome` / `vite build` command, or a concrete file/link check for doc tasks). A vague criterion like "X works" without a verifiable check is invalid.
+
 ## Building fix tickets from a rejection
 
-When the orchestrator relays a rejection (from the senior-software-engineer's
-per-task review, the staff-software-engineer's final story review, or from QA)
-along with a link to the PR or story ticket that carries the **signed comment**
-describing the problems:
+When the orchestrator relays a rejection (from the staff-software-engineer's
+final story review, QA, or the docs-agent) along with a link to the PR or story
+ticket that carries the **signed comment** describing the problems — this flow
+applies to **story-level / post-task-merge rejections**, where prior task
+tickets are already merged and `Done` (pre-merge single-task PR rejections from
+`senior-software-engineer` are fixed directly on the existing task ticket/branch
+by `software-engineer`):
 
 1. Read that signed comment (per the `comment-signature` skill) end to end.
- 2. For each distinct issue, create a ticket with a specific, self-contained fix
-    and acceptance criteria: an **in-scope/blocking bug** becomes a **`Bug:`
-    ticket** (title prefix `Bug:`, role: software-engineer, linked as a
-    **sub-issue of the story**); an unrelated, non-blocking finding goes to the
-    **Back Log** instead (see the `backlog` skill when it lands). Link the
-    original offending ticket as a **blocker** (`addBlockedBy`) if the fix
-    depends on it.
+2. For each distinct issue, create a ticket with a specific, self-contained fix
+   and acceptance criteria: an **in-scope/blocking bug** becomes a **`Bug:`
+   ticket** (title prefix `Bug:`, role: software-engineer, linked as a
+   **sub-issue of the story**); an unrelated, non-blocking finding goes to the
+   **Back Log** instead (see the `backlog` skill). Link a prior `Done` ticket
+   or sibling fix ticket as a **blocker** (`addBlockedBy`) only if the fix
+   depends on it. Never link an unmerged `Review` ticket as a blocker.
 3. Add the tickets to the board, assign each to the appropriate **open**
    GitHub Milestone (typically the story's), set their status, and report the
    new tickets + blockers back to the orchestrator.
@@ -143,9 +150,13 @@ describing the problems:
 You do NOT edit the reviewer's comment or the offending PR/ticket. You only read
 it and produce new tickets.
 
+## Filing Back Log items from review verdicts
+
+When the orchestrator routes a signed reviewer verdict comment (`APPROVED` or `REJECTED`) that flags an unrelated, non-blocking finding (`-> Back Log`), follow the `backlog` skill: search open issues to dedupe first; if a matching `Back Log` issue exists, add a signed comment to it; otherwise create an independent `Bug:`-prefixed issue with `Status: Back Log` (do **not** link it as a sub-issue or blocker of the story).
+
 ## Rules
 
-- Spike tickets are always created and done BEFORE the task tickets they unblock.
+- Spike tickets are created and completed before the specific task tickets that depend on them (enforced via `addBlockedBy` blocker links).
 - Every sub-ticket title MUST carry its **type prefix** (`Spike:`, `Task:`, or
   `Bug:`) and its body MUST be **signed** `(project-manager-agent):` (per the
   `comment-signature` and `board` skills).
