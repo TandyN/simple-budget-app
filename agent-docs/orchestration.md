@@ -81,7 +81,7 @@ sub-ticket inherited the story's milestone.
 | ---- | --- |
 | **product-manager** | Creates the story ticket(s) from the prompt. |
 | **project-manager** | Creates (or reuses) the story feature branch on its initial pass, breaks the story into spikes + tasks, links blockers, builds `Bug:` sub-issues from story-level rejections, and files/dedupes `Back Log` tickets. |
-| **solutions-architect** | Works spikes: researches, leaves a signed comment with findings + recommended tasks, closes the spike issue, and moves it to `Done`. |
+| **solutions-architect** | Works spikes: researches, self-reviews findings against credible real-world best practice (mandatory before posting), leaves a signed comment with findings + recommended tasks, closes the spike issue, and moves it to `Done`. |
 | **software-engineer** | Implements exactly one `Task:` or `Bug:` sub-issue on a branch cut from the feature branch (`Bug:` sub-issues are worked identically to `Task:` tickets); opens a PR into the feature branch; updates docs best-effort; merges the task PR into the feature branch and closes the issue after `senior-software-engineer` approves. |
 | **senior-software-engineer** | Reviews a single task PR (`APPROVED` or `REJECTED`); never merges; leaves a signed verdict comment. |
 | **staff-software-engineer** | Final holistic story review once all sub-issues satisfy the done-gate; opens (or reuses) and merges the feature PR to `main`. |
