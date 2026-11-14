@@ -97,9 +97,11 @@ spikes and tasks/bugs). Convention and enforcement:
 
 ## Role-agnostic skills
 
-The shared skills (`board`, `backlog`, `comment-signature`, `config-reload`) are
-**role-agnostic**: they describe the mechanics any role can follow, and they
-discover IDs from the current repository. **Role-specific policy** — which role
+The shared skills (`board`, `backlog`, `comment-signature`, `config-reload`,
+`conventional-commits`) are **role-agnostic**: each describes a mechanic any role
+can follow (operate the board, sign a work product, file a Back Log entry, prompt
+a restart, format a commit message) — the board skill additionally discovers IDs
+from the current repository. **Role-specific policy** — which role
 does what (who creates the feature branch, who approves a task PR, who opens or
 merges the feature PR, who leaves which summary and where) — lives in each role's
 persona under `.opencode/agents/`, not in the skills.

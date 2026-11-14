@@ -126,10 +126,11 @@ opencode rather than assuming the change is live.
 
 ## Role-agnostic skills
 
-The shared skills (`board`, `backlog`, `comment-signature`, `config-reload`) are
-**role-agnostic**: each is a job any role can follow, describing mechanics (how to
-operate the board, how to sign a work product, how to file a Back Log entry, how
-to prompt a restart) — not who does what. **Role-specific policy** — which role
+The shared skills (`board`, `backlog`, `comment-signature`, `config-reload`,
+`conventional-commits`) are **role-agnostic**: each is a job any role can follow,
+describing mechanics (how to operate the board, how to sign a work product, how to
+file a Back Log entry, how to prompt a restart, how to format a commit message) —
+not who does what. **Role-specific policy** — which role
 does what (who creates the feature branch, who approves a task PR, who opens or
 merges the feature PR, who leaves which summary and where) — lives in each role's
 persona under `.opencode/agents/`, not in the skills. This keeps the shared skills

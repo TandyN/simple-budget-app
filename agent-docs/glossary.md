@@ -26,6 +26,10 @@ in its own topic doc, not here.
   (`.opencode/agents`, `.opencode/command`, `.agents/skills`), prompt the user to
   restart opencode; the change is inert until restart.
   [orchestration.md](orchestration.md#subagent-roster)
+- **conventional-commits skill** — the role-agnostic commit format
+  `<type>(<scope>): <summary> (#<ticket>) (agent-generated)` every agent follows
+  when authoring a commit; agent commits carry the `(agent-generated)` marker and a
+  ticket reference. [orchestration.md](orchestration.md#role-agnostic-skills)
 - **story** — the top-level unit of work (a tracking ticket that may be code,
   research, or requirements — not necessarily a feature); has `Original Prompt` /
   `Summary` / `Task` sections. [orchestration.md](orchestration.md#story)
@@ -52,6 +56,10 @@ in its own topic doc, not here.
   action on the artifact it worked on. [board.md](board.md#signed-work-products)
 - **ticket title prefix** — `Story:` / `Spike:` / `Task:` / `Bug:` prefix on every
   ticket title. [board.md](board.md#ticket-title-prefix)
+- **done-gate** — a sub-issue or blocker is `Done` when its board `Status` is
+  `Done` **AND** its GitHub issue is `CLOSED`, OR it is closed with the `wontfix`
+  label; a ticket is in the ready set only when all its blockers satisfy it.
+  [orchestration.md](orchestration.md#ticket-types)
 - **verification gates** — the orchestrator's mandatory check that the expected
   signed summary/verdict comment exists on an artifact before proceeding to the
   next step. [orchestration.md](orchestration.md#verification-gates)
