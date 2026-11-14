@@ -25,7 +25,7 @@ interface RecurringRule {
   id: string;          // e.g. uuid v4, generated client-side
   name: string;        // user-facing label, e.g. "Rent", "Salary"
   type: RuleType;      // income | expense (deposit is an Activity-level type, see below)
-  amount: number;      // positive magnitude, in the currency unit
+  amount: number;      // positive magnitude in the currency unit (up to 2 decimal places; arithmetic uses integer-cent rounding to prevent IEEE-754 float drift)
   currency: string;    // ISO-4217, default "USD"; stored so it can vary per rule
   schedule: Schedule;  // see below — MVP is monthly, day 1
   active: boolean;     // false = paused/disabled; engine skips it
@@ -49,7 +49,7 @@ interface Schedule {
 - A **disabled** rule (`active: false`) is never re-activated by the engine, but
   any activities it already produced remain in the log and stay editable.
 - **`deposit` is not a `RuleType`.** Recurring rules are income or expense; a
-  *deposit* is a manual Activity type (see [open decision B](portability.md#open-decisions)).
+  *deposit* is a manual Activity type (see [resolved MVP default B](portability.md#resolved-mvp-defaults)).
 
 ### 2. `Activity` — a concrete, independent, always-editable record
 
@@ -60,7 +60,7 @@ type ActivitySource = "manual" | "recurring";
 interface Activity {
   id: string;            // uuid v4
   type: ActivityType;    // income | expense | deposit
-  amount: number;        // positive magnitude
+  amount: number;        // positive magnitude in the currency unit (up to 2 decimal places; arithmetic uses integer-cent rounding to prevent IEEE-754 float drift)
   currency: string;      // ISO-4217
   dateTime: string;      // ISO-8601; defaults to "now" at creation, always editable
   tags: string[];        // free-form manual tags, e.g. ["housing","rent"]
@@ -79,6 +79,7 @@ interface Activity {
 - **Every field is editable** by the user after creation — including the
   `type`, `amount`, `dateTime`, and `tags` of an auto-generated record. Editing
   an auto-generated Activity does **not** change the source rule.
+- **Currency amount validation invariant:** Runtime validation (`src/core/validate.ts`) MUST assert `Number.isFinite(amount) && amount > 0 && Math.round(amount * 100) / 100 === amount` on all rule and activity inputs so stored amounts never contain sub-cent fractions or `NaN`/`Infinity`.
 
 ## Relationships
 
@@ -105,16 +106,17 @@ Available Funds = sum(amount of Activities where type ∈ {income, deposit})
 - Because it is derived, any edit to any Activity is automatically reflected —
   no cache to invalidate, no stale number to reconcile.
 - **`deposit`** counts as *money in* (treated like income in the Available Funds
-  sum). See the [open decision on `deposit`](portability.md#open-decisions).
+  sum). See the [resolved MVP default on deposit](portability.md#resolved-mvp-defaults).
 
 ```ts
 function computeAvailableFunds(activities: Activity[]): number {
-  let available = 0;
+  let availableCents = 0;
   for (const a of activities) {
-    if (a.type === "expense") available -= a.amount;
-    else available += a.amount; // income or deposit
+    const cents = Math.round(a.amount * 100);
+    if (a.type === "expense") availableCents -= cents;
+    else availableCents += cents; // income or deposit
   }
-  return available;
+  return availableCents / 100;
 }
 ```
 
