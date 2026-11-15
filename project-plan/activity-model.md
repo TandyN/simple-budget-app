@@ -19,13 +19,15 @@ same way, and edited the same way. The only difference is the provenance fields:
 interface Activity {
   id: string;
   type: "income" | "expense" | "deposit";
-  amount: number;
+  amountCents: number;   // positive integer, in minor units (cents); canonical stored shape
   currency: string;
   dateTime: string;      // defaults to "now" at creation, always editable
   tags: string[];
-  source: "manual" | "recurring";
+  source: "manual" | "recurring" | "bank-sync";
   sourceRuleId?: string; // present iff source === "recurring"
   period?: string;       // present iff source === "recurring"
+  externalTxnId?: string;// reserved for a future bank-sync project (re-sync dedupe key)
+  sourceAccountId?: string; // reserved for a future bank-sync project (linked account)
   memo?: string;
   createdAt: string;
   updatedAt: string;
@@ -51,8 +53,9 @@ Funds calculation all treat them identically. There is no "recurring table" vs.
 - Tags are **unconstrained strings** in the MVP (no global tag dictionary, no
   schema). This keeps the MVP small; a shared tag list / autocomplete is a
   future enhancement that does not change the data shape.
-- Tags are the seed for **future analytics** (group-by-tag rollups). They are
-  *captured now* and *used later* — analytics features are out of MVP scope.
+- Tags power the **insights/search surface** in the MVP: query activities by
+  date range + tag + type, and roll up spend/income **by tag**. See
+  [Insights / search](#insights--search).
 
 ## Timestamps: default to "now", always editable
 
@@ -79,7 +82,7 @@ surface is identical:
 | Field | Editable | Notes |
 | ----- | -------- | ----- |
 | `type` | yes | e.g. reclassify an auto-posted "expense" as "deposit" |
-| `amount` | yes | change the magnitude |
+| `amountCents` | yes | change the magnitude (integer cents) |
 | `dateTime` | yes | back-date or forward-date |
 | `tags` | yes | add / remove any |
 | `memo` | yes | free text |
@@ -107,25 +110,29 @@ Consequences that fall out of this design:
 activity log:
 
 ```
-Available Funds = Σ amount(activities where type ∈ {income, deposit})
-                − Σ amount(activities where type === expense)
+Available Funds = Σ amountCents(activities where type ∈ {income, deposit})
+                − Σ amountCents(activities where type === expense)
 ```
 
 ```ts
 function computeAvailableFunds(activities: Activity[]): number {
   const totalCents = activities.reduce((sumCents, a) => {
-    const cents = Math.round(a.amount * 100);
-    return a.type === "expense" ? sumCents - cents : sumCents + cents;
+    return a.type === "expense" ? sumCents - a.amountCents : sumCents + a.amountCents;
   }, 0);
-  return totalCents / 100;
+  return totalCents; // integer cents (minor units); convert to decimal only at the display boundary
 }
 ```
 
+`computeAvailableFunds` operates on **integer cents** (`amountCents`) — pure
+integer addition/subtraction, no `Math.round(a.amount * 100)` and no float
+drift. The decimal-unit display is a boundary concern (see
+[data-model.md](data-model.md#the-two-core-entities)).
+
 Why derive it:
 
-- **Always consistent.** Any edit to any activity (amount, type, delete) is
-  automatically reflected — there is no separate balance to update, no cache to
-  invalidate, and no way for a stored balance to drift from the log.
+- **Always consistent.** Any edit to any activity (`amountCents`, type, delete)
+  is automatically reflected — there is no separate balance to update, no cache
+  to invalidate, and no way for a stored balance to drift from the log.
 - **Trivially recomputable.** It is a pure function of the activity list, so it
   is cheap to recompute and trivially unit-testable.
 - **The log is the single source of truth.** "Available Funds" is a *view* over
@@ -136,6 +143,86 @@ Whether `deposit` should instead be a distinct kind, or folded into `income`
 with a tag, is a **resolved MVP default** (`deposit` is confirmed as a first-class `ActivityType` for the MVP) — see
 [portability.md → resolved MVP defaults](portability.md#resolved-mvp-defaults).
 
+## Insights / search
+
+The MVP provides a **fast search-and-summarize surface** over the activity log —
+this is what "manual tagging for future insight / analytics" and "search/filter
+by period + tag" resolve to. It is a **pure, derived query over `Activity`
+records** (no stored aggregates, no analytics engine), so it stays in `core/`,
+is trivially unit-testable, and scales to a 5-year history.
+
+Two operations, both returning **plain data** (integer cents, no framework
+state):
+
+### 1. `searchActivities(filter)` — filter by intersecting predicates
+
+Query activities by **date range + tag + type**. All supplied predicates are
+**intersecting** (logical AND) — omit a predicate to leave it unbounded:
+
+```ts
+interface ActivitySearchFilter {
+  since?: string;   // ISO-8601 lower bound, inclusive  (e.g. "2026-01-01T00:00:00Z")
+  until?: string;   // ISO-8601 upper bound, exclusive  (e.g. "2026-12-01T00:00:00Z")
+  tag?: string;     // activity.tags must include this tag
+  type?: ActivityType; // income | expense | deposit
+}
+
+function searchActivities(activities: Activity[], filter: ActivitySearchFilter): Activity[] {
+  return activities.filter((a) =>
+    (filter.since === undefined || a.dateTime >= filter.since) &&
+    (filter.until === undefined || a.dateTime <  filter.until) &&
+    (filter.tag   === undefined || a.tags.includes(filter.tag)) &&
+    (filter.type  === undefined || a.type === filter.type)
+  );
+}
+```
+
+- **Date range** is on `dateTime` (the transaction time, stored UTC) — so
+  "all of 2026" is `since: 2026-01-01T00:00:00Z, until: 2027-01-01T00:00:00Z`.
+  A 5-year window is just a wider range; the filter itself is O(n) over the
+  log, which is fine for local data and is where a storage index on `(dateTime)`
+  / `(tag, dateTime)` can later be slotted in behind the
+  [`StorageAdapter`](storage.md) without changing this contract.
+- **`tag` + `type`** combine with the range — e.g. *housing expense in Q3 2026*.
+
+### 2. `summarizeByTag(activities)` — roll up by tag
+
+Aggregate a (possibly filtered) activity set into a per-tag rollup of money in
+and money out, in **integer cents**:
+
+```ts
+interface TagSummary {
+  tag: string;
+  totalInCents: number;  // Σ amountCents where type ∈ {income, deposit}
+  totalOutCents: number; // Σ amountCents where type === expense
+}
+
+function summarizeByTag(activities: Activity[]): TagSummary[] {
+  const byTag = new Map<string, TagSummary>();
+  for (const a of activities) {
+    for (const tag of a.tags) {
+      let s = byTag.get(tag);
+      if (!s) { s = { tag, totalInCents: 0, totalOutCents: 0 }; byTag.set(tag, s); }
+      if (a.type === "expense") s.totalOutCents += a.amountCents;
+      else s.totalInCents += a.amountCents; // income or deposit
+    }
+  }
+  return [...byTag.values()].sort((x, y) => x.tag.localeCompare(y.tag));
+}
+```
+
+- All arithmetic is **integer-domain** (`amountCents`), consistent with
+  `computeAvailableFunds`.
+- An activity with multiple tags contributes its cents to **each** of its tags
+  (a rent activity tagged `["housing","rent"]` counts once toward both).
+- `deposit` counts as **money in**, matching Available Funds.
+
+Typical composition: `summarizeByTag(searchActivities(all, { since, until, tag, type }))`
+gives "where did my money go, by tag, over this period" — the insight the user
+asks for, answered entirely from the derived log. These two methods are exposed
+on the `BudgetApi` public surface
+([portability.md](portability.md#the-public-api-what-the-front-end-calls)).
+
 ## Mapping the user's ask → activity model
 
 | User's ask | Model answer |
@@ -145,5 +232,7 @@ with a tag, is a **resolved MVP default** (`deposit` is confirmed as a first-cla
 | "all activity is editable" | every user-editable field on every Activity, manual or recurring |
 | "defaulted to the current time, with the ability to change it" | `dateTime` defaults to now, always editable |
 | "manual tagging for future insight / analytics" | `tags: string[]` on every Activity |
+| "search/filter by period + tag" | `searchActivities({ since, until, tag, type })` (Insights / search) |
+| "analyze by tag over a period" | `summarizeByTag(searchActivities(...))` (Insights / search) |
 | "Available Funds = income minus expenses" | derived from the activity log (above) |
 | "change recurring expenses/income whenever I want (without losing history)" | edit the `RecurringRule`; posted Activities are independent and preserved |

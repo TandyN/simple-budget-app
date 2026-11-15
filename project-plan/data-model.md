@@ -25,7 +25,7 @@ interface RecurringRule {
   id: string;          // e.g. uuid v4, generated client-side
   name: string;        // user-facing label, e.g. "Rent", "Salary"
   type: RuleType;      // income | expense (deposit is an Activity-level type, see below)
-  amount: number;      // positive magnitude in the currency unit (up to 2 decimal places; arithmetic uses integer-cent rounding to prevent IEEE-754 float drift)
+  amountCents: number;  // positive integer, in minor units (cents). Canonical stored shape — all arithmetic is integer-domain.
   currency: string;    // ISO-4217, default "USD"; stored so it can vary per rule
   schedule: Schedule;  // see below — MVP is monthly, day 1
   active: boolean;     // false = paused/disabled; engine skips it
@@ -55,18 +55,22 @@ interface Schedule {
 
 ```ts
 type ActivityType = "income" | "expense" | "deposit";
-type ActivitySource = "manual" | "recurring";
+type ActivitySource = "manual" | "recurring" | "bank-sync";
 
 interface Activity {
   id: string;            // uuid v4
   type: ActivityType;    // income | expense | deposit
-  amount: number;        // positive magnitude in the currency unit (up to 2 decimal places; arithmetic uses integer-cent rounding to prevent IEEE-754 float drift)
+  amountCents: number;   // positive integer, in minor units (cents). Canonical stored shape — all arithmetic is integer-domain.
   currency: string;      // ISO-4217
   dateTime: string;      // ISO-8601; defaults to "now" at creation, always editable
   tags: string[];        // free-form manual tags, e.g. ["housing","rent"]
-  source: ActivitySource;// manual | recurring
+  source: ActivitySource;// manual | recurring | bank-sync
   sourceRuleId?: string; // set when source === "recurring"; id of the RecurringRule
   period?: string;       // set when source === "recurring"; the period it was posted for (e.g. "2026-11")
+  // Bank-sync slots — RESERVED for a future bank-sync project. NOT used by the
+  // MVP, so introducing them requires no data migration of existing records.
+  externalTxnId?: string;// stable external transaction id from the bank feed; the re-sync dedupe key
+  sourceAccountId?: string; // the linked bank account this txn came from
   memo?: string;         // optional free-text note
   createdAt: string;     // ISO-8601; when the record was created
   updatedAt: string;     // ISO-8601; when last edited
@@ -76,10 +80,33 @@ interface Activity {
 - **`source` + `sourceRuleId` + `period`** let us answer "was this auto-posted
   by which rule, for which period?" — which is what makes re-posting idempotent
   (see [recurring-engine.md](recurring-engine.md)).
+- **`source: "bank-sync"` + `externalTxnId` + `sourceAccountId`** are
+  **reserved** for a future bank-sync project (bank-OAuth / account feed). They
+  are **not used by the MVP**, and because they are already in the shape the
+  bank-sync project needs no data migration — it simply starts populating them.
+  `externalTxnId` is the stable id a bank assigns to a transaction (the re-sync
+  dedupe key); `sourceAccountId` names the linked bank account. The bank-OAuth
+  *flow* + token storage is a **future platform-layer project** — this model only
+  reserves the slots, it does not design the OAuth mechanics.
 - **Every field is editable** by the user after creation — including the
-  `type`, `amount`, `dateTime`, and `tags` of an auto-generated record. Editing
+  `type`, `amountCents`, `dateTime`, and `tags` of an auto-generated record. Editing
   an auto-generated Activity does **not** change the source rule.
-- **Currency amount validation invariant:** Runtime validation (`src/core/validate.ts`) MUST assert `Number.isFinite(amount) && amount > 0 && Math.round(amount * 100) / 100 === amount` on all rule and activity inputs so stored amounts never contain sub-cent fractions or `NaN`/`Infinity`.
+- **Money is integer cents, always.** The **stored** shape of money is
+  `amountCents: number`, a **positive integer in the currency's minor unit
+  (cents)**. All arithmetic — Available Funds, tag rollups, engine posting — is
+  **integer-domain**, so there is no IEEE-754 float drift to round away.
+- **Decimal units are a boundary-only concern.** `toCents(decimal)` /
+  `fromCents(cents)` are **input/output boundary conversions only**: the UI (and
+  the recurring engine, which copies a rule's cents onto a posted activity) may
+  present or accept a human decimal unit, but it is converted to/from `amountCents`
+  at the boundary. The value that is *stored* and that *flows through the core*
+  is always `amountCents`.
+- **Input guard (not a stored-value strategy).** Runtime validation
+  (`src/core/validate.ts`) MUST assert `Number.isFinite(decimal) && decimal > 0 &&
+  Number.isInteger(Math.round(decimal * 100))` on any **decimal-unit input** so the
+  derived `amountCents` is a whole cent (no sub-cent fractions, no `NaN`/`Infinity`).
+  The invariant is on the **boundary input**, not on the stored field — the stored
+  field is `amountCents` itself, already an integer by construction.
 
 ## Relationships
 
@@ -98,11 +125,13 @@ RecurringRule 1 ──── * Activity
 ## Derived values (never stored)
 
 ```
-Available Funds = sum(amount of Activities where type ∈ {income, deposit})
-                − sum(amount of Activities where type === expense)
+Available Funds = sum(amountCents of Activities where type ∈ {income, deposit})
+                − sum(amountCents of Activities where type === expense)
 ```
 
 - Computed **on demand** from the activity log.
+- All arithmetic is **integer-domain** (`amountCents`), so there is no float
+  drift to round away.
 - Because it is derived, any edit to any Activity is automatically reflected —
   no cache to invalidate, no stale number to reconcile.
 - **`deposit`** counts as *money in* (treated like income in the Available Funds
@@ -112,11 +141,10 @@ Available Funds = sum(amount of Activities where type ∈ {income, deposit})
 function computeAvailableFunds(activities: Activity[]): number {
   let availableCents = 0;
   for (const a of activities) {
-    const cents = Math.round(a.amount * 100);
-    if (a.type === "expense") availableCents -= cents;
-    else availableCents += cents; // income or deposit
+    if (a.type === "expense") availableCents -= a.amountCents;
+    else availableCents += a.amountCents; // income or deposit
   }
-  return availableCents / 100;
+  return availableCents; // integer cents (minor units)
 }
 ```
 
@@ -125,13 +153,13 @@ function computeAvailableFunds(activities: Activity[]): number {
 | Field | Editable by user? | Notes |
 | ----- | ----------------- | ----- |
 | `RecurringRule.name` | yes | |
-| `RecurringRule.amount` | yes | Affects **future** periods only |
+| `RecurringRule.amountCents` | yes | Affects **future** periods only |
 | `RecurringRule.type` | yes | Affects **future** periods only |
 | `RecurringRule.schedule` | yes | Affects **future** periods only |
 | `RecurringRule.active` | yes | Toggles whether the engine posts new periods |
 | `RecurringRule.lastPostPeriod` | no | Internal engine state; not user-editable |
 | `Activity.type` | yes | Manual **or** recurring |
-| `Activity.amount` | yes | Manual **or** recurring |
+| `Activity.amountCents` | yes | Manual **or** recurring |
 | `Activity.dateTime` | yes | Defaults to "now" at creation, always changeable |
 | `Activity.tags` | yes | Free-form, any time |
 | `Activity.memo` | yes | |
