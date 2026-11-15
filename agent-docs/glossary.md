@@ -93,10 +93,10 @@ in its own topic doc, not here.
 
 - **budget-app** — the application itself: its backend, frontend, and data
   model. [budget-app.md](budget-app.md)
-- **backend plan** — the navigable, pre-implementation design for the app's
-  backend under `project-plan/` (data model, storage, recurring engine, activity
-  model, portability, dependency strategy, testing).
-  [budget-app.md](budget-app.md#the-backend-plan)
+- **app plan** — the navigable, pre-implementation design-of-record for the
+  whole app under `project-plan/` (data model, storage, recurring engine,
+  activity model, frontend/PWA, portability, dependency strategy, testing).
+  [budget-app.md](budget-app.md#the-app-plan)
 - **RecurringRule** — the user-editable "what repeats"; separate from the
   activities it generates. [project-plan/data-model.md](../project-plan/data-model.md)
 - **Activity** — one unified, always-editable record (manual or auto-posted);
@@ -124,6 +124,12 @@ in its own topic doc, not here.
   uses only IndexedDB, WebCrypto, `fetch`, `Date`/`Intl`, and pure TS logic.
   [project-plan/dependency-strategy.md](../project-plan/dependency-strategy.md)
 - **testing strategy** — the 3-layer test pyramid (Vitest unit/integration, Playwright E2E/regression, QA headless live spec check) and GitHub Actions CI gates, conditional on code infrastructure existing. [project-plan/testing.md](../project-plan/testing.md)
+- **integer-cent money** — amounts stored as canonical integer `amountCents` (minor units), integer arithmetic throughout, decimal-unit conversion only at the display boundary. [project-plan/data-model.md](../project-plan/data-model.md#derived-values-never-stored)
+- **insights / search surface** — `searchActivities(filter)` (period + tag + type) and `summarizeByTag(activities)` (roll-up), pure and derived from the activity log, so 5-year tag analysis needs no stored aggregate. [project-plan/activity-model.md](../project-plan/activity-model.md#insights--search)
+- **bank-OAuth slots** — reserved (not implemented) fields for future bank-sync: `ActivitySource: "bank-sync"`, `externalTxnId`, `sourceAccountId`; the data model must not foreclose it. [project-plan/data-model.md](../project-plan/data-model.md#2--activity--a-concrete-independent-always-editable-record)
+- **BudgetApi** — the backend's single public API surface (`createBudgetApi(...)`); the only thing a frontend shell imports/calls (rules, activities, the insights/search surface, the recurring-engine run, derived Available Funds). [project-plan/portability.md](../project-plan/portability.md#the-public-api-what-the-front-end-calls)
+- **frontend / PWA plan** — the UI surface, a first-class designed area of the plan: PWA-first, iOS (primary) + Android later, rendering all ten requirements over the shared `BudgetApi`. [project-plan/frontend.md](../project-plan/frontend.md)
+- **zero-prod-dep frontend** — the frontend is a zero-prod-dep shell (`dependencies: {}`): plain TS/HTML against the `BudgetApi` + built-in Web-platform APIs, no framework runtime dep in production. [project-plan/frontend.md](../project-plan/frontend.md#zero-production-dependencies-req-1)
 
 > As backend / frontend / data topics land, add their terms here and split the
 > area doc into `budget-app/<area>.md` when it grows.

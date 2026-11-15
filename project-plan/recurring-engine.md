@@ -22,7 +22,7 @@ Three hard requirements drive the design (from the user's ask + spike #6):
 - **`RecurringRule.lastPostPeriod`** is the high-water mark: the most recent
   period already posted for that rule. The engine posts every period in the open
   interval `(lastPostPeriod, currentPeriod]`.
-- **Rule edits (amount, type, schedule, active) never touch posted activities.**
+- **Rule edits (amountCents, type, schedule, active) never touch posted activities.**
   A posted activity is a self-contained record; the rule is its *origin*, not its
   *owner*.
 
@@ -42,7 +42,7 @@ runRecurringEngine(now):
         continue                                  // idempotency guard
       create Activity {
         type:   rule.type,                          // income | expense
-        amount: rule.amount,
+        amountCents: rule.amountCents,
         currency: rule.currency,
         dateTime: dueDateTime(rule, P),             // e.g. 2026-11-01T00:00:00Z
         tags:   [],
@@ -148,10 +148,10 @@ Setup: it is now **2026-11-05**. The user creates two rules:
 
 ```ts
 ruleA = RecurringRule { id: "rA", name: "Salary", type: "income",
-                        amount: 5000, schedule: { cadence: "monthly", dayOfMonth: 1 },
+                        amountCents: 500000, schedule: { cadence: "monthly", dayOfMonth: 1 },
                         active: true, lastPostPeriod: null }
 ruleB = RecurringRule { id: "rB", name: "Rent",   type: "expense",
-                        amount: 1500, schedule: { cadence: "monthly", dayOfMonth: 1 },
+                        amountCents: 150000, schedule: { cadence: "monthly", dayOfMonth: 1 },
                         active: true, lastPostPeriod: null }
 ```
 
@@ -163,14 +163,14 @@ period that is due).
 
 - **ruleA:** `missingPeriods(ruleA, "2026-10", "2026-11", now)` →
   checks `"2026-11"`: due date 2026-11-01 ≤ now → post.
-  → creates `Activity { type: "income", amount: 5000, source: "recurring",
+  → creates `Activity { type: "income", amountCents: 500000, source: "recurring",
     sourceRuleId: "rA", period: "2026-11", dateTime: "2026-11-01T00:00:00Z" }`.
   `ruleA.lastPostPeriod = "2026-11"`.
-- **ruleB:** same → creates `Activity { type: "expense", amount: 1500, source:
+- **ruleB:** same → creates `Activity { type: "expense", amountCents: 150000, source:
   "recurring", sourceRuleId: "rB", period: "2026-11", dateTime: "2026-11-01T00:00:00Z" }`.
   `ruleB.lastPostPeriod = "2026-11"`.
 
-**Available Funds** = 5000 − 1500 = **3500**. ✓
+**Available Funds** = 500000 − 150000 = **350000** cents. ✓
 
 ### Run 2 — app re-launched same day, 2026-11-05
 
@@ -183,20 +183,20 @@ period that is due).
 `period(now)` = `"2026-12"`. `startExclusive` = `"2026-11"`.
 `missingPeriods(ruleA, "2026-11", "2026-12", now)` → checks `"2026-12"`:
 due date 2026-12-01 ≤ now → post.
-→ creates `Activity { type: "income", amount: 5000, source: "recurring",
+→ creates `Activity { type: "income", amountCents: 500000, source: "recurring",
   sourceRuleId: "rA", period: "2026-12", dateTime: "2026-12-01T00:00:00Z" }`.
 `ruleA.lastPostPeriod = "2026-12"`. Same for ruleB.
 
-**Available Funds** = (5000 + 5000) − (1500 + 1500) = **7000**. ✓
+**Available Funds** = (500000 + 500000) − (150000 + 150000) = **700000** cents. ✓
 
 ### Editing a rule
 
-On 2026-11-10 the user changes `ruleB.amount` from 1500 → 1800 (Rent went up).
+On 2026-11-10 the user changes `ruleB.amountCents` from 150000 → 180000 (Rent went up).
 
 - The **2026-11 activity** (already posted) is an independent record. The user
-  *may* edit it (set amount to 1800) — that is a user edit, not an engine action.
-- The **2026-12 activity** (not yet posted) will be posted with `amount: 1800`
-  when December arrives, because the engine reads `ruleB.amount` at post-time.
+  *may* edit it (set amountCents to 180000) — that is a user edit, not an engine action.
+- The **2026-12 activity** (not yet posted) will be posted with `amountCents: 180000`
+  when December arrives, because the engine reads `ruleB.amountCents` at post-time.
 - **No history is lost.** The 2026-11 record still exists and is editable.
 
 ### Disabling a rule

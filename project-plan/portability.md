@@ -109,6 +109,10 @@ interface BudgetApi {
   deleteActivity(id: string): Promise<void>;
   listActivities(filter?: ActivityFilter): Promise<Activity[]>;
 
+  // Insights / search (pure, derived — integer cents, plain data)
+  searchActivities(filter: ActivitySearchFilter): Promise<Activity[]>;
+  summarizeByTag(activities: Activity[]): Promise<TagSummary[]>;
+
   // Recurring engine
   runRecurringEngine(now?: Date): Promise<{ posted: Activity[] }>;
 
@@ -125,7 +129,13 @@ interface BudgetApi {
 - **`runRecurringEngine()`** is the single call that makes recurring income /
   expenses "come through" — safe to call on app start, on focus, or on a timer,
   because it is idempotent ([recurring-engine.md](recurring-engine.md)).
-- **`getAvailableFunds()`** returns the derived value; the UI never stores it.
+- **`getAvailableFunds()`** returns the derived value (integer cents); the UI
+  never stores it.
+- **`searchActivities(filter)`** / **`summarizeByTag(activities)`** are the
+  **insights/search surface**: filter activities by intersecting
+  date-range + tag + type, and roll up money in / out by tag. Both are pure and
+  derived from the log (integer cents, plain data) — see
+  [activity-model.md → Insights / search](activity-model.md#insights--search).
 
 ### Example — PWA / iOS / Android calling the *same* API
 
@@ -135,10 +145,14 @@ import { createBudgetApi } from "budget-lib"; // the library's public entry
 const budget = createBudgetApi({ adapter: new IndexedDbAdapter() });
 
 await budget.init();
-await budget.addRule({ name: "Salary", type: "income", amount: 5000,
-                       schedule: { cadence: "monthly", dayOfMonth: 1 } });
+await budget.addRule({ name: "Salary", type: "income", amountCents: 500000, // $5,000.00
+                        schedule: { cadence: "monthly", dayOfMonth: 1 } });
 await budget.runRecurringEngine();                 // posts the due period
-const funds = await budget.getAvailableFunds();     // derived, always current
+const funds = await budget.getAvailableFunds();     // derived, integer cents, always current
+const housing = await budget.summarizeByTag(        // insight: where the money went
+  await budget.searchActivities({ since: "2026-07-01T00:00:00Z",
+                                  until:  "2026-10-01T00:00:00Z",
+                                  type: "expense" }));
 ```
 
 The identical code is the body of all three targets — the PWA, the iOS shell, and

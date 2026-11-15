@@ -9,19 +9,21 @@ Keep it split by area so a reviewer can read only what they need:
 
 | Area | What it covers | Doc |
 | ---- | -------------- | --- |
-| **backend** | APIs, business logic, validation, persistence | _not yet built_ — [planned](#the-backend-plan) |
-| **frontend** | UI, components, state, how it talks to the backend | _not yet built_ |
-| **data** | the budget data model, storage, what is persisted | _not yet built_ — [planned](#the-backend-plan) |
-| **testing** | test pyramid (Vitest, Playwright), CI pipeline, headless CLI verification rules | _not yet built_ — [planned](#the-backend-plan) |
+| **backend** | APIs, business logic, validation, persistence (integer-cent money, insights/search, bank-sync slots) | _planned_ — [the app plan](#the-app-plan) |
+| **frontend** | UI, components, state, how it talks to the backend (zero-prod-dep PWA shell) | _planned_ — [the app plan](#the-app-plan) |
+| **data** | the budget data model, storage, what is persisted | _planned_ — [the app plan](#the-app-plan) |
+| **testing** | test pyramid (Vitest, Playwright), CI pipeline, headless CLI verification rules | _planned_ — [the app plan](#the-app-plan) |
 
-## The backend plan
+## The app plan
 
-Before implementation begins, the backend is **planned** (not yet built). The
+Before implementation begins, the app is **planned** (not yet built). The
 navigable, agent-consumable plan lives at the repo root under
 [`project-plan/`](../project-plan/README.md) — a per-area set of docs covering
 the data model, local secure storage, the recurring-transaction engine, the
-activity model, platform portability (PWA now / iOS + Android later), the
-dependency strategy (zero production deps), and the testing & CI/CD strategy.
+activity model (integer-cent money, insights/search surface, bank-sync slots),
+the **frontend / PWA** surface (PWA-first, iOS + Android later, zero-prod-dep),
+platform portability (PWA now / iOS + Android later), the dependency strategy
+(zero production deps), and the testing & CI/CD strategy.
 
 | Area | Doc |
 | ---- | --- |
@@ -29,14 +31,15 @@ dependency strategy (zero production deps), and the testing & CI/CD strategy.
 | Data model | [project-plan/data-model.md](../project-plan/data-model.md) |
 | Local secure storage | [project-plan/storage.md](../project-plan/storage.md) |
 | Recurring engine | [project-plan/recurring-engine.md](../project-plan/recurring-engine.md) |
-| Activity model | [project-plan/activity-model.md](../project-plan/activity-model.md) |
+| Activity model (integer-cent money, insights/search) | [project-plan/activity-model.md](../project-plan/activity-model.md) |
+| Frontend / PWA (zero-prod-dep, PWA-first) | [project-plan/frontend.md](../project-plan/frontend.md) |
 | Portability (PWA / iOS / Android) | [project-plan/portability.md](../project-plan/portability.md) |
 | Dependency strategy | [project-plan/dependency-strategy.md](../project-plan/dependency-strategy.md) |
 | Testing & CI/CD strategy | [project-plan/testing.md](../project-plan/testing.md) |
 
-> The plan is the deliverable of Story #5. When the backend *ships*, the
-> `budget-app/backend.md` and `budget-app/data.md` area docs above will track
-> what is real in code; the plan stays as the design-of-record.
+> The plan is the design-of-record. When an area *ships*, the
+> `budget-app/<area>.md` area doc above will track what is real in code; the
+> plan stays as the design-of-record.
 
 When an area ships, add a `budget-app/<area>.md` with the details and link it
 here; add its key terms to the [glossary](glossary.md). Do **not** inline a whole
