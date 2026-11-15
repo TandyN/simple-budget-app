@@ -1,0 +1,26 @@
+{
+  "name": "simple-budget-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local-first budgeting app — zero production dependencies",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "lint": "biome check .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "vite build",
+    "test:e2e": "echo 'E2E suite not yet implemented (task #112)'"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@biomejs/biome": "^2.6.7",
+    "@playwright/test": "^1.65.1",
+    "fake-indexeddb": "^6.2.8",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.0"
+  }
+}

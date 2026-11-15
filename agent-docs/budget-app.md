@@ -12,7 +12,7 @@ Keep it split by area so a reviewer can read only what they need:
 | **backend** | APIs, business logic, validation, persistence | _not yet built_ — [planned](#the-backend-plan) |
 | **frontend** | UI, components, state, how it talks to the backend | _not yet built_ |
 | **data** | the budget data model, storage, what is persisted | _not yet built_ — [planned](#the-backend-plan) |
-| **testing** | test pyramid (Vitest, Playwright), CI pipeline, headless CLI verification rules | _not yet built_ — [planned](#the-backend-plan) |
+| **testing** | test pyramid (Vitest, Playwright), CI pipeline, headless CLI verification rules | **toolchain scaffolded** ([#110](#toolchain)) — E2E suite still pending (#112) |
 
 ## The backend plan
 
@@ -37,6 +37,17 @@ dependency strategy (zero production deps), and the testing & CI/CD strategy.
 > The plan is the deliverable of Story #5. When the backend *ships*, the
 > `budget-app/backend.md` and `budget-app/data.md` area docs above will track
 > what is real in code; the plan stays as the design-of-record.
+
+## Toolchain
+
+The zero-production-dependency toolchain (Story #108, task #110) is
+**scaffolded** at the repo root so the build/lint/test/typecheck pipeline runs:
+`package.json` (empty `dependencies`), `tsconfig.json`, `biome.json`,
+`vite.config.ts`, `vitest.config.ts`, and `.github/workflows/ci.yml`. The first
+code task (#111) replaces the `src/index.ts` placeholder with the domain core;
+the E2E suite (#112) replaces the `test:e2e` stub. Details live in the plan:
+[dependency-strategy](../project-plan/dependency-strategy.md) and
+[testing](../project-plan/testing.md).
 
 When an area ships, add a `budget-app/<area>.md` with the details and link it
 here; add its key terms to the [glossary](glossary.md). Do **not** inline a whole
