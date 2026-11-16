@@ -23,8 +23,8 @@ README.md  (you are here — what this is, MVP scope, links, out-of-scope)
     ├── activity-model.md       — the unified, editable Activity record + insights/search
     ├── frontend.md             — the PWA / UI surface (PWA-first, iOS/Android later)
     ├── portability.md          — PWA + iOS + Android boundary + shared BudgetApi
-    ├── dependency-strategy.md  — zero prod deps + justified dev deps (Story #21)
-    └── testing.md              — Testing & CI/CD strategy (unit, integration, E2E, headless live-test rules)
+    ├── dependency-strategy.md  — zero prod deps + the well-maintained dev-dep & CI-action set (Story #21)
+    └── testing.md              — Testing & CI/CD strategy (unit, integration, E2E, headless live-test rules, GitHub-Pages PR# preview, Android/iOS credential-skip builds)
 ```
 
 Read in this order for a first pass: **data-model → storage →
@@ -82,8 +82,8 @@ boundary matters.
 | 4 | Transaction / activity model + insights/search | [activity-model.md](activity-model.md) |
 | 5 | Frontend / PWA (PWA-first, iOS/Android later) | [frontend.md](frontend.md) |
 | 6 | Platform portability | [portability.md](portability.md) |
-| 7 | Dependency strategy | [dependency-strategy.md](dependency-strategy.md) |
-| 8 | Testing & CI/CD strategy (unit, integration, E2E, headless live-test rules) | [testing.md](testing.md) |
+| 7 | Dependency strategy (zero prod deps + well-maintained dev-dep & CI-action set) | [dependency-strategy.md](dependency-strategy.md) |
+| 8 | Testing & CI/CD strategy (unit, integration, E2E, headless live-test rules, GitHub-Pages PR# preview, Android/iOS credential-skip builds) | [testing.md](testing.md) |
 
 ## Out of scope / future (explicitly NOT in the MVP)
 
