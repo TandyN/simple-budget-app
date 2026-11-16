@@ -97,11 +97,11 @@ boundary matters.
   (minor units); decimal-unit conversion only at the display boundary. Integer
   arithmetic throughout. See
   [data-model.md → derived values](data-model.md#derived-values-never-stored)
-  and [frontend.md → money](frontend.md#money-integer-cents-req-10).
+  and [frontend.md → money](frontend.md#money-integer-cents--req-10).
 - **Bank-OAuth slots** (reserved, not implemented): the data model reserves
   slots for future bank-sync integration (`source: "bank-sync"`,
   `externalTxnId`, `sourceAccountId`) without foreclosing the design. See
-  [data-model.md → Activity](data-model.md#2--activity--a-concrete-independent-always-editable-record).
+  [data-model.md → Activity](data-model.md#2-activity--a-concrete-independent-always-editable-record).
 - **UTC-stored, local-TZ display** (req 7): the backend stores ISO-8601 UTC
   instants; the frontend renders them in the user's local timezone via
   `Intl.DateTimeFormat`. See [frontend.md → time display](frontend.md#time--timezone-display-req-7).
