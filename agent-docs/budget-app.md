@@ -10,9 +10,9 @@ Keep it split by area so a reviewer can read only what they need:
 | Area | What it covers | Doc |
 | ---- | -------------- | --- |
 | **backend** | APIs, business logic, validation, persistence (integer-cent money, insights/search, bank-sync slots) | _planned_ — [the app plan](#the-app-plan) |
-| **frontend** | UI, components, state, how it talks to the backend (zero-prod-dep PWA shell) | _planned_ — [the app plan](#the-app-plan) |
+| **frontend** | UI, components, state, how it talks to the backend (zero-prod-dep static bundle, iPhone-Duo foldable viewport, configurable base path) | _planned_ — [the app plan](#the-app-plan) |
 | **data** | the budget data model, storage, what is persisted | _planned_ — [the app plan](#the-app-plan) |
-| **testing** | test pyramid (Vitest, Playwright), CI pipeline, headless CLI verification rules | _planned_ — [the app plan](#the-app-plan) |
+| **testing** | test pyramid (Vitest, Playwright), CI pipeline, headless CLI verification rules, mode-(a) PR preview, credential-gated native builds | _planned_ — [the app plan](#the-app-plan) |
 
 ## The app plan
 
@@ -21,9 +21,14 @@ navigable, agent-consumable plan lives at the repo root under
 [`project-plan/`](../project-plan/README.md) — a per-area set of docs covering
 the data model, local secure storage, the recurring-transaction engine, the
 activity model (integer-cent money, insights/search surface, bank-sync slots),
-the **frontend / PWA** surface (PWA-first, iOS + Android later, zero-prod-dep),
-platform portability (PWA now / iOS + Android later), the dependency strategy
-(zero production deps), and the testing & CI/CD strategy.
+the **frontend / UI** surface (a zero-prod-dep **static bundle**, the
+**iPhone-Duo foldable viewport** — folded = baseline 1-page / unfolded = enhanced
+1-page, slab phones ≈ folded — and a **configurable base path**), platform
+portability (one bundle, three webview targets, **cross-platform static
+artifact**), the dependency strategy (zero production deps + the
+**well-maintained dev-dep & CI-action set**), and the testing & CI/CD strategy
+(unit/integration/E2E, **mode-(a) same-site sub-path PR preview** with
+production-untouched + prune-on-merge, **credential-gated** native builds).
 
 | Area | Doc |
 | ---- | --- |
@@ -32,10 +37,10 @@ platform portability (PWA now / iOS + Android later), the dependency strategy
 | Local secure storage | [project-plan/storage.md](../project-plan/storage.md) |
 | Recurring engine | [project-plan/recurring-engine.md](../project-plan/recurring-engine.md) |
 | Activity model (integer-cent money, insights/search) | [project-plan/activity-model.md](../project-plan/activity-model.md) |
-| Frontend / PWA (zero-prod-dep, PWA-first) | [project-plan/frontend.md](../project-plan/frontend.md) |
-| Portability (PWA / iOS / Android) | [project-plan/portability.md](../project-plan/portability.md) |
-| Dependency strategy | [project-plan/dependency-strategy.md](../project-plan/dependency-strategy.md) |
-| Testing & CI/CD strategy | [project-plan/testing.md](../project-plan/testing.md) |
+| Frontend / UI (zero-prod-dep static bundle, iPhone-Duo foldable viewport, configurable base path) | [project-plan/frontend.md](../project-plan/frontend.md) |
+| Portability (one bundle / three webview targets, cross-platform static artifact) | [project-plan/portability.md](../project-plan/portability.md) |
+| Dependency strategy (zero prod deps + well-maintained dev-dep & CI-action set) | [project-plan/dependency-strategy.md](../project-plan/dependency-strategy.md) |
+| Testing & CI/CD (test pyramid, mode-(a) PR preview, credential-gated native builds) | [project-plan/testing.md](../project-plan/testing.md) |
 
 > The plan is the design-of-record. When an area *ships*, the
 > `budget-app/<area>.md` area doc above will track what is real in code; the

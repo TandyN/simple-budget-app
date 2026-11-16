@@ -173,6 +173,25 @@ the shell, not the logic.
   engine or the front-end.
 - **No accidental coupling.** Because `core/` cannot import the DOM or a
   framework, the library is *structurally* portable, not just "we try not to".
+- **Single static web bundle, no per-platform build.** `vite build` emits one
+  `dist/` (an `index.html`, hashed JS/CSS chunks, and public assets) — the
+  **identical artifact** is served on all three targets: GitHub Pages (production
+  + per-PR preview), the iOS Capacitor shell in **WKWebView (iOS Safari — primary)**,
+  and the Android Capacitor shell in **Chromium (Android Chrome)**. There is **no
+  per-platform bundle, no per-platform build flag, and no per-platform code path** —
+  cross-platform is simply **the same web artifact on all phones**, with the only
+  platform-specific surface being the Capacitor shell (the native wrapper), not the
+  library or the UI. This is why the zero-prod-dep stance
+  ([dependency-strategy.md](dependency-strategy.md)) is the load-bearing constraint
+  that makes the model portable: an empty `dependencies` means the one `dist/`
+  bundle has no runtime platform dependency to fork. The same bundle is also the
+  artifact whose **base path** is configurable at build time
+  ([frontend.md → base path](frontend.md#base-path-configurable-explicit-build-decision))
+  — with the per-PR preview deploy flow in
+  [testing.md → CI deploy & preview](testing.md#ci-deploy--preview-github-pages) —
+  and whose **responsive layout** is driven by the **iPhone-Duo foldable
+  dual-state** model (folded = the mobile baseline; unfolded = the enhanced
+  one-screen view) — see [frontend.md → responsive viewport](frontend.md#responsive-viewport--iphoneduo-foldable-dual-state-req-2).
 
 ## Android-specific considerations
 

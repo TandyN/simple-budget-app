@@ -23,9 +23,10 @@ This document defines the test pyramid, tooling, and CI gates for `simple-budget
     push:
       branches: [main]
   ```
-  Pipeline steps (a single job, e.g. `jobs: ci:`):
-  0. `actions/checkout`, `pnpm/action-setup`, `actions/setup-node` (with pnpm cache), then `pnpm install --frozen-lockfile`
-  1. `pnpm run lint` (Biome)
+   Pipeline steps (a single job, e.g. `jobs: ci:`):
+   0. `actions/checkout`, `pnpm/action-setup`, `actions/setup-node` (with pnpm cache), then `pnpm install --frozen-lockfile`
+   0b. **Zero-prod-dep CI check** — assert `package.json` **`dependencies` is empty** so a PR that introduces a production dependency fails the gate *before* review, not after. E.g. `node -e "const p=require('./package.json'); if (Object.keys(p.dependencies ?? {}).length) { throw new Error('dependencies must be empty (zero-prod-dep)') }"`. This is the CI-enforced half of the zero-prod-dep rule in [dependency-strategy.md](dependency-strategy.md); the human gate (senior sign-off) still applies.
+   1. `pnpm run lint` (Biome)
   2. `pnpm run typecheck` (`tsc --noEmit`)
   3. `pnpm run test` (`vitest run`)
   4. `pnpm run build` (`vite build`)
@@ -45,7 +46,162 @@ This document defines the test pyramid, tooling, and CI gates for `simple-budget
   }
 EOF
   ```
-  **Important caveat:** Do **not** enable GitHub's "Require approvals" PR review rule, because all agent roles authenticate under the same GitHub account and GitHub forbids a user from approving their own PR; multi-role review gates are enforced by the orchestrator's signed-comment verification gates. Agents must **never** pass `--admin` to `gh pr merge`.
+   **Important caveat:** Do **not** enable GitHub's "Require approvals" PR review rule, because all agent roles authenticate under the same GitHub account and GitHub forbids a user from approving their own PR; multi-role review gates are enforced by the orchestrator's signed-comment verification gates. Agents must **never** pass `--admin` to `gh pr merge`.
+
+## CI deploy & preview (GitHub Pages)
+
+The deployment target is **GitHub Pages** (HTTPS, secure context). There is no
+Cloudflare Pages in this plan; the architecture below is the **one and only**
+deploy/preview architecture. (See [dependency-strategy.md → CI actions
+(the allowed set)](dependency-strategy.md#ci-actions-the-allowed-set) for the
+allowed, well-maintained GitHub Actions that implement this.)
+
+### Production base path
+
+- **Production base (the site root):** `https://tandyn.github.io/simple-budget-app/`
+- The production build is configured with **base path `/simple-budget-app/`**
+  (the repo's `VITE_BASE_PATH` / `base` in `vite.config.ts`). This is the URL
+  the **production** app is served from on GitHub Pages.
+- **Production deploy is unchanged** — it builds to `/simple-budget-app/` and
+  writes the production root exactly as before. It is **not** touched by PR
+  preview deploys (see the production-untouched guarantee below).
+
+### Configurable base path (explicit build decision)
+
+- The base path is a **configurable build-time input** (`VITE_BASE_PATH`, or
+  `base` in `vite.config.ts`), **not a hardcoded constant**. This is an explicit
+  architectural decision: it is what makes **mode (a) same-site sub-path** PR
+  previews possible without a second site, and it is what lets the **per-PR
+  preview path** be computed at build/deploy time from the **PR number**.
+- **PR-number source at build/deploy time:** the PR number is read from the
+  GitHub event context in the workflow — `github.event.number` (for
+  `pull_request`) or `github.event.pull_request.number` (for `pull_request_target`
+  / `pull_request_target` close). It is injected into the build as
+  `VITE_BASE_PATH=/simple-budget-app/pr-<PR#>/`. This is the **only** source of
+  the PR number; nothing else (env var, config file) is used.
+- **Worked example:** for **PR #120**, the preview build is configured with
+  `VITE_BASE_PATH=/simple-budget-app/pr-120/` and is published to
+  `https://tandyn.github.io/simple-budget-app/pr-120/` — a **sub-path** of the
+  same production site, with **all asset URLs rewritten** to the `/pr-120/`
+  prefix so the preview is a fully self-contained build.
+
+### Mode (a) — same-site sub-path (confirmed architecture)
+
+The **confirmed** PR-preview architecture is **mode (a)**: **same-site,
+sub-path**. Each open PR gets a preview at
+`tandyn.github.io/simple-budget-app/pr-<PR#>/` — a sub-path of the production
+site. The **two hard guarantees** (2026-11-15 user clarification) are:
+
+1. **Production is untouched on a PR deploy.** A PR preview deploy must **not**
+   overwrite or clobber the production root (`/simple-budget-app/`); **only the
+   `pr-<PR#>/` sub-path is written**. The production root is left exactly as it
+   was before the PR deploy ran.
+2. **PR sub-paths are pruned on merge.** When a PR is **merged** (or **closed**),
+   the `pr-<PR#>/` sub-path is **removed** from the Pages site, so no stale
+   preview lingers.
+
+These two guarantees together mean a PR preview is a **pure additive,
+self-cleaning** artifact on the same site: it adds a sub-path while open, and
+removes it when the PR ends.
+
+### CI workflow mechanics (compose-and-deploy / prune-on-merge / production-unchanged)
+
+The CI workflow (a **deploy** workflow, separate from the `ci` test job above)
+implements the three mechanics below. All five actions used here —
+`actions/checkout`, `actions/setup-node`, `pnpm/action-setup`,
+`actions/upload-pages-artifact`, `actions/deploy-pages` — are in the
+[CI actions (the allowed set)](dependency-strategy.md#ci-actions-the-allowed-set)
+table in [dependency-strategy.md](dependency-strategy.md).
+
+**1. Compose-and-deploy (on `pull_request`).**
+
+- **Trigger:** `on: pull_request` (any PR targeting any branch).
+- **Read the PR number** from the event context (see *PR-number source* above).
+- **Build with the per-PR base path:** `VITE_BASE_PATH=/simple-budget-app/pr-<PR#>/ pnpm run build`
+  (e.g. `VITE_BASE_PATH=/simple-budget-app/pr-120/ pnpm run build` for PR #120).
+- **Deploy the PR assets into the `pr-<PR#>/` sub-path only.** Concretely:
+  - Build to a **staged** directory (e.g. `.pr-preview/pr-<PR#>/dist`).
+  - **Compose** the existing production site + the PR's `pr-<PR#>/` sub-path into
+    a single Pages artifact (the production files **unchanged** at the root, the
+    PR's files added under `pr-<PR#>/`). This is the *compose* step — it **adds**
+    the sub-path without rewriting the root.
+  - `actions/upload-pages-artifact` uploads the composed artifact.
+  - `actions/deploy-pages` deploys to GitHub Pages. Because the **production
+    root files are byte-for-byte unchanged** in the composed artifact and only
+    the `pr-<PR#>/` sub-path was added, **the production root is untouched**
+    (guarantee 1).
+- **The production root is NOT written** — only the `pr-<PR#>/` sub-path is
+  written by a PR preview deploy.
+
+**2. Prune-on-merge (on PR merge or close).**
+
+- **Trigger:** `on: pull_request: types: [closed]` (fires on **both** merge and
+  non-merge close).
+- **Read the PR number** from the event context.
+- **Remove the `pr-<PR#>/` sub-path** from the Pages site: compose the
+  production site (root only) without the `pr-<PR#>/` sub-path, upload via
+  `actions/upload-pages-artifact`, and deploy via `actions/deploy-pages`.
+  Because the production root files are unchanged and the `pr-<PR#>/` sub-path
+  is now **absent**, the sub-path is **pruned** (guarantee 2) while the
+  production root remains **untouched**.
+
+**3. Production deploy unchanged (on `main`).**
+
+- **Trigger:** `on: push: branches: [main]`.
+- **Build with the production base path:** `VITE_BASE_PATH=/simple-budget-app/ pnpm run build`.
+- **Deploy to the production root** (`/simple-budget-app/`) via
+  `actions/upload-pages-artifact` + `actions/deploy-pages` — **exactly as before,
+  unmodified** by this plan. A `main` push is the only thing that writes the
+  production root.
+
+**In summary:** a PR preview is a **pure additive** sub-path on the same site;
+it is **pruned** on merge/close; the production root is **only ever** written by
+a `main` push. These three mechanics, taken together, implement the two hard
+guarantees above.
+
+## Android + iOS test-build pipeline (credential-skip, build-only)
+
+The native shells (Capacitor) are a later milestone (see [frontend.md](frontend.md)
+and [portability.md](portability.md)), but the **CI pipeline for building the
+Android + iOS apps** is specified now so it is designed in-plan alongside the
+PWA build. **Build-only** — it does **not** upload to any store (App Store /
+Play Store); it only produces the signed build artifacts.
+
+### Behavior: skip-when-credentials-absent
+
+- The Android and iOS build jobs are **gated on the presence of signing
+  credentials** (secrets) in the CI environment. **When the secrets are absent,
+  the job is SKIPPED (not failed).** This is the **skip-not-fail** behavior:
+  the pipeline must not be red when the credentials simply have not been
+  provisioned yet.
+- **The Web / PWA build is always-run.** It is **not** credential-gated and
+  always runs. The native builds are **optional / credential-gated** and coexist
+  with the always-run Web build in the same CI pipeline.
+
+### Credential gates (the secret-presence check / conditional)
+
+| Platform | Gating condition (the conditional) |
+| -------- | --------------------------------- |
+| **Android** | The Android build job runs **only when** `env.ANDROID_KEYSTORE_B64 != ''` (the base64-encoded Android signing keystore secret is present). If absent, the job **skips**. |
+| **iOS** | The iOS build job runs **only when** `env.IOS_CERTIFICATE_B64 != ''` **AND** `env.IOS_PROVISIONING_PROFILE_B64 != ''` (both the base64-encoded iOS signing certificate and the base64-encoded iOS provisioning profile are present). If either is absent, the job **skips**. |
+
+In GitHub Actions `if:` expressions, this is expressed as a **conditional job**
+(e.g. `if: ${{ secrets.ANDROID_KEYSTORE_B64 != '' }}` for Android, and
+`if: ${{ secrets.IOS_CERTIFICATE_B64 != '' && secrets.IOS_PROVISIONING_PROFILE_B64 != '' }}`
+for iOS) so that the job is **skipped** (green/skipped) — **not failed** — when
+the secrets are absent.
+
+### Build-only scope
+
+- The jobs **build** the signed artifacts (e.g. `cap build android` /
+  `cap build ios`, or the equivalent Vite/Capacitor build), then **stop** — they
+  do **not** upload to a store, do not run device emulators, and do not publish
+  anywhere.
+- The produced artifacts are optionally retained as **CI artifacts** for
+  inspection, but the pipeline's job is **build-only**.
+- This coexists with the **always-run Web / PWA build** in the same CI pipeline:
+  the Web build runs regardless of native credentials, and the native builds are
+  skipped when their credentials are absent.
 
 ## Headless / CLI Execution Rule (No Hanging Dev Servers)
 
