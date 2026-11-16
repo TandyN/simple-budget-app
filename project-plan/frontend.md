@@ -111,8 +111,19 @@ zero-prod-dep):
 | Money formatting (req 10) | **`Intl.NumberFormat`** (decimal-unit display of integer `amountCents`) |
 | Persistence | **IndexedDB** (via the backend `StorageAdapter` — the UI never touches it directly) |
 | Local backup (req 3) | **File System Access API** / download + file-input for JSON export/import |
-| Offline / installable | standard **PWA** primitives (service worker + manifest) |
+| Offline / installable (**PWA target only**) | standard **PWA** primitives (service worker + manifest) — see note below |
 | IDs, crypto (if ever surfaced) | **`crypto.randomUUID()`**, **WebCrypto** |
+
+> **Offline / installable is a PWA (built-in-browser) capability, scoped to the
+> PWA target (GitHub Pages — desktop + Android Chrome).** The service worker +
+> manifest deliver offline caching and "add to home screen" in the **built-in
+> browser**. On the **iOS (Capacitor / WKWebView) target the service worker is
+> limited / not available** (WKWebView does not fully support the SW lifecycle),
+> so offline caching and install-to-home-screen are **not PWA features there** —
+> the iOS shell relies on the Capacitor wrapper (and, where needed, native
+> offline affordances) rather than the SW. Do not treat the offline/installable
+> row as an iOS-Capacitor guarantee; it applies to the PWA and the Android
+> (Chromium) built-in browser.
 
 The **only** runtime code in the bundle is the frontend's own TypeScript and the
 shared backend library — **no third-party production package.** Build/test/lint
