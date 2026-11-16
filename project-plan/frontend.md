@@ -61,6 +61,39 @@ See [portability.md → the boundary](portability.md#the-boundary),
 and [dependency-strategy.md](dependency-strategy.md) for why this is possible with
 zero production dependencies.
 
+### Base path (configurable, explicit build decision)
+
+The frontend is a **PWA hosted under a sub-path** (a project site), so its asset
+URLs are rewritten against a **base path** at build time — not a hardcoded
+constant. This is an **explicit, configurable build decision**:
+
+- **Mechanism:** the base path is the **Vite `base`** option, set from the
+  **`VITE_BASE_PATH`** env var at build time (read in `vite.config.ts`). Vite
+  rewrites JS `import` URLs, CSS `url()`, and the HTML asset references to
+  respect it. At runtime, the app reads **`import.meta.env.BASE_URL`** (a
+  build-time static replacement) for any dynamic asset URL or service-worker
+  scope.
+- **Production:** `VITE_BASE_PATH=/simple-budget-app/` → the app is served at
+  `https://tandyn.github.io/simple-budget-app/`.
+- **PR preview:** `VITE_BASE_PATH=/simple-budget-app/pr-<PR#>/` (PR number from
+  `github.event.pull_request.number`) → the preview is served at
+  `https://tandyn.github.io/simple-budget-app/pr-<PR#>/`, a sub-path of the
+  same production site. The per-PR preview deploy flow (compose into the
+  `pr-<PR#>/` sub-path, production root untouched, prune on close) lives in
+  [testing.md → CI deploy & preview](testing.md#ci-deploy--preview-github-pages).
+- **Asset-path correctness (holds for both paths):** because the base is threaded
+  through at build, every consumer resolves under **either** `/simple-budget-app/`
+  **or** `/simple-budget-app/pr-<PR#>/`:
+  - **JS** `import` URLs — rewritten by Vite to the base.
+  - **CSS** `url()` references — rewritten by Vite to the base.
+  - **Manifest** — `icons` are base-relative/absolute; `start_url` and `scope` are
+    set to the base so install/offline behave under either path.
+  - **Service-worker scope** — registered as
+    `navigator.serviceWorker.register(import.meta.env.BASE_URL + 'sw.js', { scope: import.meta.env.BASE_URL })`,
+    so the SW control scope matches the deployed path (a mismatched scope is the
+    most common PR-preview breakage; `BASE_URL` threads it correctly for free).
+  - **Index HTML** — `<script src>` / `<link href>` rewritten by Vite to the base.
+
 ## Zero production dependencies (req 1)
 
 **The frontend is a zero-prod-dep shell.** `package.json` `dependencies` **MUST
@@ -87,6 +120,8 @@ tooling (Vite, Vitest, Biome, tsc, Playwright) lives in `devDependencies` and is
 **not** a production dependency (see
 [dependency-strategy.md → dev dependencies](dependency-strategy.md#dev-dependencies-the-allowed-set)).
 
+**The build output is a static web bundle; the identical artifact is served on all three targets.** `vite build` emits `dist/` (an `index.html`, hashed JS/CSS chunks, and any public assets) with no server-side rendering and no Node runtime. The **identical `dist/`** is served by GitHub Pages (production + per-PR preview), by the iOS Capacitor shell in **WKWebView (iOS Safari — the primary native target)**, and by the Android Capacitor shell in **Chromium (Android Chrome)**. There is **no per-platform bundle**, no per-platform build flag, and no per-platform code path — **cross-platform = the same web artifact, no per-platform code**. The only platform-specific surface is the Capacitor shell (native wrapper), not the library or the UI; see [portability.md → what this buys](portability.md#what-this-buys).
+
 > **Guardrail (inherited):** a PR that introduces a production dependency —
 > including a frontend framework runtime dep — requires an explicit justification
 > and senior-software-engineer sign-off (see
@@ -95,6 +130,71 @@ tooling (Vite, Vitest, Biome, tsc, Playwright) lives in `devDependencies` and is
 This is why the "no React/Vue in production" reading of the user's "shouldn't need
 any additional packages in production" ask is coherent: the UI is plain TS/HTML
 rendering against the `BudgetApi` surface, and `dependencies` stays empty.
+
+## Responsive viewport — iPhone-Duo foldable dual-state (req 2)
+
+**The primary viewport target for the entire app is the iPhone-Duo** — a new
+**foldable** phone with two states. This is the **baseline** the responsive
+architecture is built around, and it **supersedes** the earlier "iPhone class"
+(SE → 16 Pro Max) verification set (that set is no longer the primary target — see
+[testing.md](testing.md) for the Playwright viewport config). The model has
+**exactly two states**, not a mobile → tablet → desktop ladder:
+
+- **Folded (slab) — the baseline 1-page experience.** Slab-like, ~6" single
+  panel. **Every** tab (Settings, Insights, Budget) is handleable in **one page**
+  with **no scrolling beyond the panel**: add a deposit/expense/income, view
+  Available Funds, check recent transaction history, and switch tabs all fit on
+  the single panel. This state is **complete and usable — not a degraded version**
+  of the app.
+- **Unfolded (dual-panel) — the enhanced 1-page view.** ~12" two-panel spread.
+  Everything still fits on one screen, **and** the layout **adapts to take
+  advantage of the extra space**: side-by-side panes, larger data density, and a
+  **split-pane for Budget vs. transaction history**. It is **enhanced, not a
+  different app** — the same tabs, the same data, more room.
+
+**Breakpoint model:** **folded → unfolded**, NOT "mobile → tablet → desktop".
+Slab phones (iPhone SE / 12 / 14 / 15 / 16 Pro Max, and equivalent Android slabs)
+map to the **folded** breakpoint — the folded state **IS** the mobile baseline, so
+"most phones" (slab) get exactly the folded experience.
+
+**Layout strategy — state-aware, not just wider.** The unfolded state is a
+**fundamentally different layout** that uses the dual-panel space (side-by-side
+views, larger data density, split-pane), not the folded layout with more columns
+or a stretched fold. The fold↔unfold **transition is smooth and intuitive** — an
+adaptation, not a jarring reflow.
+
+**Design principle (load-bearing):** **folded is complete and usable** (never a
+degraded/mobile-only cut); **unfolded is enhanced** (never a different app); the
+**fold↔unfold transition is smooth**; the layout is **state-aware** (unfolded takes
+advantage of the dual-panel space, it does not merely stretch the folded layout).
+
+**No hard-pixel viewports — the architecture is logical-unit + safe-area based.**
+The layout is a fluid flexbox / grid that adapts to **any** width; verification is
+against the two iPhone-Duo states (below), never against a fixed pixel width:
+
+- **CSS logical units:** `rem` for font sizes and spacing (root-em tied to the
+  user's root font size).
+- **Viewport-relative heights:** `svh` / `100svh` for full-height layouts
+  (avoids the mobile-Safari URL-bar chrome issue that breaks `100vh`); use
+  `dvh` / `100dvh` as the fallback for browsers without `svh`.
+- **Safe-area insets (notch / Dynamic Island / home indicator / status bar):**
+  `env(safe-area-inset-top)` / `-bottom` / `-left` / `-right` in `padding` /
+  `margin` / `position`, so content is never obscured by the notch, the Dynamic
+  Island, the home indicator, or the Android status bar (MDN "env() CSS
+  function").
+
+**Verification targets (Playwright E2E + `qa` live-test):**
+
+| State | Representative viewport (CSS px) | Notes |
+|-------|----------------------------------|-------|
+| **iPhone-Duo folded (primary)** | ~375 × ~667 @ DPR 3 | slab-like single panel; the **mobile baseline**; one page, no scroll |
+| **iPhone-Duo unfolded (primary)** | ~829 × ~1194 @ DPR 3 | dual-panel spread; **enhanced** one-screen view (side-by-side / split-pane) |
+| **Typical slab phone (secondary)** | ~390 × ~844 @ DPR 3 | ≈ the folded state; a representative slab (e.g. iPhone 15 class) |
+
+The **folded and unfolded states are the primary targets**; the folded state
+*is* the mobile baseline, and **typical slab phones (≈ folded)** are the
+secondary target — so the "most phones" requirement is satisfied by the folded
+state, and the architecture extends to the unfolded state without per-device code.
 
 ## Add an expense / deposit / income (req 6)
 
