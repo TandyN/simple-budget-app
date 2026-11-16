@@ -10,7 +10,7 @@ Keep it split by area so a reviewer can read only what they need:
 | Area | What it covers | Doc |
 | ---- | -------------- | --- |
 | **backend** | APIs, business logic, validation, persistence (integer-cent money, insights/search, bank-sync slots) | _planned_ — [the app plan](#the-app-plan) |
-| **frontend** | UI, components, state, how it talks to the backend (zero-prod-dep static bundle, iPhone-Duo foldable viewport, configurable base path) | _planned_ — [the app plan](#the-app-plan) |
+| **frontend** | UI, components, state, how it talks to the backend (zero-prod-dep static bundle, iPhone-Duo foldable viewport, configurable base path, **PWA-scoped** offline/installable) | _planned_ — [the app plan](#the-app-plan) |
 | **data** | the budget data model, storage, what is persisted | _planned_ — [the app plan](#the-app-plan) |
 | **testing** | test pyramid (Vitest, Playwright), CI pipeline, headless CLI verification rules, mode-(a) PR preview, credential-gated native builds | _planned_ — [the app plan](#the-app-plan) |
 
