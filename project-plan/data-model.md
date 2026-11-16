@@ -87,7 +87,13 @@ interface Activity {
   `externalTxnId` is the stable id a bank assigns to a transaction (the re-sync
   dedupe key); `sourceAccountId` names the linked bank account. The bank-OAuth
   *flow* + token storage is a **future platform-layer project** — this model only
-  reserves the slots, it does not design the OAuth mechanics.
+  reserves the slots, it does not design the OAuth mechanics. **Feasibility
+  (affirmed):** bank-OAuth account-linking is **explicitly feasible as that later
+  platform-layer project** — the **RFC 8252** OAuth 2.0 for Native Apps (local-app
+  loopback) pattern is well-suited to a Web/WebView budget app, and adopting it
+  requires no change to this data model, only the platform layer that populates the
+  reserved slots. The reserved slots above are therefore a **deliberate go**, not an
+  open question.
 - **Every field is editable** by the user after creation — including the
   `type`, `amountCents`, `dateTime`, and `tags` of an auto-generated record. Editing
   an auto-generated Activity does **not** change the source rule.
@@ -103,10 +109,16 @@ interface Activity {
   is always `amountCents`.
 - **Input guard (not a stored-value strategy).** Runtime validation
   (`src/core/validate.ts`) MUST assert `Number.isFinite(decimal) && decimal > 0 &&
+  decimal <= Number.MAX_SAFE_INTEGER / 100 &&
   Number.isInteger(Math.round(decimal * 100))` on any **decimal-unit input** so the
-  derived `amountCents` is a whole cent (no sub-cent fractions, no `NaN`/`Infinity`).
-  The invariant is on the **boundary input**, not on the stored field — the stored
-  field is `amountCents` itself, already an integer by construction.
+  derived `amountCents` is a whole cent (no sub-cent fractions, no `NaN`/`Infinity`)
+  **and** stays within the safe-integer range (no `Number.MAX_SAFE_INTEGER`
+  overflow). The explicit **upper bound** `decimal <= Number.MAX_SAFE_INTEGER / 100`
+  closes the otherwise-unbounded gap: in JS `Number.isInteger(1e23) === true`, so
+  `1e21`/`1e23` would pass the cent-whole check alone and produce an absurd
+  `amountCents` that overflows a 64-bit integer. The invariant is on the **boundary
+  input**, not on the stored field — the stored field is `amountCents` itself,
+  already an integer by construction.
 
 ## Relationships
 
