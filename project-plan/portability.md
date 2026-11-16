@@ -91,6 +91,12 @@ This is the **interface the backend exposes**. A front-end engineer (PWA, iOS, o
 Android) only ever sees these — never the internals of `core/` or `storage/`.
 
 ```ts
+// Optional filter for listActivities() — the same intersecting predicates as
+// ActivitySearchFilter (defined in activity-model.md → insights / search): a
+// since / until ISO-8601 date range, an optional tag, and an optional type.
+// Omit a predicate to leave it unbounded.
+type ActivityFilter = ActivitySearchFilter;
+
 // Everything is async and returns plain data (no framework state).
 interface BudgetApi {
   // Lifecycle
@@ -123,6 +129,13 @@ interface BudgetApi {
 
 - **`NewRule` / `NewActivity`** are the input shapes (without system-managed
   fields like `id`, `createdAt`, `updatedAt`, which the API generates).
+- **`ActivityFilter`** (used by `listActivities`) is the **optional** filter for
+  listing activities — the same intersecting `since` / `until` / `tag` / `type`
+  predicates as **`ActivitySearchFilter`** (see
+  [activity-model.md → Insights / search](activity-model.md#insights--search)),
+  aliased so the two are the same shape. Pass `undefined` to list all activities
+  unbounded; the full `searchActivities` surface is the dedicated insights/search
+  entry point.
 - **`RulePatch` / `ActivityPatch`** are partial updates — only the user-editable
   fields (enforced by the type, so a UI can't accidentally set `source` or
   `sourceRuleId`).
@@ -191,7 +204,7 @@ the shell, not the logic.
   [testing.md → CI deploy & preview](testing.md#ci-deploy--preview-github-pages) —
   and whose **responsive layout** is driven by the **iPhone-Duo foldable
   dual-state** model (folded = the mobile baseline; unfolded = the enhanced
-  one-screen view) — see [frontend.md → responsive viewport](frontend.md#responsive-viewport--iphoneduo-foldable-dual-state-req-2).
+   one-screen view) — see [frontend.md → responsive viewport](frontend.md#responsive-viewport--iphone-duo-foldable-dual-state-req-2).
 
 ## Android-specific considerations
 

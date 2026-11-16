@@ -87,7 +87,7 @@ boundary matters.
   earlier "iPhone class" (SE → 16 Pro Max) verification set — the layout is
   **state-aware (folded/unfolded)**, not a mobile → tablet → desktop ladder, and
   is built on logical units + safe-area insets, not fixed pixel widths. See
-  [frontend.md → responsive viewport](frontend.md#responsive-viewport--iphoneduo-foldable-dual-state-req-2).
+   [frontend.md → responsive viewport](frontend.md#responsive-viewport--iphone-duo-foldable-dual-state-req-2).
 - **Insights / search surface** (reqs 4 & 9): search & filter by period + tag +
   type, and tag-based rollup (`searchActivities` / `summarizeByTag`) rendered
   from the activity log — supporting 5-year tag analysis without a stored
