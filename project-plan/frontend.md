@@ -36,7 +36,7 @@ frontend's job is to **collect input, render derived values, and call the
 | 7 | UTC-stored, local-timezone display | render `dateTime` (stored UTC) in the user's local TZ | [Time display](#time--timezone-display-req-7) |
 | 8 | Modify any transaction, tags, backdate | edit form for every field; add/remove tags | [Edit / backdate / tags](#edit--backdate--tags-req-8) |
 | 9 | Search / filter by period + tag | search UI over period + tag + type | [Search / insights](#search--insights-reqs-4--9) |
-| 10 | Store cents as integer | UI renders integer `amountCents` as decimal only at the display boundary | [Money](#money-integer-cents-req-10) |
+| 10 | Store cents as integer | UI renders integer `amountCents` as decimal only at the display boundary | [Money](#money-integer-cents--req-10) |
 
 ## Platforms (req 2)
 
@@ -217,7 +217,7 @@ An **entry form** that creates a manual `Activity` via `budget.addActivity(...)`
   Recurring rules are `income | expense` only; `deposit` is entered here as a
   manual transaction.
 - **Amount:** a decimal-unit input (`$1,234.56`) that the boundary converts to the
-  canonical integer `amountCents` (see [Money](#money-integer-cents-req-10)).
+  canonical integer `amountCents` (see [Money](#money-integer-cents--req-10)).
 - **Date/time:** optional; defaults to "now" (see [Time display](#time--timezone-display-req-7)).
 - **Tags / category:** free-form tag input (see [Edit / backdate / tags](#edit--backdate--tags-req-8)).
 - **Currency:** ISO-4217, default USD.
