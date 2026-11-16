@@ -93,9 +93,16 @@ criterion](#the-well-maintained-criterion-the-governing-rule-for-any-dev-depende
 a runtime / framework dependency — all are used **only** at build / test / lint
 time and live in **`devDependencies`**.
 
+> **pnpm is the package manager, not a devDependency.** pnpm **installs** the
+> packages in the table; it is itself **provisioned, not installed** — via the
+> `packageManager` field in `package.json` + `corepack`, and in CI via
+> `pnpm/action-setup` (see [CI actions (the allowed set)](#ci-actions-the-allowed-set)).
+> It therefore **does not** appear in `devDependencies`. (npm is the zero-config
+> fallback.)
+
 | Area | Tool (dev dep) | Well-maintained criterion — how it satisfies it (as of plan date) |
 | ---- | -------------- | ------------------------------------------------------------------ |
-| Package manager | **pnpm** | **Active & current:** actively maintained, frequent releases. **First-party / tool-maintainer:** maintained by the pnpm project. **Industry-standard:** de-facto standard for the TS/Node ecosystem; strict/flat `node_modules`, fast, disk-efficient. (npm is the zero-config fallback.) |
+| Package manager | **pnpm** *(provisioned, not a `devDependency`)* | **Active & current:** actively maintained, frequent releases. **First-party / tool-maintainer:** maintained by the pnpm project. **Industry-standard:** de-facto standard for the TS/Node ecosystem; strict/flat `node_modules`, fast, disk-efficient. It is provisioned via the `packageManager` field / `corepack` (and `pnpm/action-setup` in CI) and does **not** live in `devDependencies`. (npm is the zero-config fallback.) |
 | Build / bundler | **Vite** | **Active & current:** very active repo, regular releases. **First-party / tool-maintainer:** maintained by the Vite core team. **Industry-standard:** the current best-practice web build tool; `build.lib` emits the shared bundle; pairs with Vitest. |
 | Testing | **Vitest** | **Active & current:** actively maintained, regular releases. **First-party / tool-maintainer:** maintained by the Vite core team (first-party to Vite). **Industry-standard:** the current best-practice TS test framework — fast, ESM/TS-native, zero babel config, Vite-compatible, large community. |
 | E2E / browser testing | **Playwright (`@playwright/test`)** | **Active & current:** very active repo, regular releases. **First-party / tool-maintainer:** maintained by Microsoft (the browser-automation vendor). **Industry-standard:** the current standard for fast, reliable headless browser E2E across Chromium and WebKit. |
@@ -104,9 +111,11 @@ time and live in **`devDependencies`**.
 | Type check | **tsc** (TypeScript) | **Active & current:** the TypeScript compiler itself — the most actively maintained project in the JS/TS ecosystem, regular releases. **First-party / tool-maintainer:** maintained by Microsoft (the language owner). **Industry-standard:** `tsc --noEmit` runs in CI. |
 
 **The full `devDependencies` set:** `vite`, `vitest`, `fake-indexeddb`,
-`@playwright/test`, `@biomejs/biome`, `typescript`. (Plus **pnpm** as the
-package manager, and the **CI actions** below.) **No framework runtime deps** —
-`dependencies` (production) MUST remain completely empty.
+`@playwright/test`, `@biomejs/biome`, `typescript`. **No framework runtime deps** —
+`dependencies` (production) MUST remain completely empty. **pnpm** is the *package
+manager* that installs these — it is **provisioned** (via the `packageManager`
+field / `corepack`, and `pnpm/action-setup` in CI), **not** a `devDependency`; the
+**CI actions** below are likewise provisioned, not installed as packages.
 
 ## CI actions (the allowed set)
 
@@ -138,8 +147,9 @@ pass the same well-maintained criterion before it is allowed.
   build-time tools pinned in `devDependencies`.
 - **Consistent behavior** across WebKit (iOS) and Chromium (Android), because
   both implement the same Web APIs the code relies on.
-- **A clean, current toolchain** (pnpm / Vite / Vitest / Biome / tsc) that any
-  engineer can set up without choosing between competing libraries.
+- **A clean, current toolchain** (Vite / Vitest / Biome / tsc, driven by the pnpm
+  package manager) that any engineer can set up without choosing between competing
+  libraries.
 
 ## Guardrails (enforce in CI / review)
 
