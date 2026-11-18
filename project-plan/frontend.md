@@ -105,12 +105,12 @@ zero-prod-dep):
 
 | Frontend concern | Built-in API (all 3 targets) |
 |------------------|------------------------------|
-| Rendering / DOM | the platform DOM (`document`, `Element`) — no framework required |
-| State | plain TypeScript state + event handlers (no state library) |
+| Rendering / DOM | the platform DOM (`document`, `Element`, native `<dialog>`) — no framework required |
+| State & multi-tab sync | plain TypeScript state + event handlers + **`BroadcastChannel`** (no state library) |
 | Date / time formatting (req 7) | **`Intl.DateTimeFormat`** / **`Intl.NumberFormat`** |
 | Money formatting (req 10) | **`Intl.NumberFormat`** (decimal-unit display of integer `amountCents`) |
 | Persistence | **IndexedDB** (via the backend `StorageAdapter` — the UI never touches it directly) |
-| Local backup (req 3) | **File System Access API** / download + file-input for JSON export/import |
+| Local backup (req 3) | **File System Access API** / download + file-input for JSON export/import (`budget.exportBackup()` / `budget.importBackup(json)`) |
 | Offline / installable (**PWA target only**) | standard **PWA** primitives (service worker + manifest) — see note below |
 | IDs, crypto (if ever surfaced) | **`crypto.randomUUID()`**, **WebCrypto** |
 
@@ -334,19 +334,146 @@ backend**:
 ## Export / backup (req 3)
 
 The frontend offers **manual JSON export / import** — a local backup with **no
-server**:
+server**, wired directly to the `BudgetApi` backup methods:
 
-- **Export:** serialize the activity log + rules to a **JSON** file (a "backup"
-  the user can save, e.g. to iCloud Drive, or copy off-device) via a download /
-  the **File System Access API**.
-- **Import:** read a previously exported JSON file and restore it through the
-  backend, so the same records re-populate the on-device store.
+- **Export (`budget.exportBackup()`):** calls `await budget.exportBackup()` to
+  produce a versioned `BudgetBackup` envelope (`{ schemaVersion: 1, exportedAt, rules, activities }`,
+  see [data-model.md → Versioned `BudgetBackup` Schema & Hardened Import Validation](data-model.md#versioned-budgetbackup-schema--hardened-import-validation))
+  and serializes it to a downloadable `.json` file (or via the **File System
+  Access API**) that the user can save locally (e.g. to Files / iCloud Drive /
+  Google Drive) or copy off-device.
+- **Import (`budget.importBackup(json)`):** reads a user-selected `.json` file as
+  text and passes the raw string to `await budget.importBackup(json)`. The backend
+  validates the untrusted payload via `validateBackupPayload(rawJson)` in
+  `src/core/validate.ts` (enforcing the 10 MB size ceiling, `__proto__` /
+  `constructor` / `prototype` prototype-pollution rejection, and full schema /
+  safe-integer-cent / ISO-UTC / single-currency invariants; see
+  [data-model.md](data-model.md#hardened-import-validation-validatebackuppayloadrawjson-string-budgetbackup))
+  and restores all records atomically in a single IndexedDB `readwrite`
+  transaction via `storage.replaceAll({ rules, activities })` (rolling back
+  automatically on any error so existing data is never clobbered; see
+  [storage.md → Atomic Backup Restoration (`replaceAll`)](storage.md#atomic-backup-restoration-replaceall)).
 - **No account, no network, no server** — backup is the user's file, consistent
   with the local-only, zero-egress storage model. See
   [storage.md → security properties](storage.md#security-properties).
 
 This satisfies "download it as a PWA / keep my data" with **manual** backup;
 automatic cloud sync (iCloud Drive / a server) is **out of MVP scope**.
+
+## Security & Privacy Guardrails
+
+Because the frontend is a zero-framework vanilla TypeScript application handling
+personal financial records across the PWA, iOS `WKWebView`, and Android
+`Chromium` WebView, three hard security and privacy guardrails are enforced from
+commit #1:
+
+### 1. Strict Content Security Policy (`index.html`)
+
+Every build (`index.html` → `dist/index.html`) MUST include the following strict
+Content Security Policy `<meta>` tag in `<head>`:
+
+```html
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'; worker-src 'self'; manifest-src 'self'">
+```
+
+- **Why `frame-ancestors` is omitted from `<meta>`:** Per W3C Content Security
+  Policy Level 3 §6.2 (`meta` element delivery), browsers ignore the
+  `frame-ancestors` directive inside `<meta http-equiv="Content-Security-Policy">`
+  elements and emit a console warning. Omitting `frame-ancestors` from `<meta>`
+  keeps `<meta>` 100% standards-compliant and avoids tripping our zero-console-warning
+  Playwright E2E gate (see [testing.md](testing.md)).
+- **Document & Service Worker zero-egress enforcement:** `connect-src 'none'` and
+  `form-action 'none'` block all document-context network egress (`fetch`,
+  `XMLHttpRequest`, `WebSocket`, `EventSource`, `navigator.sendBeacon`, and form
+  submissions) at the browser engine level. For offline asset caching on the PWA
+  target (`worker-src 'self'`), the same-origin service worker (`sw.js`) runs in
+  `ServiceWorkerGlobalScope` and additionally enforces a strict same-origin guard
+  on every `fetch` event:
+  `new URL(event.request.url).origin === self.location.origin` (rejecting any
+  cross-origin request immediately).
+
+### 2. DOM XSS Ban (Safe DOM APIs Only)
+
+Because there is no virtual-DOM framework auto-escaping templates at runtime,
+unsafe HTML-parsing DOM sinks and dynamic code evaluation are **strictly
+prohibited** anywhere in `src/`:
+
+- **Banned APIs:** `innerHTML`, `outerHTML`, `insertAdjacentHTML`,
+  `document.write`, `document.writeln`, `eval`, and `new Function`.
+- **Mandatory safe DOM APIs:** Every view and component MUST construct and update
+  DOM nodes exclusively via `document.createElement(...)`,
+  `node.textContent = ...`, `element.setAttribute(...)`, and
+  `element.replaceChildren(...)`. All user-controlled strings (`name` / `label`,
+  `tags`, `memo`, `currency`, and any fields originating from imported JSON
+  backups) are assigned via `textContent` so arbitrary HTML/script payloads (e.g.
+  `<img src=x onerror=alert(1)>`) are rendered strictly as inert literal text.
+
+### 3. Zero Remote Fonts, CDNs, or Icon Requests
+
+To guarantee zero network egress (`connect-src 'none'`), 100% offline capability,
+and App Store / Play Store "Data Not Collected" privacy compliance (no IP/UA
+leakage to third-party font or asset servers; see
+[portability.md](portability.md)):
+
+- **System UI typography:** All text uses the native platform system UI font stack
+  (`font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`)
+  and tabular numerals (`font-variant-numeric: tabular-nums`) so currency columns
+  and cent amounts align cleanly without downloading web fonts.
+- **Self-hosted / inline visuals only:** All icons and graphics use inline SVGs
+  created via `document.createElementNS("http://www.w3.org/2000/svg", ...)` or
+  local static assets bundled inside `public/` / `dist/`. Zero external
+  stylesheets, scripts, fonts, or images (`https://...`) are ever referenced.
+
+## Accessibility (WCAG 2.2 AA) & Multi-Tab State Synchronization
+
+### 1. Semantic HTML & WCAG 2.2 AA Accessibility
+
+The UI is built on native semantic HTML elements and WAI-ARIA landmarks so
+keyboard navigation, iOS VoiceOver, Android TalkBack, and desktop screen readers
+work out of the box across both folded and unfolded viewports:
+
+- **Native `<dialog>` modals:** Edit forms and confirmation prompts use the
+  built-in `<dialog>` element (`dialog.showModal()` / `dialog.close()`),
+  providing native focus trapping, backdrop Inert handling, and `Escape`-key
+  dismissal without third-party modal libraries.
+- **ARIA tab navigation:** The 3-tab navigation bar (`Budget`, `Insights`,
+  `Settings`) uses `<nav role="tablist">` containing
+  `<button role="tab" aria-selected="true|false" aria-controls="panel-...">`
+  buttons paired with `<section role="tabpanel" id="panel-..." aria-labelledby="tab-...">`
+  landmarks.
+- **Polite live-region updates:** The **Available Funds** hero banner carries
+  `aria-live="polite"` and `aria-atomic="true"` so assistive technologies
+  announce updated balances automatically after adding, editing, or deleting an
+  activity or running the recurring engine.
+- **Accessible forms & error messaging:** Every form control (`amount`, `type`,
+  `dateTime`, `tags`, `memo`, `dayOfMonth`, backup file input) has a programmatic
+  `<label for="...">` association. Validation errors set
+  `aria-invalid="true"` and link the inline error message via
+  `aria-describedby="..."`.
+- **Contrast & touch targets:** Color tokens maintain `>= 4.5:1` contrast ratio
+  for normal text (`>= 3:1` for large text and UI components), and all interactive
+  controls (tabs, buttons, checkboxes, edit/delete actions) enforce a minimum
+  **`44×44 CSS px`** hit target (`min-height: 2.75rem; min-width: 2.75rem`).
+
+### 2. Multi-Tab State Synchronization (`BroadcastChannel`)
+
+When a user has the PWA open in multiple browser tabs or windows on the same
+origin, mutations in one tab must immediately reflect in sibling tabs without
+requiring a manual page reload:
+
+- **Channel name:** `new BroadcastChannel("simple-budget-sync")` (feature-detected
+  via `typeof BroadcastChannel !== "undefined"` so environments without it degrade
+  gracefully).
+- **Publish on commit:** Whenever a local state-mutating `BudgetApi` call commits
+  (`addRule`, `editRule`, `deleteRule`, `addActivity`, `editActivity`,
+  `deleteActivity`, `runRecurringEngine`, or `importBackup`), the active tab
+  posts `{ type: "budget-mutated", timestamp: Date.now() }` on the
+  `"simple-budget-sync"` channel.
+- **Subscribe & re-render:** Sibling tabs listening on `"simple-budget-sync"`
+  respond to `"budget-mutated"` messages by re-querying `BudgetApi` (`listRules`,
+  `listActivities`, `getAvailableFunds`, and active `searchActivities` /
+  `summarizeByTag` views) and updating the DOM via safe `replaceChildren` /
+  `textContent` patches—eliminating stale cross-tab state.
 
 ## What the frontend is NOT
 

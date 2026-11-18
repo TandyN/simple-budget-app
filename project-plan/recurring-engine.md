@@ -56,13 +56,35 @@ runRecurringEngine(now):
     save(rule)
 ```
 
-### `missingPeriods(rule, startExclusive, endInclusive)`
+### `missingPeriods(rule, startExclusive, endInclusive)` & `dueDateTime(rule, period)`
 
 MVP returns the list of month strings strictly after `startExclusive` up to and
-including `endInclusive`, but **only those whose due date (dayOfMonth) has
-actually occurred** as of `now`.
+including `endInclusive`, but **only those whose clamped due date (`dayOfMonth`)
+has actually occurred** as of `now`.
+
+#### Short-Month `Date.UTC` Clamping
+
+In ECMAScript, `Date.UTC(y, m - 1, day)` silently overflows out-of-range days into
+the following month—for example, `Date.UTC(2026, 1, 31)` (February 31, 2026)
+overflows to `2026-03-03T00:00:00.000Z` (March 3). Without clamping, a rule
+configured with `dayOfMonth: 29..31` would evaluate against the wrong timestamp
+and stamp an activity for period `"2026-02"` with a March `dateTime`.
+
+Both `dueDateTime(rule, period)` and `missingPeriods(rule, startExclusive, endInclusive, now)`
+MUST clamp `rule.schedule.dayOfMonth` to the actual number of days in month `m`
+(`new Date(Date.UTC(y, m, 0)).getUTCDate()`), guaranteeing that rules scheduled
+for days 29–31 post on the last valid day of short months (e.g., Feb 28 in
+non-leap years, Feb 29 in leap years, and Apr/Jun/Sep/Nov 30):
 
 ```ts
+function dueDateTime(rule: RecurringRule, period: string): string {
+  const [y, m] = parseYM(period); // "YYYY-MM" -> [y, m] where m is 1..12
+  const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const effectiveDay = Math.min(rule.schedule.dayOfMonth, daysInMonth);
+  const dueAt = new Date(Date.UTC(y, m - 1, effectiveDay));
+  return dueAt.toISOString();
+}
+
 function missingPeriods(
   rule: RecurringRule,
   startExclusive: string, // "YYYY-MM"
@@ -70,14 +92,17 @@ function missingPeriods(
   now: Date,
 ): string[] {
   const out: string[] = [];
-  let [y, m] = parseYM(startExclusive); // "YYYY-MM" -> {y, m}
+  let [y, m] = parseYM(startExclusive); // "YYYY-MM" -> [y, m]
   for (;;) {
     const cur = `${y}-${String(m).padStart(2, "0")}`;
     if (cur > endInclusive) break;
     if (cur !== startExclusive) {
-      // due date for this period = the 1st (MVP) of that month
-      const due = new Date(Date.UTC(y, m - 1, rule.schedule.dayOfMonth));
-      if (due.getTime() <= now.getTime()) out.push(cur);
+      // Clamp dayOfMonth (1..31) to the actual number of days in month m
+      // so short months (e.g. Feb 28/29, Apr 30) never overflow Date.UTC into month m + 1.
+      const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
+      const effectiveDay = Math.min(rule.schedule.dayOfMonth, daysInMonth);
+      const dueAt = new Date(Date.UTC(y, m - 1, effectiveDay));
+      if (dueAt.getTime() <= now.getTime()) out.push(cur);
     }
     m += 1;
     if (m === 13) { m = 1; y += 1; }
@@ -224,6 +249,26 @@ activities. The activities are independent records; they keep their
 by `sourceRuleId` for an already-posted activity). This is the
 **"change-without-losing-history"** guarantee made explicit.
 
+### Deleting a recurring-generated activity
+
+When the user deletes an auto-posted `Activity` (`source: "recurring"`, e.g. the
+`"2026-11"` Rent posting), `adapter.delete("activities", id)` removes that
+record from the activity log and Available Funds immediately reflects the removal.
+
+- **Never re-posted in the MVP:** Because `rule.lastPostPeriod` already advanced
+  to `"2026-11"` when the period was originally posted, subsequent runs of
+  `missingPeriods(rule, rule.lastPostPeriod, period(now), now)` only enumerate
+  periods strictly after `rule.lastPostPeriod` (starting from
+  `nextMonth(rule.lastPostPeriod)`, i.e. `"2026-12"` onward). The engine
+  therefore never re-evaluates `"2026-11"` and will **not** resurrect the
+  user-deleted activity, even though the `Activity` record is no longer present
+  for `alreadyPosted` to match (see [activity-model.md → Editing any activity](activity-model.md#editing-any-activity)).
+- **Post-MVP historical re-evaluation seam:** If a post-MVP feature ever
+  introduces historical range re-evaluation prior to `rule.lastPostPeriod` (for
+  example, when back-dating a rule's `anchorDate` or resetting `lastPostPeriod`),
+  adding an optional `skippedPeriods?: string[]` tombstone list on
+  `RecurringRule` preserves user deletions across arbitrary historical re-walks.
+
 ## Notes and resolved defaults
 
 - **Resolved MVP default — back-fill on re-enable.** Because the engine only posts
@@ -233,9 +278,12 @@ by `sourceRuleId` for an already-posted activity). This is the
   `(sourceRuleId, period)`, so nothing is double-posted. If we ever want to
   *suppress* back-fill (i.e. treat a disabled period as "forgiven"), that is a
   small change: advance `lastPostPeriod` to `now` when a rule is disabled.
-- **Timezone / due-date precision.** MVP treats the due date as midnight UTC on
-  `dayOfMonth`. If the user's timezone matters (e.g. a rule due on the 31st of a
-  30-day month), that is a future refinement to the period iterator.
+- **Timezone / due-date precision & short-month clamping.** MVP treats the due
+  date as midnight UTC on the clamped `effectiveDay = Math.min(rule.schedule.dayOfMonth, daysInMonth)`
+  (so a rule due on the 31st posts on `2026-02-28T00:00:00.000Z` in a non-leap
+  February and `2026-04-30T00:00:00.000Z` in April, never overflowing into the
+  next month). If user-local timezone midnight is ever desired over UTC midnight,
+  that is a localized refinement to `dueDateTime`.
 - **The engine is pure.** `runRecurringEngine(now)` is a pure function of
   `(rules, activities, now)` — it takes them as arguments and returns the list of
   new activities to insert + the updated rules. This makes it trivially
