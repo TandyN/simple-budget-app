@@ -132,6 +132,25 @@ in its own topic doc, not here.
   provisioning the `"meta"`, `"rules"`, and `"activities"` stores and secondary
   indexes (`by_active`, `by_dateTime`, `by_type`, `by_tags`, `by_rule_period`).
   [project-plan/storage.md](../project-plan/storage.md#indexeddb-schema-versioning-indexes-migration-strategy)
+- **storage durability (`navigator.storage.persist()`)** — the 3-layer defense
+  against WebKit ITP 7-day storage eviction: Home Screen PWA / Capacitor shells,
+  best-effort `navigator.storage?.persist?.()` on `init()`, and periodic JSON
+  backup export.
+  [project-plan/storage.md](../project-plan/storage.md#storage-durability-webkit-eviction-mitigation)
+- **short-month `Date.UTC` clamping** — clamping `rule.schedule.dayOfMonth`
+  (`1..31`) to `daysInMonth` (`new Date(Date.UTC(y, m, 0)).getUTCDate()`) in
+  `missingPeriods` and `dueDateTime` so rules due on days 29–31 never overflow
+  short months into the next month.
+  [project-plan/recurring-engine.md](../project-plan/recurring-engine.md#short-month-dateutc-clamping)
+- **`BroadcastChannel` (multi-tab sync)** — the `"simple-budget-sync"` channel
+  that broadcasts `"budget-mutated"` events on state-mutating `BudgetApi` calls
+  so sibling PWA tabs re-query and update without reload.
+  [project-plan/frontend.md](../project-plan/frontend.md#2-multi-tab-state-synchronization-broadcastchannel)
+- **post-MVP extensibility seams** — the 7 non-breaking v2+ growth seams layered
+  over `DB_VERSION = 1` and `RecurringRule`/`Activity` (category envelopes
+  `BudgetTarget`, multi-period `summarizeByPeriod`, flexible cadences, split
+  transactions, multi-account transfers, bank-sync/OAuth, multi-currency).
+  [project-plan/data-model.md](../project-plan/data-model.md#post-mvp-extensibility-growth-seams)
 - **RecurringRule** — the user-editable "what repeats"; separate from the
   activities it generates. [project-plan/data-model.md](../project-plan/data-model.md)
 - **Activity** — one unified, always-editable record (manual or auto-posted);
@@ -159,7 +178,7 @@ in its own topic doc, not here.
 - **zero-prod-deps** — `package.json` `dependencies` is empty; at runtime the app
   uses only IndexedDB, WebCrypto, `fetch`, `Date`/`Intl`, and pure TS logic.
   [project-plan/dependency-strategy.md](../project-plan/dependency-strategy.md)
-- **testing strategy** — the 3-layer test pyramid (Vitest unit/integration, Playwright E2E/regression, QA headless live spec check) and GitHub Actions CI gates, conditional on code infrastructure existing. [project-plan/testing.md](../project-plan/testing.md)
+- **testing strategy** — the 3-layer test pyramid (Vitest unit/integration with `>= 95%` `src/core/` coverage, Playwright 3-viewport Chromium + WebKit E2E + zero-egress gate, QA headless live spec check) and GitHub Actions CI gates, conditional on code infrastructure existing. [project-plan/testing.md](../project-plan/testing.md)
 - **integer-cent money** — amounts stored as canonical integer `amountCents` (minor units), integer arithmetic throughout, decimal-unit conversion only at the display boundary. [project-plan/data-model.md](../project-plan/data-model.md#derived-values-never-stored)
 - **input guard (upper bound)** — runtime validation on decimal-unit input: `decimal > 0`, a whole cent after rounding, **and** `decimal <= Number.MAX_SAFE_INTEGER / 100` so the derived `amountCents` never overflows a 64-bit integer (closes the unbounded gap where `Number.isInteger(1e23)` is `true`). [project-plan/data-model.md](../project-plan/data-model.md#2-activity-a-concrete-independent-always-editable-record)
 - **ActivityFilter** — the optional filter for `listActivities()`; **aliased to `ActivitySearchFilter`** (same `since` / `until` / `tag` / `type` predicates), so the two are the same shape; the full `searchActivities` surface is the dedicated insights/search entry point. [project-plan/portability.md](../project-plan/portability.md#the-public-api-what-the-front-end-calls)
@@ -174,7 +193,7 @@ in its own topic doc, not here.
 - **responsive viewport (folded/unfolded)** — the state-aware layout model built on **logical units + safe-area insets**, not fixed pixel widths; breakpoint is **folded → unfolded** (NOT mobile → tablet → desktop); **slab phones (≈ folded) are the secondary target**. [project-plan/frontend.md](../project-plan/frontend.md#responsive-viewport-iphone-duo-foldable-dual-state-req-2)
 - **safe-area inset** — `env(safe-area-inset-*)` used in padding/margin/position so content is never obscured by the notch, Dynamic Island, home indicator, or status bar; the iPhone-Duo layout relies on it rather than hard-pixel viewports. [project-plan/frontend.md](../project-plan/frontend.md#responsive-viewport-iphone-duo-foldable-dual-state-req-2)
 - **base path (configurable)** — the Vite `base` / `VITE_BASE_PATH` build-time input (read from `import.meta.env.BASE_URL` at runtime) that rewrites asset URLs; production = `/simple-budget-app/`, PR preview = `/simple-budget-app/pr-<PR#>/`; an explicit, non-hardcoded build decision. [project-plan/frontend.md](../project-plan/frontend.md#base-path-configurable-explicit-build-decision)
-- **PR# preview (mode a)** — the confirmed PR-preview architecture: **same-site sub-path** `tandyn.github.io/simple-budget-app/pr-<PR#>/`, with two guarantees — **production root untouched** on a PR deploy and **PR sub-path pruned on merge/close**. [project-plan/testing.md](../project-plan/testing.md#ci-deploy-preview-github-pages)
+- **PR# preview (mode a)** — the confirmed PR-preview architecture: **same-site sub-path** `tandyn.github.io/simple-budget-app/pr-<PR#>/` serialized via `concurrency: { group: "pages-deploy", cancel-in-progress: false }`, with two guarantees — **production root untouched** on a PR deploy and **PR sub-path pruned on merge/close**. [project-plan/testing.md](../project-plan/testing.md#ci-deploy-preview-github-pages)
 - **well-maintained criterion** — the governing rule for **any** dev dependency (local package *or* CI action): must be **Active & current**, **First-party / tool-maintainer**, and **Industry-standard** in its category; the curated dev-dep set (pnpm, Vite, Vitest, Playwright, fake-indexeddb, Biome, tsc) and the CI actions all pass it. [project-plan/dependency-strategy.md](../project-plan/dependency-strategy.md#the-well-maintained-criterion-the-governing-rule-for-any-dev-dependency)
 - **credential-gated build** — the Android/iOS native build jobs are **skip-not-fail** gated on the presence of signing secrets (absent → **skipped, not failed**); the always-run Web/PWA build is **not** credential-gated. Build-only, no store upload. [project-plan/testing.md](../project-plan/testing.md#android-ios-test-build-pipeline-credential-skip-build-only)
 
