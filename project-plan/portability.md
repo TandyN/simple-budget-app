@@ -61,17 +61,21 @@ native bridge for the core.**
 ```
 src/
   core/                 # PURE — no storage, no DOM, no framework. Unit-testable.
-    types.ts            #   RecurringRule, Activity, Schedule, enums
+    types.ts            #   RecurringRule, Activity, Schedule, BudgetBackup, enums
     engine.ts           #   runRecurringEngine, missingPeriods, alreadyPosted
     funds.ts            #   computeAvailableFunds
-    validate.ts         #   field validation / invariants
-   storage/
-     adapter.ts          #   the StorageAdapter interface (open/save/delete/query)
-     indexeddb.ts        #   IndexedDB implementation of StorageAdapter
-                         #   (shared by iOS WebKit + Android Chromium + PWA browsers)
-     memory.ts           #   in-memory implementation (for tests)
+    insights.ts         #   searchActivities, summarizeByTag
+    validate.ts         #   field validation / invariants, validateBackupPayload
+  storage/
+    adapter.ts          #   the StorageAdapter interface (open/save/delete/query/replaceAll)
+    indexeddb.ts        #   IndexedDB implementation of StorageAdapter (DB_VERSION = 1)
+                        #   (shared by iOS WebKit + Android Chromium + PWA browsers)
+    memory.ts           #   in-memory implementation (for tests)
+  ui/                   # Zero-prod-dep DOM UI views & safe DOM helpers (no innerHTML)
+  styles/               # Fluid logical-unit + safe-area CSS (folded & unfolded states)
   budgetApi.ts          # the PUBLIC API surface (see below) — the only thing
                         #   the front-end imports
+  main.ts               # PWA / WebView application bootstrap entry point
   index.ts              # re-exports budgetApi
 ```
 
@@ -124,6 +128,10 @@ interface BudgetApi {
 
   // Derived
   getAvailableFunds(): Promise<number>;
+
+  // Local backup export / atomic import
+  exportBackup(): Promise<BudgetBackup>;
+  importBackup(json: string): Promise<{ rulesCount: number; activitiesCount: number }>;
 }
 ```
 
@@ -132,7 +140,7 @@ interface BudgetApi {
 - **`ActivityFilter`** (used by `listActivities`) is the **optional** filter for
   listing activities — the same intersecting `since` / `until` / `tag` / `type`
   predicates as **`ActivitySearchFilter`** (see
-  [activity-model.md → Insights / search](activity-model.md#insights--search)),
+  [activity-model.md → Insights / search](activity-model.md#insights-search)),
   aliased so the two are the same shape. Pass `undefined` to list all activities
   unbounded; the full `searchActivities` surface is the dedicated insights/search
   entry point.
@@ -148,7 +156,16 @@ interface BudgetApi {
   **insights/search surface**: filter activities by intersecting
   date-range + tag + type, and roll up money in / out by tag. Both are pure and
   derived from the log (integer cents, plain data) — see
-  [activity-model.md → Insights / search](activity-model.md#insights--search).
+  [activity-model.md → Insights / search](activity-model.md#insights-search).
+- **`exportBackup()` / `importBackup(json)`** provide local JSON backup export
+  and atomic restore. `exportBackup()` returns a versioned `BudgetBackup`
+  envelope (`schemaVersion: 1`, `exportedAt`, `rules`, `activities`), while
+  `importBackup(json)` validates the untrusted JSON string in `src/core/validate.ts`
+  (10 MB ceiling, prototype-pollution key rejection, full schema/invariant checks;
+  see [data-model.md](data-model.md#hardened-import-validation-validatebackuppayloadrawjson-string-budgetbackup))
+  before atomically replacing all records in a single IndexedDB `readwrite`
+  transaction via `StorageAdapter.replaceAll` (see
+  [storage.md → Atomic Backup Restoration (`replaceAll`)](storage.md#atomic-backup-restoration-replaceall)).
 
 ### Example — PWA / iOS / Android calling the *same* API
 
@@ -201,10 +218,10 @@ the shell, not the logic.
   artifact whose **base path** is configurable at build time
   ([frontend.md → base path](frontend.md#base-path-configurable-explicit-build-decision))
   — with the per-PR preview deploy flow in
-  [testing.md → CI deploy & preview](testing.md#ci-deploy--preview-github-pages) —
+  [testing.md → CI deploy & preview](testing.md#ci-deploy-preview-github-pages) —
   and whose **responsive layout** is driven by the **iPhone-Duo foldable
   dual-state** model (folded = the mobile baseline; unfolded = the enhanced
-   one-screen view) — see [frontend.md → responsive viewport](frontend.md#responsive-viewport--iphone-duo-foldable-dual-state-req-2).
+   one-screen view) — see [frontend.md → responsive viewport](frontend.md#responsive-viewport-iphone-duo-foldable-dual-state-req-2).
 
 ## Android-specific considerations
 
@@ -235,6 +252,92 @@ only differences are:
 **Net:** Android adds **no new backend dependency and no new core logic** — only
 (a) the note that the IndexedDB adapter is shared with Android, (b) the
 secure-context check, and (c) Android named as a supported platform.
+
+## App Store & Play Store Privacy Compliance ("Data Not Collected")
+
+Because `simple-budget-app` is architected from commit #1 with **local-only IndexedDB persistence**, **zero network egress (`connect-src 'none'`)**, and **zero production dependencies**, the developer can legitimately and truthfully declare **"Data Not Collected"** in Apple App Store Connect and **"No data shared with third parties" / "No data collected"** in Google Play Console.
+
+### 1. Apple App Store Connect — App Privacy ("Data Not Collected")
+
+- **Qualification under Apple's App Privacy Details specification:**
+  - Apple defines *"Collect"* as *"transmitting data off the device in a way that allows you and/or your third-party partners to access it for a period longer than what is necessary to service the transmitted request in real time."*
+  - All financial records (`RecurringRule`, `Activity`) reside exclusively in on-device IndexedDB (`simple-budget-app`, see [storage.md](storage.md)). User-initiated JSON backup exports (`budget.exportBackup()`) write strictly to a user-selected local file and never transmit data to any developer or third-party server.
+  - At the document boundary, `index.html` enforces a strict Content Security Policy with `connect-src 'none'` and `form-action 'none'` (see [frontend.md → Strict Content Security Policy](frontend.md#1-strict-content-security-policy-indexhtml)), and the bundle includes **zero third-party SDKs, zero analytics/telemetry, zero crash-reporting frameworks, zero advertising networks, and zero remote fonts/CDNs/icons** (see [dependency-strategy.md](dependency-strategy.md)).
+  - **Store declaration:** In App Store Connect → **App Privacy**, select **"No, we do not collect data from this app"**, displaying the **"Data Not Collected"** nutrition label on the App Store listing.
+
+### 2. iOS Required-Reason API Privacy Manifest (`ios/App/App/PrivacyInfo.xcprivacy`)
+
+Since May 1, 2024, Apple App Store Connect rejects iOS submissions (`ITMS-91053: Missing API declaration`) if the app bundle (or the Capacitor iOS runtime bridge) references a Required-Reason API such as `NSUserDefaults` without an accompanying `PrivacyInfo.xcprivacy` manifest. The iOS Capacitor shell MUST include `ios/App/App/PrivacyInfo.xcprivacy` with:
+
+- `NSPrivacyTracking = false`
+- `NSPrivacyTrackingDomains = []`
+- `NSPrivacyCollectedDataTypes = []`
+- `NSPrivacyAccessedAPITypes` declaring `NSPrivacyAccessedAPICategoryUserDefaults` with reason **`CA92.1`** (*"Access info from same app, per documentation"* — accessed only by the app / Capacitor shell itself to read and write local app preferences, never shared off-device).
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>NSPrivacyTracking</key>
+  <false/>
+  <key>NSPrivacyTrackingDomains</key>
+  <array/>
+  <key>NSPrivacyCollectedDataTypes</key>
+  <array/>
+  <key>NSPrivacyAccessedAPITypes</key>
+  <array>
+    <dict>
+      <key>NSPrivacyAccessedAPIType</key>
+      <string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+      <key>NSPrivacyAccessedAPITypeReasons</key>
+      <array>
+        <string>CA92.1</string>
+      </array>
+    </dict>
+  </array>
+</dict>
+</plist>
+```
+
+### 3. Google Play Console — Data Safety ("No data shared / No data collected")
+
+- **Qualification under Google Play's Data Safety policy:**
+  - Google Play defines *"Collecting"* as *"transmitting data from your app off a user's device"* and explicitly exempts data that remains strictly on-device or is exported locally under direct user control.
+  - Because zero user or device data is transmitted off-device or shared with any third party, the app qualifies for **"No data shared with third parties"** and **"No data collected"** in Google Play Console → **App content → Data safety**.
+- **Android manifest permission hygiene (`android/app/src/main/AndroidManifest.xml`):**
+  - MUST omit the Google Advertising ID permission (`com.google.android.gms.permission.AD_ID`); if any build plugin attempts to merge it transitively, strip it explicitly via `<uses-permission android:name="com.google.android.gms.permission.AD_ID" tools:node="remove" />`.
+  - MUST avoid unnecessary network, contacts, location, or external-storage permissions; the app relies solely on app-scoped WebView IndexedDB storage and standard system file-picker intents for local JSON backup import/export.
+
+### 4. Capacitor WebView Runtime Hardening (`capacitor.config.ts`)
+
+To reinforce `connect-src 'none'` at the native shell boundary across both iOS (`WKWebView`) and Android (`Chromium` WebView), `capacitor.config.ts` MUST lock down navigation, mixed content, and release debugging:
+
+- **`server: { allowNavigation: [] }`** — blocks the WebView from navigating to any external origin outside the bundled local app origin (`capacitor://localhost` on iOS, `https://localhost` on Android).
+- **`android: { allowMixedContent: false, webContentsDebuggingEnabled: false }`** — disables insecure mixed content and disables remote `chrome://inspect` WebView debugging in release builds.
+- **`ios: { limitsNavigationsToAppBoundDomains: true }`** — enforces iOS App-Bound Domains isolation inside `WKWebView`.
+
+```ts
+import type { CapacitorConfig } from "@capacitor/cli";
+
+const config: CapacitorConfig = {
+  appId: "io.github.tandyn.simplebudgetapp",
+  appName: "Simple Budget",
+  webDir: "dist",
+  server: {
+    allowNavigation: [],
+  },
+  android: {
+    allowMixedContent: false,
+    webContentsDebuggingEnabled: false, // false in release builds
+  },
+  ios: {
+    limitsNavigationsToAppBoundDomains: true,
+  },
+};
+
+export default config;
+```
 
 ## Resolved MVP defaults
 
@@ -286,3 +389,4 @@ These three design questions have locked-in **MVP defaults** so engineering task
 | "the same code runs in a PWA now and an iOS/Android app later" | framework-agnostic TS library + storage-adapter seam (this doc) |
 | "shouldn't need any additional packages in production" (Story #21) | zero production dependencies — Web-platform APIs only (see [dependency-strategy.md](dependency-strategy.md)) |
 | "backend should support … so a front-end can be built on top" | the `BudgetApi` public interface is the contract the front-end implements against |
+| "declare Data Not Collected / no data stored or shared off-device" (Story #153) | on-device IndexedDB + `connect-src 'none'` + iOS `PrivacyInfo.xcprivacy` (`CA92.1`) + Google Play Data Safety ("No data collected / No data shared") + Capacitor WebView hardening (this doc) |

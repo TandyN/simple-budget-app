@@ -96,7 +96,61 @@ in its own topic doc, not here.
 - **app plan** — the navigable, pre-implementation design-of-record for the
   whole app under `project-plan/` (data model, storage, recurring engine,
   activity model, frontend / UI surface, portability, dependency strategy,
-  testing). [budget-app.md](budget-app.md#the-app-plan)
+  testing, and MVP build order). [budget-app.md](budget-app.md#the-app-plan)
+- **MVP build order (5-phase execution plan)** — the sequenced 5-phase MVP
+  implementation plan (Phase 1: Toolchain/CSP/CI → Phase 2: Pure `src/core/` →
+  Phase 3: IndexedDB Storage & `BudgetApi` → Phase 4: Zero-Prod-Dep Frontend UI
+  & PWA SW → Phase 5: Playwright E2E, Zero-Egress Gate & Mode-(a) Pages Deploy)
+  guaranteeing all 5 core engineering pillars from commit #1.
+  [project-plan/build-order.md](../project-plan/build-order.md)
+- **Content Security Policy (CSP — `connect-src 'none'`)** — the strict W3C CSP3
+  `<meta http-equiv="Content-Security-Policy">` tag in `index.html` (`default-src 'self'`,
+  `connect-src 'none'`, omitting `frame-ancestors`) paired with a same-origin
+  guard in `sw.js` and a strict DOM XSS ban (no `innerHTML` / `outerHTML` /
+  `insertAdjacentHTML` / `eval`).
+  [project-plan/frontend.md](../project-plan/frontend.md#1-strict-content-security-policy-indexhtml)
+- **Data Not Collected (App Store & Play Store privacy)** — the verified store
+  privacy qualification ("Data Not Collected" in Apple App Store Connect and
+  "No data shared / No data collected" in Google Play Console) achieved via
+  100% on-device IndexedDB storage, zero analytics/telemetry SDKs, zero remote
+  assets, and automated Playwright E2E zero-egress verification.
+  [project-plan/portability.md](../project-plan/portability.md#app-store-play-store-privacy-compliance-data-not-collected)
+- **`PrivacyInfo.xcprivacy` (iOS privacy manifest)** — the Apple iOS privacy
+  manifest (`ios/App/App/PrivacyInfo.xcprivacy`) declaring `NSPrivacyTracking: false`,
+  empty `NSPrivacyCollectedDataTypes`, and `NSPrivacyAccessedAPICategoryUserDefaults`
+  (`CA92.1`) for Capacitor's local app-scoped preferences bridge (preventing App
+  Store Connect error `ITMS-91053`).
+  [project-plan/portability.md](../project-plan/portability.md#2-ios-required-reason-api-privacy-manifest-iosappappprivacyinfoxcprivacy)
+- **`BudgetBackup` (atomic JSON export/import & validation)** — the versioned
+  (`schemaVersion: 1`) JSON backup envelope validated by `validateBackupPayload`
+  (10 MB byte ceiling, `__proto__` / `constructor` / `prototype` key rejection,
+  full entity invariant checks) and restored atomically via a single IndexedDB
+  `readwrite` transaction (`replaceAll`) that rolls back on any failure.
+  [project-plan/data-model.md](../project-plan/data-model.md#versioned-budgetbackup-schema-hardened-import-validation)
+- **IndexedDB schema versioning (`DB_VERSION = 1`)** — the deterministic
+  `onupgradeneeded(event)` sequential migration switch on `DB_NAME = "simple-budget-app"`
+  provisioning the `"meta"`, `"rules"`, and `"activities"` stores and secondary
+  indexes (`by_active`, `by_dateTime`, `by_type`, `by_tags`, `by_rule_period`).
+  [project-plan/storage.md](../project-plan/storage.md#indexeddb-schema-versioning-indexes-migration-strategy)
+- **storage durability (`navigator.storage.persist()`)** — the 3-layer defense
+  against WebKit ITP 7-day storage eviction: Home Screen PWA / Capacitor shells,
+  best-effort `navigator.storage?.persist?.()` on `init()`, and periodic JSON
+  backup export.
+  [project-plan/storage.md](../project-plan/storage.md#storage-durability-webkit-eviction-mitigation)
+- **short-month `Date.UTC` clamping** — clamping `rule.schedule.dayOfMonth`
+  (`1..31`) to `daysInMonth` (`new Date(Date.UTC(y, m, 0)).getUTCDate()`) in
+  `missingPeriods` and `dueDateTime` so rules due on days 29–31 never overflow
+  short months into the next month.
+  [project-plan/recurring-engine.md](../project-plan/recurring-engine.md#short-month-dateutc-clamping)
+- **`BroadcastChannel` (multi-tab sync)** — the `"simple-budget-sync"` channel
+  that broadcasts `"budget-mutated"` events on state-mutating `BudgetApi` calls
+  so sibling PWA tabs re-query and update without reload.
+  [project-plan/frontend.md](../project-plan/frontend.md#2-multi-tab-state-synchronization-broadcastchannel)
+- **post-MVP extensibility seams** — the 7 non-breaking v2+ growth seams layered
+  over `DB_VERSION = 1` and `RecurringRule`/`Activity` (category envelopes
+  `BudgetTarget`, multi-period `summarizeByPeriod`, flexible cadences, split
+  transactions, multi-account transfers, bank-sync/OAuth, multi-currency).
+  [project-plan/data-model.md](../project-plan/data-model.md#post-mvp-extensibility-growth-seams)
 - **RecurringRule** — the user-editable "what repeats"; separate from the
   activities it generates. [project-plan/data-model.md](../project-plan/data-model.md)
 - **Activity** — one unified, always-editable record (manual or auto-posted);
@@ -105,9 +159,9 @@ in its own topic doc, not here.
 - **recurring engine** — idempotent, period-based auto-poster; rule edits affect
   future periods only. [project-plan/recurring-engine.md](../project-plan/recurring-engine.md)
 - **Available Funds** — derived (income − expense) from the activity log, never
-  stored. [project-plan/activity-model.md](../project-plan/activity-model.md#available-funds--derived-from-the-activity-log)
-- **storage adapter** — the thin `open/save/delete/query` seam over IndexedDB;
-  the only platform surface the backend depends on.
+  stored. [project-plan/activity-model.md](../project-plan/activity-model.md#available-funds-derived-from-the-activity-log)
+- **storage adapter** — the thin `open/save/delete/query/replaceAll` seam over
+  IndexedDB; the only platform surface the backend depends on.
   [project-plan/storage.md](../project-plan/storage.md)
 - **portability** — backend as a framework-agnostic TS library shared by the PWA,
   the iOS (Capacitor / WebKit), and the Android (Capacitor / Chromium) shells;
@@ -124,24 +178,24 @@ in its own topic doc, not here.
 - **zero-prod-deps** — `package.json` `dependencies` is empty; at runtime the app
   uses only IndexedDB, WebCrypto, `fetch`, `Date`/`Intl`, and pure TS logic.
   [project-plan/dependency-strategy.md](../project-plan/dependency-strategy.md)
-- **testing strategy** — the 3-layer test pyramid (Vitest unit/integration, Playwright E2E/regression, QA headless live spec check) and GitHub Actions CI gates, conditional on code infrastructure existing. [project-plan/testing.md](../project-plan/testing.md)
+- **testing strategy** — the 3-layer test pyramid (Vitest unit/integration with `>= 95%` `src/core/` coverage, Playwright 3-viewport Chromium + WebKit E2E + zero-egress gate, QA headless live spec check) and GitHub Actions CI gates, conditional on code infrastructure existing. [project-plan/testing.md](../project-plan/testing.md)
 - **integer-cent money** — amounts stored as canonical integer `amountCents` (minor units), integer arithmetic throughout, decimal-unit conversion only at the display boundary. [project-plan/data-model.md](../project-plan/data-model.md#derived-values-never-stored)
-- **input guard (upper bound)** — runtime validation on decimal-unit input: `decimal > 0`, a whole cent after rounding, **and** `decimal <= Number.MAX_SAFE_INTEGER / 100` so the derived `amountCents` never overflows a 64-bit integer (closes the unbounded gap where `Number.isInteger(1e23)` is `true`). [project-plan/data-model.md](../project-plan/data-model.md#2-activity--a-concrete-independent-always-editable-record)
+- **input guard (upper bound)** — runtime validation on decimal-unit input: `decimal > 0`, a whole cent after rounding, **and** `decimal <= Number.MAX_SAFE_INTEGER / 100` so the derived `amountCents` never overflows a 64-bit integer (closes the unbounded gap where `Number.isInteger(1e23)` is `true`). [project-plan/data-model.md](../project-plan/data-model.md#2-activity-a-concrete-independent-always-editable-record)
 - **ActivityFilter** — the optional filter for `listActivities()`; **aliased to `ActivitySearchFilter`** (same `since` / `until` / `tag` / `type` predicates), so the two are the same shape; the full `searchActivities` surface is the dedicated insights/search entry point. [project-plan/portability.md](../project-plan/portability.md#the-public-api-what-the-front-end-calls)
 - **offline / installable (PWA-scoped)** — a **PWA (built-in-browser) capability only**: service worker + manifest deliver offline caching and add-to-home-screen in the PWA and the Android (Chromium) browser; on **iOS (Capacitor / WKWebView) the SW is limited / not available**, so it is not a guarantee there. [project-plan/frontend.md](../project-plan/frontend.md)
-- **insights / search surface** — `searchActivities(filter)` (period + tag + type) and `summarizeByTag(activities)` (roll-up), pure and derived from the activity log, so 5-year tag analysis needs no stored aggregate. [project-plan/activity-model.md](../project-plan/activity-model.md#insights--search)
-- **bank-OAuth slots** — reserved (not implemented) fields for future bank-sync: `ActivitySource: "bank-sync"`, `externalTxnId`, `sourceAccountId`; the data model must not foreclose it. **Feasibility is affirmed**: bank-OAuth account-linking is an explicit go for a later platform-layer project (RFC 8252 loopback pattern), needing no data-model change. [project-plan/data-model.md](../project-plan/data-model.md#2-activity--a-concrete-independent-always-editable-record)
-- **BudgetApi** — the backend's single public API surface (`createBudgetApi(...)`); the only thing a frontend shell imports/calls (rules, activities, the insights/search surface, the recurring-engine run, derived Available Funds). [project-plan/portability.md](../project-plan/portability.md#the-public-api-what-the-front-end-calls)
+- **insights / search surface** — `searchActivities(filter)` (period + tag + type) and `summarizeByTag(activities)` (roll-up), pure and derived from the activity log, so 5-year tag analysis needs no stored aggregate. [project-plan/activity-model.md](../project-plan/activity-model.md#insights-search)
+- **bank-OAuth slots** — reserved (not implemented) fields for future bank-sync: `ActivitySource: "bank-sync"`, `externalTxnId`, `sourceAccountId`; the data model must not foreclose it. **Feasibility is affirmed**: bank-OAuth account-linking is an explicit go for a later platform-layer project (RFC 8252 loopback pattern), needing no data-model change. [project-plan/data-model.md](../project-plan/data-model.md#2-activity-a-concrete-independent-always-editable-record)
+- **BudgetApi** — the backend's single public API surface (`createBudgetApi(...)`); the only thing a frontend shell imports/calls (rules, activities, the insights/search surface, the recurring-engine run, derived Available Funds, and `exportBackup`/`importBackup`). [project-plan/portability.md](../project-plan/portability.md#the-public-api-what-the-front-end-calls)
 - **frontend / PWA plan** — the UI surface, a first-class designed area of the plan: zero-prod-dep static bundle, iPhone-Duo foldable viewport (folded/unfolded), configurable base path, rendering all ten requirements over the shared `BudgetApi`. [project-plan/frontend.md](../project-plan/frontend.md)
 - **zero-prod-dep frontend** — the frontend is a zero-prod-dep shell (`dependencies: {}`): plain TS/HTML against the `BudgetApi` + built-in Web-platform APIs, no framework runtime dep in production; the build output is a single static web bundle with an empty `dependencies`. [project-plan/frontend.md](../project-plan/frontend.md#zero-production-dependencies-req-1)
 - **cross-platform static bundle** — the build output is one static web bundle (`vite build` → `dist/`) with an empty `dependencies`; the **identical artifact** is served on all phones (PWA now, iOS/Android Capacitor shells later) — **no per-platform bundle, build flag, or code path**. [project-plan/portability.md](../project-plan/portability.md#what-this-buys)
-- **iPhone-Duo foldable** — the **primary** viewport target: a foldable phone with two states — **folded** (slab-like, baseline 1-page, the mobile baseline) and **unfolded** (dual-panel, enhanced 1-page); **supersedes** the "iPhone class" (SE → 16 Pro Max) verification set. [project-plan/frontend.md](../project-plan/frontend.md#responsive-viewport--iphone-duo-foldable-dual-state-req-2)
-- **responsive viewport (folded/unfolded)** — the state-aware layout model built on **logical units + safe-area insets**, not fixed pixel widths; breakpoint is **folded → unfolded** (NOT mobile → tablet → desktop); **slab phones (≈ folded) are the secondary target**. [project-plan/frontend.md](../project-plan/frontend.md#responsive-viewport--iphone-duo-foldable-dual-state-req-2)
-- **safe-area inset** — `env(safe-area-inset-*)` used in padding/margin/position so content is never obscured by the notch, Dynamic Island, home indicator, or status bar; the iPhone-Duo layout relies on it rather than hard-pixel viewports. [project-plan/frontend.md](../project-plan/frontend.md#responsive-viewport--iphone-duo-foldable-dual-state-req-2)
+- **iPhone-Duo foldable** — the **primary** viewport target: a foldable phone with two states — **folded** (slab-like, baseline 1-page, the mobile baseline) and **unfolded** (dual-panel, enhanced 1-page); **supersedes** the "iPhone class" (SE → 16 Pro Max) verification set. [project-plan/frontend.md](../project-plan/frontend.md#responsive-viewport-iphone-duo-foldable-dual-state-req-2)
+- **responsive viewport (folded/unfolded)** — the state-aware layout model built on **logical units + safe-area insets**, not fixed pixel widths; breakpoint is **folded → unfolded** (NOT mobile → tablet → desktop); **slab phones (≈ folded) are the secondary target**. [project-plan/frontend.md](../project-plan/frontend.md#responsive-viewport-iphone-duo-foldable-dual-state-req-2)
+- **safe-area inset** — `env(safe-area-inset-*)` used in padding/margin/position so content is never obscured by the notch, Dynamic Island, home indicator, or status bar; the iPhone-Duo layout relies on it rather than hard-pixel viewports. [project-plan/frontend.md](../project-plan/frontend.md#responsive-viewport-iphone-duo-foldable-dual-state-req-2)
 - **base path (configurable)** — the Vite `base` / `VITE_BASE_PATH` build-time input (read from `import.meta.env.BASE_URL` at runtime) that rewrites asset URLs; production = `/simple-budget-app/`, PR preview = `/simple-budget-app/pr-<PR#>/`; an explicit, non-hardcoded build decision. [project-plan/frontend.md](../project-plan/frontend.md#base-path-configurable-explicit-build-decision)
-- **PR# preview (mode a)** — the confirmed PR-preview architecture: **same-site sub-path** `tandyn.github.io/simple-budget-app/pr-<PR#>/`, with two guarantees — **production root untouched** on a PR deploy and **PR sub-path pruned on merge/close**. [project-plan/testing.md](../project-plan/testing.md#ci-deploy--preview-github-pages)
+- **PR# preview (mode a)** — the confirmed PR-preview architecture: **same-site sub-path** `tandyn.github.io/simple-budget-app/pr-<PR#>/` serialized via `concurrency: { group: "pages-deploy", cancel-in-progress: false }`, with two guarantees — **production root untouched** on a PR deploy and **PR sub-path pruned on merge/close**. [project-plan/testing.md](../project-plan/testing.md#ci-deploy-preview-github-pages)
 - **well-maintained criterion** — the governing rule for **any** dev dependency (local package *or* CI action): must be **Active & current**, **First-party / tool-maintainer**, and **Industry-standard** in its category; the curated dev-dep set (pnpm, Vite, Vitest, Playwright, fake-indexeddb, Biome, tsc) and the CI actions all pass it. [project-plan/dependency-strategy.md](../project-plan/dependency-strategy.md#the-well-maintained-criterion-the-governing-rule-for-any-dev-dependency)
-- **credential-gated build** — the Android/iOS native build jobs are **skip-not-fail** gated on the presence of signing secrets (absent → **skipped, not failed**); the always-run Web/PWA build is **not** credential-gated. Build-only, no store upload. [project-plan/testing.md](../project-plan/testing.md#android--ios-test-build-pipeline-credential-skip-build-only)
+- **credential-gated build** — the Android/iOS native build jobs are **skip-not-fail** gated on the presence of signing secrets (absent → **skipped, not failed**); the always-run Web/PWA build is **not** credential-gated. Build-only, no store upload. [project-plan/testing.md](../project-plan/testing.md#android-ios-test-build-pipeline-credential-skip-build-only)
 
 > As backend / frontend / data topics land, add their terms here and split the
 > area doc into `budget-app/<area>.md` when it grows.
