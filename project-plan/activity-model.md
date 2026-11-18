@@ -99,10 +99,16 @@ Consequences that fall out of this design:
   fields → set `updatedAt = now` → `adapter.save("activities", activity)`. No
   special cases for "manual" vs. "recurring".
 - **Deletion** is a first-class operation on any activity (manual or recurring),
-  `adapter.delete("activities", id)`. Deleting a recurring activity does *not*
-  re-post it (the idempotency guard checks `(sourceRuleId, period)`; if the user
-  deleted it, the engine treats that period as handled and does not resurrect it
-  — deletion is the user's intent).
+  `adapter.delete("activities", id)`. Deleting a recurring-generated `Activity`
+  removes that record from the activity log and does *not* re-post it: because
+  `rule.lastPostPeriod` already advanced past that period when it was originally
+  posted, `missingPeriods` (which enumerates `(rule.lastPostPeriod, period(now)]`,
+  starting from `nextMonth(rule.lastPostPeriod)`) never re-enumerates that period
+  and does not resurrect the deleted activity — deletion is the user's intent
+  (see [recurring-engine.md → Deleting a recurring-generated activity](recurring-engine.md#deleting-a-recurring-generated-activity);
+  if historical range re-evaluation prior to `lastPostPeriod` is ever introduced
+  post-MVP, an optional `skippedPeriods?: string[]` array on `RecurringRule`
+  preserves user deletions).
 
 ## Available Funds — derived from the activity log
 
@@ -222,6 +228,33 @@ gives "where did my money go, by tag, over this period" — the insight the user
 asks for, answered entirely from the derived log. These two methods are exposed
 on the `BudgetApi` public surface
 ([portability.md](portability.md#the-public-api-what-the-front-end-calls)).
+
+### 3. Post-MVP Analytics & Category Target Composition
+
+Because `searchActivities` and `summarizeByTag` are pure functions over plain
+`Activity` arrays in integer cents, post-MVP analytics and budgeting extensions
+([data-model.md → Post-MVP Extensibility & Growth Seams](data-model.md#post-mvp-extensibility--growth-seams))
+compose directly with them without changing the MVP contract:
+
+- **Time-series period bucketing (`summarizeByPeriod`):** A post-MVP
+  `summarizeByPeriod(activities: Activity[], granularity: "month" | "quarter" | "year")`
+  function in `src/core/insights.ts` groups any `searchActivities(all, { since, until, tag, type })`
+  slice by UTC period key (`"2026-11"`, `"2026-Q4"`, `"2026"`) and delegates each
+  bucket's tag breakdown to `summarizeByTag(bucketActivities)`, powering multi-period
+  trend comparisons and cash-flow forecasting in integer cents.
+- **Category envelopes / spending targets (`BudgetTarget`):** A post-MVP
+  `"budgetTargets"` store (`{ id, tag, monthlyTargetCents, rollover }`) joins
+  against `summarizeByTag(await budget.searchActivities({ since, until }))` on
+  `target.tag === summary.tag`. Envelope remaining balance is simply
+  `target.monthlyTargetCents + rolloverCents - summary.totalOutCents` in integer
+  cents—requiring zero changes to `Activity` or `summarizeByTag`.
+- **Split transactions (`Activity.splits`):** When an optional
+  `splits?: Array<{ amountCents: number; tags: string[]; memo?: string }>` array
+  is present on an `Activity` (with `sum(splits.amountCents) === activity.amountCents`),
+  `computeAvailableFunds` continues summing top-level `activity.amountCents`
+  unchanged, while `searchActivities` (for `filter.tag`) and `summarizeByTag`
+  iterate each split's `(amountCents, tags)` pair instead of the parent record's
+  `tags`—preserving exact cent-level reconciliation across split categories.
 
 ## Mapping the user's ask → activity model
 
