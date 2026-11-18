@@ -55,7 +55,7 @@ Funds calculation all treat them identically. There is no "recurring table" vs.
   future enhancement that does not change the data shape.
 - Tags power the **insights/search surface** in the MVP: query activities by
   date range + tag + type, and roll up spend/income **by tag**. See
-  [Insights / search](#insights--search).
+  [Insights / search](#insights-search).
 
 ## Timestamps: default to "now", always editable
 
@@ -233,7 +233,7 @@ on the `BudgetApi` public surface
 
 Because `searchActivities` and `summarizeByTag` are pure functions over plain
 `Activity` arrays in integer cents, post-MVP analytics and budgeting extensions
-([data-model.md → Post-MVP Extensibility & Growth Seams](data-model.md#post-mvp-extensibility--growth-seams))
+([data-model.md → Post-MVP Extensibility & Growth Seams](data-model.md#post-mvp-extensibility-growth-seams))
 compose directly with them without changing the MVP contract:
 
 - **Time-series period bucketing (`summarizeByPeriod`):** A post-MVP
