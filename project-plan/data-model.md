@@ -195,3 +195,67 @@ function computeAvailableFunds(activities: Activity[]): number {
 | "Timestamp defaults to now, but changeable" | `Activity.dateTime` |
 | "Available Funds" | Derived: income − expense (see above) |
 | "Bi-weekly / weekly + custom dates (future)" | `Schedule.cadence` extended; `anchorDate` / `customDates` reserved |
+
+## Versioned `BudgetBackup` Schema & Hardened Import Validation
+
+User-initiated JSON backup export (`budget.exportBackup()`) and restore (`budget.importBackup(rawJson)`) use an explicit, versioned envelope so backups remain forward-migrable and untrusted JSON files are strictly validated in `src/core/validate.ts` before touching storage:
+
+```ts
+interface BudgetBackup {
+  schemaVersion: 1;
+  exportedAt: string; // ISO-8601 UTC instant
+  rules: RecurringRule[];
+  activities: Activity[];
+}
+```
+
+### Hardened Import Validation (`validateBackupPayload(rawJson: string): BudgetBackup`)
+
+Because a user-selected backup file is untrusted external input, `validateBackupPayload(rawJson: string): BudgetBackup` in `src/core/validate.ts` enforces strict defense-in-depth checks **before** `IndexedDbAdapter.replaceAll` is ever called (see [storage.md](storage.md)):
+
+- **Size bound (10 MB ceiling):** Reject `rawJson` exceeding `10 * 1024 * 1024` bytes (10 MB, measured via `new TextEncoder().encode(rawJson).byteLength`) before calling `JSON.parse`, preventing main-thread memory exhaustion or denial-of-service on mobile WebViews.
+- **Prototype-pollution guard:** Use a `JSON.parse` reviver and/or recursive `Object.keys` / `Object.getOwnPropertyNames` check that immediately rejects any object containing `__proto__`, `constructor`, or `prototype` as an own property, and construct clean plain objects with only allowlisted domain properties.
+- **Strict schema & type checks:**
+  - Verify top-level envelope is a non-null plain object with `schemaVersion === 1`, a valid ISO-8601 UTC `exportedAt` timestamp, and arrays `rules` and `activities` (each bounded to `<= 100_000` items).
+  - Run the full `RecurringRule` and `Activity` domain validators on every element:
+    - **Money invariants:** `Number.isSafeInteger(amountCents) && amountCents > 0` (strictly positive safe integers in minor units).
+    - **Enum & schedule invariants:** Valid `RuleType` (`"income" | "expense"`), `ActivityType` (`"income" | "expense" | "deposit"`), `ActivitySource` (`"manual" | "recurring" | "bank-sync"`), `schedule.cadence === "monthly"`, and integer `schedule.dayOfMonth` in `1..31`.
+    - **Date & period invariants:** Valid `YYYY-MM` format (`1 <= month <= 12`) for `lastPostPeriod` (when non-null) and `Activity.period` (when `source === "recurring"`), and valid ISO-8601 UTC instants (`YYYY-MM-DDTHH:mm:ss(.sss)Z`) for `dateTime`, `createdAt`, and `updatedAt`.
+    - **Bounded string & array lengths:** Non-empty `id` (`<= 64` chars), rule `name` / `label` and each `tag` bounded to `<= 120` chars, optional `memo` bounded to `<= 1000` chars, and `tags.length <= 20`.
+    - **Referential & uniqueness invariants:** Reject duplicate `id`s within `rules` or within `activities`; require `sourceRuleId` and `period` when `source === "recurring"`.
+    - **Single-currency consistency:** Enforce a valid 3-letter uppercase ISO-4217 `currency` code (e.g. `"USD"`) and verify single-currency consistency across all rules and activities in the imported budget so `computeAvailableFunds` and `summarizeByTag` never sum mixed currencies.
+
+Only after `validateBackupPayload(rawJson)` returns a clean, fully validated `BudgetBackup` does `budget.importBackup(rawJson)` invoke `adapter.replaceAll({ rules: backup.rules, activities: backup.activities })` inside a single atomic IndexedDB `readwrite` transaction (see [storage.md](storage.md)).
+
+## Post-MVP Extensibility & Growth Seams
+
+The v1 data model (`RecurringRule`, `Activity`), `BudgetBackup` (`schemaVersion: 1`), and `StorageAdapter` (`DB_VERSION = 1` in [storage.md](storage.md)) are intentionally structured so the seven most sought-after modern budget-app capabilities layer onto v2+ via additive `onupgradeneeded` migrations and optional fields—**without breaking or rewriting v1 records**:
+
+1. **Category Budgets / Envelopes (YNAB / Monarch style):**
+   - Add a new `"budgetTargets"` object store in `DB_VERSION = 2`:
+     ```ts
+     interface BudgetTarget {
+       id: string;
+       tag: string;                // matches Activity.tags entry (e.g. "groceries")
+       monthlyTargetCents: number; // positive integer cents
+       rollover: boolean;          // whether unspent cents carry into the next period
+     }
+     ```
+   - Joins purely against `summarizeByTag(await searchActivities({ since, until }))` (see [activity-model.md](activity-model.md)) to compute funded, spent, and remaining envelope balances in integer cents.
+2. **Multi-Period Trends, Cash-Flow & Forecasting (Copilot / Monarch style):**
+   - Add a pure `summarizeByPeriod(activities: Activity[], granularity: "month" | "quarter" | "year")` function in `src/core/insights.ts` operating over activities queried via the `by_dateTime` index.
+   - Renders as zero-dependency inline SVG bar/area charts in the unfolded right-hand companion pane (`>= 700px`, see [frontend.md](frontend.md)).
+3. **Flexible Recurring Cadences (`weekly`, `bi-weekly`, `semi-monthly`, `quarterly`, `yearly`):**
+   - Extend `Schedule.cadence` and populate the already-reserved `anchorDate: string` field inside `missingPeriods(rule, now)` (see [recurring-engine.md](recurring-engine.md)).
+   - The `(sourceRuleId, period)` idempotency key and the compound `by_rule_period` index remain completely unchanged—`period` simply generalizes from `"2026-11"` to ISO week `"2026-W14"`, date `"2026-03-15"`, quarter `"2026-Q1"`, or year `"2026"`.
+4. **Split Transactions:**
+   - Add an optional `splits?: Array<{ amountCents: number; tags: string[]; memo?: string }>` field on `Activity` with the invariant `sum(splits.amountCents) === activity.amountCents`.
+   - `computeAvailableFunds` continues reading `activity.amountCents` unchanged, while `summarizeByTag` and `searchActivities` inspect `activity.splits` when present.
+5. **Multi-Account & Net-Worth Tracking / Transfers:**
+   - Add a new `"accounts"` object store (`Account { id, name, type: "checking" | "savings" | "credit" | "investment", currency }`) and populate the already-reserved `Activity.sourceAccountId` field.
+   - Add an optional `transferPeerId?: string` on `Activity` linking paired inter-account transfer records (net-zero across total Available Funds, while tracked individually per account).
+6. **Bank Sync / OAuth Reconciliation (Plaid / SimpleFin + RFC 8252):**
+   - Populate the already-reserved `source: "bank-sync"`, `externalTxnId`, and `sourceAccountId` fields on `Activity`, plus optional `pending?: boolean` and `reconciledRuleId?: string` to match imported bank transactions against auto-posted recurring activities without double-counting.
+7. **Multi-Currency:**
+   - MVP validation enforces single-currency consistency per budget while storing `currency` (ISO-4217) on every `RecurringRule` and `Activity`.
+   - Post-MVP multi-currency support groups balances and tag rollups by `currency` (using `Intl.NumberFormat(locale, { style: "currency", currency }).resolvedOptions().maximumFractionDigits` for 0-, 2-, and 3-decimal minor-unit scaling) and optionally applies user-pinned or cached exchange rates at the reporting layer.
