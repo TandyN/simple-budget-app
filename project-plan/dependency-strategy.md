@@ -167,3 +167,56 @@ pass the same well-maintained criterion before it is allowed.
   build/test/lint-time only; they must never be imported or loaded at runtime.
   This keeps the **zero-prod-dep** hard constraint intact and the two rules
   consistent with each other.
+- **Supply-Chain & Lockfile Hardening (mandatory):**
+  - **Exact dependency pinning (`.npmrc`):** The repository root MUST include an
+    `.npmrc` file setting `save-exact=true` so every `devDependencies` entry in
+    `package.json` uses an exact version string (e.g. `"5.4.0"`, never `^` or
+    `~` floating ranges).
+  - **Immutable lockfile in CI (`--frozen-lockfile`):** Every CI job MUST install
+    dependencies via `pnpm install --frozen-lockfile` so `pnpm-lock.yaml` is the
+    single deterministic source of truth and lockfile drift fails immediately.
+  - **Automated vulnerability gate (`pnpm audit`):** CI MUST run
+    `pnpm audit --audit-level=high` on every PR and `main` push to block any
+    known `high` or `critical` CVE in the dev/build toolchain.
+  - **Least-privilege GitHub Actions workflow permissions:** Every workflow under
+    `.github/workflows/` MUST declare top-level least-privilege
+    `permissions: { contents: read }` by default, elevating permissions only at
+    the specific job level where required (i.e. `pages: write` and
+    `id-token: write` on the GitHub Pages deployment job in
+    `deploy-pages.yml`; see [testing.md](testing.md)).
+
+## Strict TypeScript Compiler Flags (`tsconfig.json`)
+
+To maximize compile-time safety across pure financial calculations (`src/core/`), IndexedDB persistence (`src/storage/`), and DOM rendering (`src/ui/`), `tsconfig.json` MUST enforce the following strict compiler baseline (verified in CI via `tsc --noEmit`):
+
+- **`strict: true`** — enables the full TypeScript strict type-checking family (`strictNullChecks`, `noImplicitAny`, `strictFunctionTypes`, `strictBindCallApply`, `strictPropertyInitialization`, `useUnknownInCatchVariables`).
+- **`noUncheckedIndexedAccess: true`** — types array and record index lookups as `T | undefined`, preventing unchecked out-of-bounds access in period iteration, tag rollups, and backup parsing.
+- **`exactOptionalPropertyTypes: true`** — prevents assigning `undefined` to optional properties (such as `Activity.sourceRuleId`, `Activity.period`, `Activity.memo`, or `ActivityPatch` fields) unless explicitly permitted.
+- **`noImplicitOverride: true`** — requires explicit `override` keywords on subclass methods.
+- **`noImplicitReturns: true`** — guarantees every code path in a function returns a value.
+- **`noFallthroughCasesInSwitch: true`** — prevents accidental switch case fallthrough (e.g. across `ActivityType` or schema migration switches).
+- **`isolatedModules: true`** — ensures every file can be safely transpiled in isolation by Vite/esbuild.
+- **`verbatimModuleSyntax: true`** — enforces explicit `import type` / `export type` declarations so type-only imports are deterministically elided at build time.
+- **`target: "ES2022"`** and **`moduleResolution: "bundler"`** — targets modern Web-platform runtimes (PWA, iOS `WKWebView`, Android `Chromium`) and aligns module resolution with Vite.
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "noEmit": true,
+    "skipLibCheck": false
+  },
+  "include": ["src", "e2e"]
+}
+```
