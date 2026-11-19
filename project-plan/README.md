@@ -135,15 +135,18 @@ where the boundary matters.
   arithmetic throughout. See
   [data-model.md → derived values](data-model.md#derived-values-never-stored)
   and [frontend.md → money](frontend.md#money-integer-cents-req-10).
-- **IndexedDB `DB_VERSION = 1` schema versioning, WebKit durability & post-MVP
+- **IndexedDB `DB_VERSION = 1` schema versioning, storage durability & post-MVP
   extensibility seams (Pillars 4 & 5)**: deterministic `onupgradeneeded`
   migrations (`"meta"`, `"rules"`, `"activities"` stores and secondary indexes
-  `by_active`, `by_dateTime`, `by_type`, `by_tags`, `by_rule_period`),
-  best-effort `navigator.storage?.persist?.()` to mitigate WebKit 7-day storage
-  eviction, and non-breaking post-MVP extension seams for category envelopes
-  (`BudgetTarget`), multi-period trends (`summarizeByPeriod`), flexible
-  cadences, split transactions, multi-account transfers, and bank-OAuth slots
-  (`source: "bank-sync"`, `externalTxnId`, `sourceAccountId`). See
+  `by_dateTime`, `by_type`, `by_tags`, `by_rule_period` — active vs. paused
+  rules are filtered in memory since booleans are invalid IndexedDB keys),
+  first-action `navigator.storage?.persist?.()` + `persisted()` status and
+  N-day backup nag in Settings (plus an OQ-4 durable native store release gate
+  for store submissions), and non-breaking post-MVP extension seams for category
+  envelopes (`BudgetTarget`), multi-period trends (`summarizeByPeriod`), flexible
+  cadences, split transactions, multi-account transfers, reserved `deletedAt?` /
+  `deviceId?` sync slots, and bank-OAuth slots (`source: "bank-sync"`,
+  `externalTxnId`, `sourceAccountId`). See
   [storage.md → IndexedDB schema versioning](storage.md#indexeddb-schema-versioning-indexes-migration-strategy),
   [data-model.md → Activity](data-model.md#2-activity-a-concrete-independent-always-editable-record),
   and [data-model.md → post-MVP extensibility](data-model.md#post-mvp-extensibility-growth-seams).

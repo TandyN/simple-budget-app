@@ -44,7 +44,7 @@ runRecurringEngine(now):
         type:   rule.type,                          // income | expense
         amountCents: rule.amountCents,
         currency: rule.currency,
-        dateTime: dueDateTime(rule, P),             // e.g. 2026-11-01T00:00:00Z
+        dateTime: dueDateTime(rule, P),             // e.g. 2026-11-01T12:00:00Z (fixed noon UTC; OQ-2)
         tags:   [],
         source: "recurring",
         sourceRuleId: rule.id,
@@ -72,17 +72,20 @@ and stamp an activity for period `"2026-02"` with a March `dateTime`.
 
 Both `dueDateTime(rule, period)` and `missingPeriods(rule, startExclusive, endInclusive, now)`
 MUST clamp `rule.schedule.dayOfMonth` to the actual number of days in month `m`
-(`new Date(Date.UTC(y, m, 0)).getUTCDate()`), guaranteeing that rules scheduled
-for days 29–31 post on the last valid day of short months (e.g., Feb 28 in
-non-leap years, Feb 29 in leap years, and Apr/Jun/Sep/Nov 30):
+(`new Date(Date.UTC(y, m, 0)).getUTCDate()`), and anchor the due instant at fixed
+**`12:00:00Z`** (noon UTC — OQ-2 adopted default, see
+[Notes and resolved defaults](#notes-and-resolved-defaults)), guaranteeing that
+rules scheduled for days 29–31 post on the last valid day of short months (e.g.,
+Feb 28 in non-leap years, Feb 29 in leap years, and Apr/Jun/Sep/Nov 30) and
+render on the expected local calendar day for UTC−12 through UTC+11:
 
 ```ts
 function dueDateTime(rule: RecurringRule, period: string): string {
   const [y, m] = parseYM(period); // "YYYY-MM" -> [y, m] where m is 1..12
   const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
   const effectiveDay = Math.min(rule.schedule.dayOfMonth, daysInMonth);
-  const dueAt = new Date(Date.UTC(y, m - 1, effectiveDay));
-  return dueAt.toISOString();
+  const dueAt = new Date(Date.UTC(y, m - 1, effectiveDay, 12, 0, 0));
+  return dueAt.toISOString(); // e.g. "2026-11-01T12:00:00.000Z"
 }
 
 function missingPeriods(
@@ -99,9 +102,10 @@ function missingPeriods(
     if (cur !== startExclusive) {
       // Clamp dayOfMonth (1..31) to the actual number of days in month m
       // so short months (e.g. Feb 28/29, Apr 30) never overflow Date.UTC into month m + 1.
+      // Anchor at 12:00:00Z (OQ-2) so UTC-12..UTC+11 users see the intended local calendar day.
       const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
       const effectiveDay = Math.min(rule.schedule.dayOfMonth, daysInMonth);
-      const dueAt = new Date(Date.UTC(y, m - 1, effectiveDay));
+      const dueAt = new Date(Date.UTC(y, m - 1, effectiveDay, 12, 0, 0));
       if (dueAt.getTime() <= now.getTime()) out.push(cur);
     }
     m += 1;
@@ -187,12 +191,12 @@ ruleB = RecurringRule { id: "rB", name: "Rent",   type: "expense",
 period that is due).
 
 - **ruleA:** `missingPeriods(ruleA, "2026-10", "2026-11", now)` →
-  checks `"2026-11"`: due date 2026-11-01 ≤ now → post.
+  checks `"2026-11"`: due date `2026-11-01T12:00:00Z` ≤ now → post.
   → creates `Activity { type: "income", amountCents: 500000, source: "recurring",
-    sourceRuleId: "rA", period: "2026-11", dateTime: "2026-11-01T00:00:00Z" }`.
+    sourceRuleId: "rA", period: "2026-11", dateTime: "2026-11-01T12:00:00Z" }`.
   `ruleA.lastPostPeriod = "2026-11"`.
 - **ruleB:** same → creates `Activity { type: "expense", amountCents: 150000, source:
-  "recurring", sourceRuleId: "rB", period: "2026-11", dateTime: "2026-11-01T00:00:00Z" }`.
+  "recurring", sourceRuleId: "rB", period: "2026-11", dateTime: "2026-11-01T12:00:00Z" }`.
   `ruleB.lastPostPeriod = "2026-11"`.
 
 **Available Funds** = 500000 − 150000 = **350000** cents. ✓
@@ -207,9 +211,9 @@ period that is due).
 
 `period(now)` = `"2026-12"`. `startExclusive` = `"2026-11"`.
 `missingPeriods(ruleA, "2026-11", "2026-12", now)` → checks `"2026-12"`:
-due date 2026-12-01 ≤ now → post.
+due date `2026-12-01T12:00:00Z` ≤ now → post.
 → creates `Activity { type: "income", amountCents: 500000, source: "recurring",
-  sourceRuleId: "rA", period: "2026-12", dateTime: "2026-12-01T00:00:00Z" }`.
+  sourceRuleId: "rA", period: "2026-12", dateTime: "2026-12-01T12:00:00Z" }`.
 `ruleA.lastPostPeriod = "2026-12"`. Same for ruleB.
 
 **Available Funds** = (500000 + 500000) − (150000 + 150000) = **700000** cents. ✓
@@ -278,12 +282,27 @@ record from the activity log and Available Funds immediately reflects the remova
   `(sourceRuleId, period)`, so nothing is double-posted. If we ever want to
   *suppress* back-fill (i.e. treat a disabled period as "forgiven"), that is a
   small change: advance `lastPostPeriod` to `now` when a rule is disabled.
-- **Timezone / due-date precision & short-month clamping.** MVP treats the due
-  date as midnight UTC on the clamped `effectiveDay = Math.min(rule.schedule.dayOfMonth, daysInMonth)`
-  (so a rule due on the 31st posts on `2026-02-28T00:00:00.000Z` in a non-leap
-  February and `2026-04-30T00:00:00.000Z` in April, never overflowing into the
-  next month). If user-local timezone midnight is ever desired over UTC midnight,
-  that is a localized refinement to `dueDateTime`.
+- **Timezone / due-date precision & short-month clamping (OQ-2 adopted default).**
+  MVP anchors every recurring due instant at fixed **`12:00:00Z`** (noon UTC) on
+  the clamped `effectiveDay = Math.min(rule.schedule.dayOfMonth, daysInMonth)`
+  (so a rule due on the 31st posts on `2026-02-28T12:00:00.000Z` in a non-leap
+  February and `2026-04-30T12:00:00.000Z` in April, never overflowing into the
+  next month).
+  - **Why `12:00:00Z` instead of `00:00:00Z`:** Midnight UTC (`00:00:00Z`)
+    renders as the 30th/31st of the *previous* month for all UTC− users (the
+    Americas) and causes local-month `[since, until)` queries to misattribute
+    1st-of-month recurring items to the previous month. Noon UTC (`12:00:00Z`)
+    renders on the intended local calendar day for **UTC−12 through UTC+11**.
+  - **Period rollup rule:** Period rollups (monthly/period summaries) MUST
+    compute recurring-activity membership from `Activity.period` where
+    `source === "recurring"` (falling back to `dateTime` for non-recurring
+    activities), preventing timezone-boundary misattribution (see
+    [activity-model.md → Insights / search](activity-model.md#insights-search)).
+  - **Accepted residual (UTC+12..+14):** For users in UTC+12 to UTC+14 (e.g.,
+    New Zealand, Fiji, Kiribati), `12:00:00Z` renders as `00:00–02:00` of the
+    following local day. This is an accepted MVP residual; if exact
+    local-midnight precision is ever needed, passing an explicit IANA timezone
+    into `dueDateTime` is a localized refinement.
 - **The engine is pure.** `runRecurringEngine(now)` is a pure function of
   `(rules, activities, now)` — it takes them as arguments and returns the list of
   new activities to insert + the updated rules. This makes it trivially

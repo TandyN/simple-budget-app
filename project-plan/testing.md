@@ -69,23 +69,26 @@ To guarantee mathematical accuracy, storage durability, and security/privacy com
 
 - **Integer-cent money & safe-integer boundary guards:**
   - `toCents` / `fromCents` boundary conversions, rejection of `0`, negative numbers, `NaN`, `Infinity`, sub-cent fractions (`12.345`), and values exceeding `Number.MAX_SAFE_INTEGER / 100` (closing the `Number.isInteger(1e23)` overflow gap; see [data-model.md](data-model.md)).
-- **Short-month recurring date clamping (`missingPeriods` & `dueDateTime`):**
-  - Rules configured with `dayOfMonth = 29`, `30`, or `31` clamp via `Math.min(rule.schedule.dayOfMonth, daysInMonth)` to `2026-02-28T00:00:00.000Z` (non-leap Feb), `2024-02-29T00:00:00.000Z` (leap Feb), and `2026-04-30T00:00:00.000Z` (30-day months), never overflowing `Date.UTC` into the next month (see [recurring-engine.md](recurring-engine.md)).
+- **Short-month recurring date clamping & `12:00:00Z` due instant (`missingPeriods` & `dueDateTime`):**
+  - Rules configured with `dayOfMonth = 29`, `30`, or `31` clamp via `Math.min(rule.schedule.dayOfMonth, daysInMonth)` and anchor at fixed `12:00:00Z` (OQ-2) to `2026-02-28T12:00:00.000Z` (non-leap Feb), `2024-02-29T12:00:00.000Z` (leap Feb), and `2026-04-30T12:00:00.000Z` (30-day months), never overflowing `Date.UTC` into the next month (see [recurring-engine.md](recurring-engine.md)).
+  - Period rollup attribution uses `Activity.period` where `source === "recurring"` so timezone offsets never misattribute recurring items to an adjacent month (see [activity-model.md](activity-model.md)).
 - **Recurring engine idempotency & lifecycle:**
   - Duplicate `(sourceRuleId, period)` prevention across repeated `runRecurringEngine` calls, multi-month/year-boundary catch-up (`2025-11` → `2026-02`), paused rule (`active: false`) skipping, back-fill upon re-enable, and non-regeneration when a user deletes an already-posted recurring activity (`rule.lastPostPeriod` remains advanced; see [activity-model.md](activity-model.md)).
 - **Derived Available Funds & 5-year tag insights:**
   - `computeAvailableFunds` (`income` + `deposit` − `expense` in integer cents), `searchActivities` intersecting `since` / `until` / `tag` / `type` predicates, and `summarizeByTag` rollups over multi-year datasets.
 - **Hardened backup payload validation (`validateBackupPayload`):**
-  - Rejection of payloads exceeding the 10 MB (`10 * 1024 * 1024` bytes) ceiling before `JSON.parse`, rejection of prototype-pollution keys (`__proto__`, `constructor`, `prototype`) at any nesting depth, rejection of unknown `schemaVersion`, duplicate `id`s, mixed currencies, or invalid ISO-8601 UTC timestamps.
+  - Rejection of payloads exceeding the 10 MB (`10 * 1024 * 1024` bytes) hard byte ceiling before `JSON.parse` (alongside the UI `File.size` check before reading) and enforcement of the `<= 100_000` per-array record cap (reconciled in [data-model.md](data-model.md)), rejection of prototype-pollution keys (`__proto__`, `constructor`, `prototype`) at any nesting depth, rejection of unknown `schemaVersion`, duplicate `id`s, mixed currencies, invalid ISO-8601 UTC timestamps, or malformed optional `deletedAt` / `deviceId` fields.
 
 ### 3. Mandatory Storage & API Integration Scenarios (`fake-indexeddb`)
 
-- **IndexedDB `DB_VERSION = 1` schema & secondary indexes:**
-  - Verifies `onupgradeneeded` creates `"meta"` (`schemaVersion: 1`), `"rules"` (`by_active`), and `"activities"` (`by_dateTime`, `by_type`, `by_tags` multiEntry, and compound `by_rule_period`), and persists data across simulated cold/warm restarts.
+- **IndexedDB `DB_VERSION = 1` schema, secondary indexes & active/paused rule listing:**
+  - Verifies `onupgradeneeded` creates `"meta"` (`schemaVersion: 1`), `"rules"` (with **no** boolean index, since booleans are invalid IndexedDB keys), and `"activities"` (`by_dateTime`, `by_type`, `by_tags` multiEntry, and compound `by_rule_period`), and persists data across simulated cold/warm restarts.
+  - Seeds both active (`active: true`) and paused (`active: false`) `RecurringRule` records in `"rules"` and asserts that listing active rules, listing paused rules, and running `runRecurringEngine` all return the exact expected subsets via in-memory filtering (never relying on an invalid boolean IndexedDB index).
 - **Atomic backup import rollback test (`replaceAll`):**
   - Seeds existing rules and activities in IndexedDB, attempts `budget.importBackup(...)` with malformed, corrupt, schema-invalid, or prototype-polluting JSON (as well as simulated mid-transaction write failure), and asserts that the call rejects cleanly while all pre-existing IndexedDB records and `getAvailableFunds()` remain **100% intact**.
-- **Storage durability persistence call:**
-  - Verifies `budget.init()` invokes `navigator.storage?.persist?.()` best-effort and succeeds without throwing when `navigator.storage` is absent or returns `false`.
+- **Storage durability persistence (`persist()` / `persisted()`) & backup metadata:**
+  - Verifies `budget.init()` does **not** invoke `navigator.storage?.persist?.()` prematurely; verifies `navigator.storage?.persist?.()` is invoked best-effort after the first user write/action and returns cleanly without throwing when `navigator.storage` is absent or returns `false`.
+  - Verifies `navigator.storage?.persisted?.()` status is surfaced cleanly and `budget.exportBackup()` records `{ key: "lastBackupAt", timestamp }` in `"meta"` to drive the Settings backup-age display and N-day backup nag.
 
 ### 4. Mandatory Playwright E2E Security, Privacy & Viewport Scenarios (`e2e/**/*.spec.ts`)
 
@@ -106,8 +109,8 @@ All Playwright E2E scenarios run against the production-built bundle (`vite prev
     ```
 - **DOM XSS immunity E2E test:**
   - Enters `<img src=x onerror="window.__xss=true">` and `<script>window.__xss=true</script>` in rule labels, activity labels, tags, memos, and imported JSON backup payloads. Asserts that every payload renders literally as visible text via `textContent`, `await page.evaluate(() => (window as any).__xss)` is `undefined`, and zero `pageerror`, `console.error`, or CSP violation events occur.
-- **Atomic backup import rollback E2E test:**
-  - Exports a valid backup from the Settings UI, attempts to import a corrupt/prototype-polluting `.json` file, verifies an accessible error alert (`aria-invalid` / error banner) is displayed while existing activities and Available Funds remain 100% intact, and then imports the valid backup to verify full restoration.
+- **Atomic backup import rollback & pre-import safety E2E test:**
+  - Exports a valid backup from the Settings UI (verifying `lastBackupAt` updates in Settings), attempts to import a corrupt/prototype-polluting `.json` file (and verifies oversized files are rejected via `File.size` before reading), verifies an accessible error alert (`aria-invalid` / error banner) is displayed while existing activities and Available Funds remain 100% intact, and then imports the valid backup — asserting that the confirmation dialog appears and a pre-import safety snapshot download triggers before `replaceAll` restores the backup.
 - **iPhone-Duo dual-state layout & WCAG accessibility verification (including automated `axe` scans):**
   - Asserts one-page fit (`document.documentElement.scrollHeight <= window.innerHeight` and `scrollWidth <= window.innerWidth`) on `375×667` (folded single-panel) and `829×1194` (unfolded split-pane), `>= 44×44 CSS px` interactive touch targets, and `aria-live="polite"` Available Funds updates.
   - Runs an automated **`@axe-core/playwright`** (`AxeBuilder`) accessibility scan with tags `["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]` across **every tab** (Budget, Insights, Settings) and **every open `<dialog>`** modal, asserting zero violations.
