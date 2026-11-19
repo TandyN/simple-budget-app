@@ -29,14 +29,14 @@ frontend's job is to **collect input, render derived values, and call the
 |---|-------------|-----------------|---------|
 | 1 | Zero production dependencies | zero-prod-dep shell; `dependencies: {}` | [Zero production dependencies](#zero-production-dependencies-req-1) |
 | 2 | Deployable on PWA / iOS / Android | PWA first-class; iOS (primary) + Android via portability model | [Platforms](#platforms-req-2) |
-| 3 | Local-only storage / backup | manual JSON export/import; no server | [Export / backup](#export-backup-req-3) |
-| 4 | Fast 5-year tag analysis / insights | tag-based search + rollup rendered from the backend surface | [Search / insights](#search-insights-reqs-4-9) |
-| 5 | Recurring income/expense (default 1st, configurable) | "set recurring" form; day configurable | [Recurring income/expense](#recurring-income-expense-req-5) |
-| 6 | Add expenses and deposits | entry form (manual income / expense / deposit) | [Add an expense / deposit / income](#add-an-expense-deposit-income-req-6) |
-| 7 | UTC-stored, local-timezone display | render `dateTime` (stored UTC) in the user's local TZ | [Time display](#time-timezone-display-req-7) |
-| 8 | Modify any transaction, tags, backdate | edit form for every field; add/remove tags | [Edit / backdate / tags](#edit-backdate-tags-req-8) |
-| 9 | Search / filter by period + tag | search UI over period + tag + type | [Search / insights](#search-insights-reqs-4-9) |
-| 10 | Store cents as integer | UI renders integer `amountCents` as decimal only at the display boundary | [Money](#money-integer-cents-req-10) |
+| 3 | Local-only storage / backup | manual JSON export/import; no server | [Export / backup](#export--backup-req-3) |
+| 4 | Fast 5-year tag analysis / insights | tag-based search + rollup rendered from the backend surface | [Search / insights](#search--insights-reqs-4--9) |
+| 5 | Recurring income/expense (default 1st, configurable) | "set recurring" form; day configurable | [Recurring income/expense](#recurring-income--expense-req-5) |
+| 6 | Add expenses and deposits | entry form (manual income / expense / deposit) | [Add an expense / deposit / income](#add-an-expense--deposit--income-req-6) |
+| 7 | UTC-stored, local-timezone display | render `dateTime` (stored UTC) in the user's local TZ | [Time display](#time--timezone-display-req-7) |
+| 8 | Modify any transaction, tags, backdate | edit form for every field; add/remove tags | [Edit / backdate / tags](#edit--backdate--tags-req-8) |
+| 9 | Search / filter by period + tag | search UI over period + tag + type | [Search / insights](#search--insights-reqs-4--9) |
+| 10 | Store cents as integer | UI renders integer `amountCents` as decimal only at the display boundary | [Money](#money-integer-cents--req-10) |
 
 ## Platforms (req 2)
 
@@ -76,11 +76,13 @@ constant. This is an **explicit, configurable build decision**:
 - **Production:** `VITE_BASE_PATH=/simple-budget-app/` → the app is served at
   `https://tandyn.github.io/simple-budget-app/`.
 - **PR preview:** `VITE_BASE_PATH=/simple-budget-app/pr-<PR#>/` (PR number from
-  `github.event.pull_request.number`) → the preview is served at
+  `github.event.pull_request.number` on `pull_request` targeting `main`) → the
+  preview is served at
   `https://tandyn.github.io/simple-budget-app/pr-<PR#>/`, a sub-path of the
-  same production site. The per-PR preview deploy flow (compose into the
-  `pr-<PR#>/` sub-path, production root untouched, prune on close) lives in
-  [testing.md → CI deploy & preview](testing.md#ci-deploy-preview-github-pages).
+  same production site. The per-PR preview deploy flow (plain `git` publishing
+  to `pr-<PR#>/` on the `gh-pages` branch via `GITHUB_TOKEN`, production root
+  untouched, `git rm -rf pr-<PR#>/` on close) lives in
+  [testing.md → CI deploy & preview](testing.md#ci-deploy--preview-github-pages).
 - **Asset-path correctness (holds for both paths):** because the base is threaded
   through at build, every consumer resolves under **either** `/simple-budget-app/`
   **or** `/simple-budget-app/pr-<PR#>/`:
@@ -88,11 +90,87 @@ constant. This is an **explicit, configurable build decision**:
   - **CSS** `url()` references — rewritten by Vite to the base.
   - **Manifest** — `icons` are base-relative/absolute; `start_url` and `scope` are
     set to the base so install/offline behave under either path.
-  - **Service-worker scope** — registered as
-    `navigator.serviceWorker.register(import.meta.env.BASE_URL + 'sw.js', { scope: import.meta.env.BASE_URL })`,
-    so the SW control scope matches the deployed path (a mismatched scope is the
-    most common PR-preview breakage; `BASE_URL` threads it correctly for free).
+  - **Service-worker scope** — `sw.js` is emitted at build time by a custom
+    in-repo Vite plugin (not stored as a static file in `public/`) and registered
+    in web/PWA contexts only (never in Capacitor native shells) via a minimal
+    feature-detected Trusted Types `createScriptURL`-only policy (`sw-register`,
+    allowing only `import.meta.env.BASE_URL + "sw.js"`, falling back to the plain
+    string where `window.trustedTypes` is absent):
+    `navigator.serviceWorker.register(swScriptUrl, { scope: import.meta.env.BASE_URL })`,
+    so the SW control scope matches the deployed path while remaining compliant
+    with `require-trusted-types-for 'script'`. The production SW explicitly
+    bypasses `pr-*` sub-paths (see
+    [Service Worker Design](#service-worker-design-pwa-offline-scoping--update-lifecycle)).
+  - **Storage, cache & channel namespacing** — IndexedDB database names
+    (`simple-budget-app` vs `simple-budget-app-pr-<N>`), CacheStorage names
+    (`sbapp-<buildhash>` vs `sbapp-pr-<N>-<buildhash>`), and `BroadcastChannel`
+    names are derived from `import.meta.env.BASE_URL` so PR previews never share
+    or upgrade the production database or cache (see
+    [Shared-Origin Isolation on GitHub Pages](#4-shared-origin-isolation-on-github-pages-oq-1-adopted-default)).
   - **Index HTML** — `<script src>` / `<link href>` rewritten by Vite to the base.
+
+### Service Worker Design (PWA Offline, Scoping & Update Lifecycle)
+
+Offline caching on the PWA target is delivered by a minimal, zero-dependency
+service worker generated at build time:
+
+1. **Emitted by a custom in-repo Vite plugin (no `public/` static SW, no
+   `vite-plugin-pwa` / Workbox):**
+   - A static file in `public/` is copied verbatim by Vite without substituting
+     `import.meta.env.BASE_URL` or generating a precache manifest of content-hashed
+     chunks.
+   - Instead, a custom in-repo Vite plugin (~40 lines in `vite.config.ts` or
+     `scripts/`) emits `dist/sw.js` during `vite build` with the resolved
+     `VITE_BASE_PATH`, a deterministic `<buildhash>`, and the complete precache
+     asset manifest (`index.html`, hashed JS/CSS chunks, icons, manifest).
+   - **Do NOT use `vite-plugin-pwa` or Workbox:** Workbox bundles third-party
+     runtime code into production, violating the zero-production-dependency
+     invariant (`dependencies: {}`).
+2. **Production SW bypasses `pr-*` paths:**
+   - Because the production SW scope (`/simple-budget-app/`) is a URL prefix of
+     every PR preview (`/simple-budget-app/pr-<N>/`), a naive navigation fallback
+     would intercept preview requests and serve the cached production
+     `index.html`.
+   - The production SW MUST explicitly **bypass / exclude `pr-*` paths**: on
+     every `fetch` event, if running at the production root and
+     `new URL(event.request.url).pathname.startsWith(BASE_URL + "pr-")`, return
+     immediately without calling `event.respondWith(...)` so preview navigations
+     and assets are not intercepted.
+3. **Cache versioning, cleanup, user-accepted `skipWaiting`, and fetch strategy:**
+   - **Versioned cache name:** `sbapp-<buildhash>` for production and
+     `sbapp-pr-<N>-<buildhash>` for PR previews (derived from the base path +
+     build hash so preview and production caches never collide).
+   - **Delete old caches on `activate`:** On `activate`, delete obsolete caches
+     using an explicit non-overlapping predicate so production never deletes
+     sibling PR preview caches (which also begin with `sbapp-`):
+     - Production deletes keys matching
+       `key.startsWith("sbapp-") && !key.startsWith("sbapp-pr-") && key !== ACTIVE_CACHE`.
+     - PR preview `<N>` deletes keys matching
+       `key.startsWith("sbapp-pr-<N>-") && key !== ACTIVE_CACHE`.
+   - **User-accepted `skipWaiting`:** Do **not** call `self.skipWaiting()`
+     silently during `install` — swapping the controller mid-edit risks
+     inconsistent UI or schema state. When a new SW enters the `waiting` state,
+     the UI displays an accessible **"Update available"** banner; only after the
+     user accepts does the page post `{ type: "SKIP_WAITING" }` to the waiting
+     worker, which then calls `self.skipWaiting()` and triggers a clean reload
+     on `controllerchange`.
+   - **Fetch strategy:** **Network-first for navigations**
+     (`event.request.mode === "navigate"`) with cached app-shell fallback when
+     offline; cache-first for content-hashed static assets.
+4. **Do not register in Capacitor native shells:**
+   - Registration is gated at runtime so the SW is **only** registered in
+     web/PWA browser contexts (e.g.
+     `"serviceWorker" in navigator && !("Capacitor" in window)`), **never** in
+     iOS or Android Capacitor native shells where bundled assets are already
+     local and WKWebView SW support is limited/unavailable.
+5. **SW CSP limitation & same-origin guard (compensating control):**
+   - A document-level `<meta http-equiv="Content-Security-Policy">` tag does
+     **not** govern `ServiceWorkerGlobalScope`; applying CSP to a service worker
+     script requires HTTP response headers, which GitHub Pages cannot set.
+   - Therefore, the strict same-origin guard on every `fetch` event inside
+     `sw.js` (`new URL(event.request.url).origin === self.location.origin`,
+     rejecting any cross-origin request immediately) is the **compensating
+     control** enforcing zero egress inside the worker scope.
 
 ## Zero production dependencies (req 1)
 
@@ -131,12 +209,12 @@ tooling (Vite, Vitest, Biome, tsc, Playwright) lives in `devDependencies` and is
 **not** a production dependency (see
 [dependency-strategy.md → dev dependencies](dependency-strategy.md#dev-dependencies-the-allowed-set)).
 
-**The build output is a static web bundle; the identical artifact is served on all three targets.** `vite build` emits `dist/` (an `index.html`, hashed JS/CSS chunks, and any public assets) with no server-side rendering and no Node runtime. The **identical `dist/`** is served by GitHub Pages (production + per-PR preview), by the iOS Capacitor shell in **WKWebView (iOS Safari — the primary native target)**, and by the Android Capacitor shell in **Chromium (Android Chrome)**. There is **no per-platform bundle**, no per-platform build flag, and no per-platform code path — **cross-platform = the same web artifact, no per-platform code**. The only platform-specific surface is the Capacitor shell (native wrapper), not the library or the UI; see [portability.md → what this buys](portability.md#what-this-buys).
+**The build output is a static web bundle; the identical artifact is served on all three targets.** `vite build` emits `dist/` (an `index.html`, hashed JS/CSS chunks, and any public assets) with no server-side rendering and no Node runtime. The **identical `dist/`** is served by GitHub Pages (production + per-PR preview), by the iOS Capacitor shell in **WKWebView (iOS Safari — the primary native target)**, and by the Android Capacitor shell in **Chromium (Android Chrome)**. There is **no per-platform bundle and no per-platform build flag**: the root web package keeps `dependencies: {}` with zero `@capacitor/*` imports in `src/`, while native packaging and plugins live in the isolated `native/` workspace package and are reached from the web bundle solely via runtime `window.Capacitor` feature detection in `PlatformServices` (plus the SW registration guard above and `StorageAdapter` for the durable native store); see [portability.md → what this buys](portability.md#what-this-buys) and [portability.md → Package boundary & `PlatformServices` seam](portability.md#package-boundary--platformservices-seam).
 
 > **Guardrail (inherited):** a PR that introduces a production dependency —
 > including a frontend framework runtime dep — requires an explicit justification
 > and senior-software-engineer sign-off (see
-> [dependency-strategy.md → guardrails](dependency-strategy.md#guardrails-enforce-in-ci-review)).
+> [dependency-strategy.md → guardrails](dependency-strategy.md#guardrails-enforce-in-ci--review)).
 
 This is why the "no React/Vue in production" reading of the user's "shouldn't need
 any additional packages in production" ask is coherent: the UI is plain TS/HTML
@@ -217,9 +295,9 @@ An **entry form** that creates a manual `Activity` via `budget.addActivity(...)`
   Recurring rules are `income | expense` only; `deposit` is entered here as a
   manual transaction.
 - **Amount:** a decimal-unit input (`$1,234.56`) that the boundary converts to the
-  canonical integer `amountCents` (see [Money](#money-integer-cents-req-10)).
-- **Date/time:** optional; defaults to "now" (see [Time display](#time-timezone-display-req-7)).
-- **Tags / category:** free-form tag input (see [Edit / backdate / tags](#edit-backdate-tags-req-8)).
+  canonical integer `amountCents` (see [Money](#money-integer-cents--req-10)).
+- **Date/time:** optional; defaults to "now" (see [Time display](#time--timezone-display-req-7)).
+- **Tags / category:** free-form tag input (see [Edit / backdate / tags](#edit--backdate--tags-req-8)).
 - **Currency:** ISO-4217, default USD.
 - **Provenance:** `source: "manual"` is set by the API; the form never edits it.
 
@@ -257,7 +335,7 @@ provenance):
 |-------|----------|-------|
 | `type` | yes | e.g. reclassify an auto-posted expense as `deposit` |
 | `amountCents` | yes | decimal-unit input → integer cents |
-| `dateTime` | yes | **backdate** or forward-date (see [Time display](#time-timezone-display-req-7)) |
+| `dateTime` | yes | **backdate** or forward-date (see [Time display](#time--timezone-display-req-7)) |
 | `tags` | yes | **add / remove any** free-form tags / categories |
 | `memo` | yes | free text |
 | `source`, `sourceRuleId`, `period`, `createdAt`, `updatedAt` | **no** | provenance + system fields, not user-set |
@@ -276,7 +354,7 @@ The frontend renders the **backend's insights/search surface** — it does not
 compute or store any aggregate. It calls `budget.searchActivities(filter)` to
 filter and `budget.summarizeByTag(activities)` to roll up, both pure and derived
 from the activity log (integer cents, plain data). The contract lives in
-[activity-model.md → insights / search](activity-model.md#insights-search) and the
+[activity-model.md → insights / search](activity-model.md#insights--search) and the
 `BudgetApi` in [portability.md → the public API](portability.md#the-public-api-what-the-front-end-calls).
 
 The UI offers **search / filter** over the **period + tag + type** predicates
@@ -311,9 +389,11 @@ that the backend stores ISO-8601 UTC (`Activity.dateTime`, the engine's
 - Recurring postings show the **due date** (e.g. the 1st) in the local timezone,
   matching the "the transaction happened on the 1st" semantics.
 
-> The backend treats a recurring due date as **midnight UTC** on `dayOfMonth`
-> (a documented MVP simplification); the frontend renders whatever UTC instant the
-> log holds, in the user's zone. See
+> The backend anchors each recurring due date at fixed **noon UTC (`12:00:00Z`, OQ-2)**
+> on the clamped `dayOfMonth`, which renders on the intended local calendar day for
+> UTC−12 through UTC+11 (UTC+12..+14 is the accepted MVP residual). Recurring period
+> rollups use `Activity.period` rather than `dateTime`, while the frontend renders
+> whatever UTC instant the log holds in the user's local timezone. See
 > [recurring-engine.md → notes](recurring-engine.md#notes-and-resolved-defaults).
 
 ## Money (integer cents — req 10)
@@ -329,30 +409,52 @@ backend**:
 - **Never** does the UI perform money arithmetic or store a decimal. Available
   Funds, tag rollups, and the engine all operate on integer `amountCents` in the
   backend — see [data-model.md → derived values](data-model.md#derived-values-never-stored)
-  and [activity-model.md → available funds](activity-model.md#available-funds-derived-from-the-activity-log).
+  and [activity-model.md → available funds](activity-model.md#available-funds--derived-from-the-activity-log).
 
 ## Export / backup (req 3)
 
 The frontend offers **manual JSON export / import** — a local backup with **no
 server**, wired directly to the `BudgetApi` backup methods:
 
-- **Export (`budget.exportBackup()`):** calls `await budget.exportBackup()` to
-  produce a versioned `BudgetBackup` envelope (`{ schemaVersion: 1, exportedAt, rules, activities }`,
-  see [data-model.md → Versioned `BudgetBackup` Schema & Hardened Import Validation](data-model.md#versioned-budgetbackup-schema-hardened-import-validation))
-  and serializes it to a downloadable `.json` file (or via the **File System
-  Access API**) that the user can save locally (e.g. to Files / iCloud Drive /
-  Google Drive) or copy off-device.
-- **Import (`budget.importBackup(json)`):** reads a user-selected `.json` file as
-  text and passes the raw string to `await budget.importBackup(json)`. The backend
-  validates the untrusted payload via `validateBackupPayload(rawJson)` in
-  `src/core/validate.ts` (enforcing the 10 MB size ceiling, `__proto__` /
-  `constructor` / `prototype` prototype-pollution rejection, and full schema /
-  safe-integer-cent / ISO-UTC / single-currency invariants; see
+- **Export (`budget.exportBackup()` + `PlatformServices`):** calls
+  `await budget.exportBackup()` to produce a versioned `BudgetBackup` envelope
+  (`{ schemaVersion: 1, exportedAt, rules, activities }`, see
+  [data-model.md → Versioned `BudgetBackup` Schema & Hardened Import Validation](data-model.md#versioned-budgetbackup-schema--hardened-import-validation))
+  and records `lastBackupAt` in `"meta"`. Because iOS `WKWebView` does not honour
+  `<a download>`, the UI delegates file delivery through the runtime
+  `PlatformServices` seam (`saveBackup` / `shareBackup`, see
+  [portability.md → Package boundary & `PlatformServices` seam](portability.md#package-boundary--platformservices-seam)):
+  in web/PWA browsers it uses `<a download>` (or the **File System Access API** /
+  `navigator.share`) so the user can save locally (e.g. to Files / iCloud Drive /
+  Google Drive) or copy off-device; in Phase 6 Capacitor native shells it
+  delegates to the native bridge exposed on `window.Capacitor.Plugins` without
+  importing `@capacitor/*` in `src/`.
+- **Import (`budget.importBackup(json)`) & pre-import safety flow:** before
+  reading or calling `budget.importBackup(json)`, the Settings UI MUST enforce
+  the pre-import safety flow (see
+  [storage.md → Atomic Backup Restoration (`replaceAll`)](storage.md#atomic-backup-restoration-replaceall)):
+  1. Check `file.size <= 10 * 1024 * 1024` (10 MB) **before** reading the file
+     into memory.
+  2. Present an explicit confirmation dialog warning that importing replaces all
+     existing local rules and activities.
+  3. Automatically trigger a **pre-import safety snapshot** (`budget.exportBackup()`
+     via `PlatformServices.saveBackup`) before executing `replaceAll`.
+  Once confirmed, the UI reads the `.json` file as text and passes the raw string
+  to `await budget.importBackup(json)`. The backend validates the untrusted
+  payload via `validateBackupPayload(rawJson)` in `src/core/validate.ts`
+  (enforcing the 10 MB size ceiling, `__proto__` / `constructor` / `prototype`
+  prototype-pollution rejection, and full schema / safe-integer-cent / ISO-UTC /
+  single-currency invariants; see
   [data-model.md](data-model.md#hardened-import-validation-validatebackuppayloadrawjson-string-budgetbackup))
   and restores all records atomically in a single IndexedDB `readwrite`
   transaction via `storage.replaceAll({ rules, activities })` (rolling back
-  automatically on any error so existing data is never clobbered; see
-  [storage.md → Atomic Backup Restoration (`replaceAll`)](storage.md#atomic-backup-restoration-replaceall)).
+  automatically on any error so existing data is never clobbered).
+- **Durability status (`persisted()`) & `lastBackupAt` N-day backup nag:**
+  Settings queries `await navigator.storage?.persisted?.()` to display the live
+  storage persistence status alongside the `lastBackupAt` timestamp and shows a
+  non-blocking N-day backup reminder (default `N = 30` days, or once user data
+  exists with no backup) prompting a one-tap JSON backup export (see
+  [storage.md → Storage Durability & WebKit Eviction Mitigation](storage.md#storage-durability--webkit-eviction-mitigation)).
 - **No account, no network, no server** — backup is the user's file, consistent
   with the local-only, zero-egress storage model. See
   [storage.md → security properties](storage.md#security-properties).
@@ -364,33 +466,85 @@ automatic cloud sync (iCloud Drive / a server) is **out of MVP scope**.
 
 Because the frontend is a zero-framework vanilla TypeScript application handling
 personal financial records across the PWA, iOS `WKWebView`, and Android
-`Chromium` WebView, three hard security and privacy guardrails are enforced from
+`Chromium` WebView, four hard security and privacy guardrails are enforced from
 commit #1:
 
 ### 1. Strict Content Security Policy (`index.html`)
 
 Every build (`index.html` → `dist/index.html`) MUST include the following strict
-Content Security Policy `<meta>` tag in `<head>`:
+Content Security Policy and Referrer Policy `<meta>` tags in `<head>`:
 
 ```html
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'; worker-src 'self'; manifest-src 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'; worker-src 'self'; manifest-src 'self'; require-trusted-types-for 'script'; trusted-types sw-register">
+<meta name="referrer" content="no-referrer">
 ```
 
-- **Why `frame-ancestors` is omitted from `<meta>`:** Per W3C Content Security
-  Policy Level 3 §6.2 (`meta` element delivery), browsers ignore the
-  `frame-ancestors` directive inside `<meta http-equiv="Content-Security-Policy">`
-  elements and emit a console warning. Omitting `frame-ancestors` from `<meta>`
-  keeps `<meta>` 100% standards-compliant and avoids tripping our zero-console-warning
-  Playwright E2E gate (see [testing.md](testing.md)).
+- **Trusted Types (`require-trusted-types-for 'script'; trusted-types sw-register`) —
+  defense-in-depth:** `require-trusted-types-for 'script'` is valid inside
+  `<meta>` CSP and acts as browser-enforced defense-in-depth on top of our DOM
+  XSS ban (below) (supported in Chromium, with Safari/Firefox support landing
+  2025–2026). Because `ServiceWorkerContainer.register(scriptURL)` is a
+  `TrustedScriptURL` injection sink under Trusted Types, the CSP allowlists
+  exactly one minimal policy (`trusted-types sw-register`):
+  - The `sw-register` policy defines **only** `createScriptURL` (no `createHTML`
+    and no `createScript` methods), and accepts **only** the exact URL
+    `import.meta.env.BASE_URL + "sw.js"` (throwing on any other input).
+  - Registration feature-detects `window.trustedTypes?.createPolicy` and falls
+    back to the plain string URL in browsers where Trusted Types is unavailable:
+    ```ts
+    const expectedSwUrl = `${import.meta.env.BASE_URL}sw.js`;
+    const swPolicy = window.trustedTypes?.createPolicy("sw-register", {
+      createScriptURL(url) {
+        if (url !== expectedSwUrl) throw new TypeError("Disallowed SW URL");
+        return url;
+      },
+    });
+    const swScriptUrl = swPolicy ? swPolicy.createScriptURL(expectedSwUrl) : expectedSwUrl;
+    navigator.serviceWorker.register(swScriptUrl as string, { scope: import.meta.env.BASE_URL });
+    ```
+  - Because `sw-register` exposes no `createHTML` or `createScript` methods and
+    no other policy is permitted, every HTML/script sink (`innerHTML`,
+    `outerHTML`, `insertAdjacentHTML`, `document.write`, `eval`) remains blocked
+    at the browser engine level.
+- **Referrer Policy (`no-referrer`):** `<meta name="referrer" content="no-referrer">`
+  prevents leaking deployment paths (including `pr-<N>/` preview URLs) or origin
+  information in `Referer` headers on any navigation.
+- **Why `frame-ancestors` is omitted from `<meta>` + clickjacking frame-buster
+  (accepted residual risk):** Per W3C Content Security Policy Level 3 §6.2
+  (`meta` element delivery), browsers ignore `frame-ancestors` inside
+  `<meta http-equiv="Content-Security-Policy">` and emit a console warning; and
+  GitHub Pages does not support custom HTTP response headers (`X-Frame-Options`
+  or HTTP `frame-ancestors 'none'`). Omitting `frame-ancestors` from `<meta>`
+  keeps `<meta>` standards-compliant and preserves our zero-console-warning
+  Playwright E2E gate (see [testing.md](testing.md)). As a compensating
+  clickjacking mitigation, `src/main.ts` includes a minimal 3-line
+  **`top !== self` frame-buster** at bootstrap:
+  ```ts
+  if (window.top !== window.self) {
+    document.documentElement.replaceChildren();
+    throw new Error("Framing is not permitted");
+  }
+  ```
+  **Accepted residual risk:** a malicious framing page using `<iframe sandbox>`
+  without `allow-top-navigation` can prevent top-level breakout, though refusing
+  to mount or render budget data neutralizes UI redressing. Hosting on a custom
+  reverse proxy that sends HTTP `Content-Security-Policy: frame-ancestors 'none'`
+  or using the native Capacitor shells eliminates this residual risk completely.
 - **Document & Service Worker zero-egress enforcement:** `connect-src 'none'` and
   `form-action 'none'` block all document-context network egress (`fetch`,
   `XMLHttpRequest`, `WebSocket`, `EventSource`, `navigator.sendBeacon`, and form
-  submissions) at the browser engine level. For offline asset caching on the PWA
-  target (`worker-src 'self'`), the same-origin service worker (`sw.js`) runs in
-  `ServiceWorkerGlobalScope` and additionally enforces a strict same-origin guard
-  on every `fetch` event:
-  `new URL(event.request.url).origin === self.location.origin` (rejecting any
-  cross-origin request immediately).
+  submissions) at the browser engine level. Because `<meta>` CSP does not govern
+  `ServiceWorkerGlobalScope` (and GitHub Pages cannot set HTTP headers on
+  `sw.js`), the plugin-emitted service worker enforces a strict same-origin guard
+  on every `fetch` event
+  (`new URL(event.request.url).origin === self.location.origin`, rejecting any
+  cross-origin request immediately) as the compensating control (see
+  [Service Worker Design](#service-worker-design-pwa-offline-scoping--update-lifecycle)).
+- **Why Subresource Integrity (SRI) is not needed:** Every runtime asset is
+  same-origin and self-hosted with Vite content-hashed filenames under
+  `default-src 'self'` CSP; SRI only protects third-party-hosted subresources,
+  which are banned by the zero-prod-dep and zero-external-URL rules (see
+  [testing.md → Explicitly Skipped](testing.md#explicitly-skipped--deferred-testing--verification-techniques)).
 
 ### 2. DOM XSS Ban (Safe DOM APIs Only)
 
@@ -423,6 +577,35 @@ leakage to third-party font or asset servers; see
   created via `document.createElementNS("http://www.w3.org/2000/svg", ...)` or
   local static assets bundled inside `public/` / `dist/`. Zero external
   stylesheets, scripts, fonts, or images (`https://...`) are ever referenced.
+
+### 4. Shared-Origin Isolation on GitHub Pages (OQ-1 Adopted Default)
+
+On GitHub Pages project sites, production (`https://tandyn.github.io/simple-budget-app/`),
+every PR preview (`https://tandyn.github.io/simple-budget-app/pr-<N>/`), and any
+other GitHub Pages repository published under `tandyn.github.io` share the **same
+browser origin** (`https://tandyn.github.io`). IndexedDB, CacheStorage, and
+`BroadcastChannel` are scoped **per origin, not per path** — neither CSP nor a
+service worker can isolate same-origin storage. Without namespacing, a PR preview
+that bumps `DB_VERSION` would upgrade the production IndexedDB database in the
+developer's browser, or overwrite production records.
+
+- **Adopted default (OQ-1) — base-path namespacing:** Derive IndexedDB database
+  names (`simple-budget-app` for `/simple-budget-app/` vs
+  `simple-budget-app-pr-<N>` for `/simple-budget-app/pr-<N>/`), CacheStorage
+  names (`sbapp-<buildhash>` vs `sbapp-pr-<N>-<buildhash>`), and
+  `BroadcastChannel` names (`simple-budget-sync` vs
+  `simple-budget-sync-pr-<N>`) from `import.meta.env.BASE_URL` so PR previews
+  never share or mutate production storage or caches (see
+  [storage.md → IndexedDB Schema Versioning, Indexes & Migration Strategy](storage.md#indexeddb-schema-versioning-indexes--migration-strategy)).
+- **Documented residual risk:** Base-path namespacing eliminates accidental
+  cross-contamination between production and `pr-<N>/` previews, but does **not**
+  prevent an XSS-compromised sibling GitHub Pages repository hosted under
+  `https://tandyn.github.io` from reading same-origin IndexedDB.
+- **Recommended-optional upgrade (custom domain):** Hosting the production PWA
+  on a **dedicated custom domain** provides true browser origin isolation; this
+  is **recommended-optional, not required** for MVP. Native iOS and Android
+  Capacitor store builds are unaffected because each native app runs inside its
+  own isolated WebView origin and OS sandbox.
 
 ## Accessibility (WCAG 2.2 AA) & Multi-Tab State Synchronization
 
@@ -461,16 +644,19 @@ When a user has the PWA open in multiple browser tabs or windows on the same
 origin, mutations in one tab must immediately reflect in sibling tabs without
 requiring a manual page reload:
 
-- **Channel name:** `new BroadcastChannel("simple-budget-sync")` (feature-detected
-  via `typeof BroadcastChannel !== "undefined"` so environments without it degrade
-  gracefully).
+- **Channel name:** derived from `import.meta.env.BASE_URL` —
+  `"simple-budget-sync"` on production (`/simple-budget-app/`) and
+  `"simple-budget-sync-pr-<N>"` on PR previews (`/simple-budget-app/pr-<N>/`) —
+  opened via `new BroadcastChannel(channelName)` (feature-detected via
+  `typeof BroadcastChannel !== "undefined"` so environments without it degrade
+  gracefully) so preview tabs never trigger refreshes in production tabs.
 - **Publish on commit:** Whenever a local state-mutating `BudgetApi` call commits
   (`addRule`, `editRule`, `deleteRule`, `addActivity`, `editActivity`,
   `deleteActivity`, `runRecurringEngine`, or `importBackup`), the active tab
   posts `{ type: "budget-mutated", timestamp: Date.now() }` on the
-  `"simple-budget-sync"` channel.
-- **Subscribe & re-render:** Sibling tabs listening on `"simple-budget-sync"`
-  respond to `"budget-mutated"` messages by re-querying `BudgetApi` (`listRules`,
+  base-path-scoped channel.
+- **Subscribe & re-render:** Sibling tabs listening on the base-path-scoped
+  channel respond to `"budget-mutated"` messages by re-querying `BudgetApi` (`listRules`,
   `listActivities`, `getAvailableFunds`, and active `searchActivities` /
   `summarizeByTag` views) and updating the DOM via safe `replaceChildren` /
   `textContent` patches—eliminating stale cross-tab state.

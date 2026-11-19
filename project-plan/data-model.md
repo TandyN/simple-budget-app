@@ -32,6 +32,9 @@ interface RecurringRule {
   lastPostPeriod: string | null; // last period already auto-posted (e.g. "2026-11"); null = never posted (always present, null is the "never" sentinel)
   createdAt: string;   // ISO-8601 timestamp
   updatedAt: string;   // ISO-8601 timestamp
+  // Sync / tombstone slots — RESERVED for future E2EE sync (unused in MVP; MVP hard-deletes).
+  deletedAt?: string;  // ISO-8601 UTC tombstone timestamp when soft-deleted in a future sync layer
+  deviceId?: string;   // originating device identifier for future E2EE conflict resolution
 }
 
 interface Schedule {
@@ -55,7 +58,7 @@ interface Schedule {
 
 ```ts
 type ActivityType = "income" | "expense" | "deposit";
-type ActivitySource = "manual" | "recurring" | "bank-sync";
+type ActivitySource = "manual" | "recurring" | "file-import" | "bank-sync";
 
 interface Activity {
   id: string;            // uuid v4
@@ -64,36 +67,49 @@ interface Activity {
   currency: string;      // ISO-4217
   dateTime: string;      // ISO-8601; defaults to "now" at creation, always editable
   tags: string[];        // free-form manual tags, e.g. ["housing","rent"]
-  source: ActivitySource;// manual | recurring | bank-sync
+  source: ActivitySource;// manual | recurring | file-import | bank-sync
   sourceRuleId?: string; // set when source === "recurring"; id of the RecurringRule
   period?: string;       // set when source === "recurring"; the period it was posted for (e.g. "2026-11")
-  // Bank-sync slots — RESERVED for a future bank-sync project. NOT used by the
-  // MVP, so introducing them requires no data migration of existing records.
-  externalTxnId?: string;// stable external transaction id from the bank feed; the re-sync dedupe key
-  sourceAccountId?: string; // the linked bank account this txn came from
+  // File-import & future bank-sync slots — RESERVED (unused in MVP; no v1 migration needed when enabled).
+  importBatchId?: string;  // set when source === "file-import"; groups rows from one CSV/OFX/QFX import batch for audit/rollback
+  externalTxnId?: string;  // stable dedupe key: OFX/QFX FITID, deterministic CSV content hash, or bank-feed txn id
+  sourceAccountId?: string;// optional account identifier (file-import account label or future linked account)
   memo?: string;         // optional free-text note
   createdAt: string;     // ISO-8601; when the record was created
   updatedAt: string;     // ISO-8601; when last edited
+  // Sync / tombstone slots — RESERVED for future E2EE sync (unused in MVP; MVP hard-deletes).
+  deletedAt?: string;    // ISO-8601 UTC tombstone timestamp when soft-deleted in a future sync layer
+  deviceId?: string;     // originating device identifier for future E2EE conflict resolution
 }
 ```
 
 - **`source` + `sourceRuleId` + `period`** let us answer "was this auto-posted
   by which rule, for which period?" — which is what makes re-posting idempotent
   (see [recurring-engine.md](recurring-engine.md)).
-- **`source: "bank-sync"` + `externalTxnId` + `sourceAccountId`** are
-  **reserved** for a future bank-sync project (bank-OAuth / account feed). They
-  are **not used by the MVP**, and because they are already in the shape the
-  bank-sync project needs no data migration — it simply starts populating them.
-  `externalTxnId` is the stable id a bank assigns to a transaction (the re-sync
-  dedupe key); `sourceAccountId` names the linked bank account. The bank-OAuth
-  *flow* + token storage is a **future platform-layer project** — this model only
-  reserves the slots, it does not design the OAuth mechanics. **Feasibility
-  (affirmed):** bank-OAuth account-linking is **explicitly feasible as that later
-  platform-layer project** — the **RFC 8252** OAuth 2.0 for Native Apps (local-app
-  loopback) pattern is well-suited to a Web/WebView budget app, and adopting it
-  requires no change to this data model, only the platform layer that populates the
-  reserved slots. The reserved slots above are therefore a **deliberate go**, not an
-  open question.
+- **File import (`source: "file-import"`) is the first-class privacy-preserving
+  import seam:** CSV, OFX, and QFX bank statements can be imported locally with
+  zero network egress, preserving `connect-src 'none'` and the App Store / Play
+  Store **"Data Not Collected"** label. `importBatchId` groups all records from
+  a single file import (enabling batch review or rollback), and `externalTxnId`
+  carries either the statement's native transaction ID (e.g., OFX/QFX `FITID`)
+  or a deterministic content hash (for CSV rows) so re-importing overlapping
+  statement windows deduplicates cleanly.
+- **Bank-sync correction (RFC 8252 & aggregator reality):** `source: "bank-sync"`,
+  `externalTxnId`, and `sourceAccountId` remain reserved optional slots so the
+  data model does not foreclose future integrations, **but aggregator bank sync
+  is a separate project that re-opens Pillar 2 ("Data Not Collected")** — not a
+  transparent platform-only addition. **RFC 8252** (OAuth 2.0 for Native Apps /
+  local-app loopback) does **not** make bank-aggregator OAuth feasible without
+  architectural changes: aggregators such as **Plaid**, **GoCardless**, and
+  **MX** require a server-held client secret and/or a vendor JavaScript SDK,
+  which breaks `connect-src 'none'` (and `script-src 'self'` if a vendor SDK is
+  loaded), transmits financial data off-device, and **permanently changes the
+  store privacy label** (Financial Info collected). For users who want automated
+  feeds without a developer-operated backend, **SimpleFIN Bridge** is an
+  explicitly **opt-in** alternative (user-owned Bridge token, narrow
+  `connect-src` exception, and a documented privacy-label update). See the
+  [Privacy-Label Impact and Sync Tradeoffs](#privacy-label-impact-and-sync-tradeoffs)
+  table below.
 - **Every field is editable** by the user after creation — including the
   `type`, `amountCents`, `dateTime`, and `tags` of an auto-generated record. Editing
   an auto-generated Activity does **not** change the source rule.
@@ -178,7 +194,9 @@ function computeAvailableFunds(activities: Activity[]): number {
 | `Activity.source` | no | Determined at creation; not user-set |
 | `Activity.sourceRuleId` | no | Determined at creation; not user-set |
 | `Activity.period` | no | Determined at creation; not user-set |
+| `Activity.importBatchId` / `externalTxnId` / `sourceAccountId` | no | Import / future bank-sync provenance & dedupe keys; system-managed |
 | `Activity.createdAt` / `updatedAt` | no | System-managed |
+| `RecurringRule` / `Activity.deletedAt` / `deviceId` | no | Reserved optional slots for future E2EE sync tombstones (unused in MVP; MVP hard-deletes) |
 
 ## Mapping the user's ask → model
 
@@ -213,23 +231,50 @@ interface BudgetBackup {
 
 Because a user-selected backup file is untrusted external input, `validateBackupPayload(rawJson: string): BudgetBackup` in `src/core/validate.ts` enforces strict defense-in-depth checks **before** `IndexedDbAdapter.replaceAll` is ever called (see [storage.md](storage.md)):
 
-- **Size bound (10 MB ceiling):** Reject `rawJson` exceeding `10 * 1024 * 1024` bytes (10 MB, measured via `new TextEncoder().encode(rawJson).byteLength`) before calling `JSON.parse`, preventing main-thread memory exhaustion or denial-of-service on mobile WebViews.
+- **Size bound (10 MB ceiling, checked before reading):**
+  - At the file-input boundary (before calling `file.text()` / `FileReader`), the UI MUST check `file.size <= 10 * 1024 * 1024` (10 MB) and reject oversized files immediately without allocating them in memory.
+  - Inside `validateBackupPayload(rawJson)` itself, reject `rawJson` exceeding `10 * 1024 * 1024` bytes (measured via `new TextEncoder().encode(rawJson).byteLength`) **before** calling `JSON.parse`, preventing main-thread memory exhaustion or denial-of-service on mobile WebViews.
 - **Prototype-pollution guard:** Use a `JSON.parse` reviver and/or recursive `Object.keys` / `Object.getOwnPropertyNames` check that immediately rejects any object containing `__proto__`, `constructor`, or `prototype` as an own property, and construct clean plain objects with only allowlisted domain properties.
 - **Strict schema & type checks:**
   - Verify top-level envelope is a non-null plain object with `schemaVersion === 1`, a valid ISO-8601 UTC `exportedAt` timestamp, and arrays `rules` and `activities` (each bounded to `<= 100_000` items).
+  - **Reconciling the 10 MB byte cap vs. `<= 100_000` record cap:** The **10 MB byte ceiling is the hard primary bound**; the `<= 100_000` per-array cap is a secondary structural bound against pathological arrays of tiny records. Because records carrying maximum-length `memo`s (1,000 chars) and tags serialize to ~1.3 KB each, dense records hit the 10 MB byte ceiling well below 100,000 items (~7,500–10,000 records). Both bounds are enforced independently — whichever limit is hit first rejects the import.
   - Run the full `RecurringRule` and `Activity` domain validators on every element:
     - **Money invariants:** `Number.isSafeInteger(amountCents) && amountCents > 0` (strictly positive safe integers in minor units).
-    - **Enum & schedule invariants:** Valid `RuleType` (`"income" | "expense"`), `ActivityType` (`"income" | "expense" | "deposit"`), `ActivitySource` (`"manual" | "recurring" | "bank-sync"`), `schedule.cadence === "monthly"`, and integer `schedule.dayOfMonth` in `1..31`.
-    - **Date & period invariants:** Valid `YYYY-MM` format (`1 <= month <= 12`) for `lastPostPeriod` (when non-null) and `Activity.period` (when `source === "recurring"`), and valid ISO-8601 UTC instants (`YYYY-MM-DDTHH:mm:ss(.sss)Z`) for `dateTime`, `createdAt`, and `updatedAt`.
-    - **Bounded string & array lengths:** Non-empty `id` (`<= 64` chars), rule `name` / `label` and each `tag` bounded to `<= 120` chars, optional `memo` bounded to `<= 1000` chars, and `tags.length <= 20`.
+    - **Enum & schedule invariants:** Valid `RuleType` (`"income" | "expense"`), `ActivityType` (`"income" | "expense" | "deposit"`), `ActivitySource` (`"manual" | "recurring" | "file-import" | "bank-sync"`), `schedule.cadence === "monthly"`, and integer `schedule.dayOfMonth` in `1..31`.
+    - **Date & period invariants:** Valid `YYYY-MM` format (`1 <= month <= 12`) for `lastPostPeriod` (when non-null) and `Activity.period` (when `source === "recurring"`), and valid ISO-8601 UTC instants (`YYYY-MM-DDTHH:mm:ss(.sss)Z`) for `dateTime`, `createdAt`, `updatedAt`, and optional `deletedAt` (when present).
+    - **Bounded string & array lengths:** Non-empty `id` (`<= 64` chars), optional `deviceId` (`<= 64` chars when present), optional `importBatchId` / `externalTxnId` / `sourceAccountId` (`<= 128` chars when present), rule `name` / `label` and each `tag` bounded to `<= 120` chars, optional `memo` bounded to `<= 1000` chars, and `tags.length <= 20`.
     - **Referential & uniqueness invariants:** Reject duplicate `id`s within `rules` or within `activities`; require `sourceRuleId` and `period` when `source === "recurring"`.
     - **Single-currency consistency:** Enforce a valid 3-letter uppercase ISO-4217 `currency` code (e.g. `"USD"`) and verify single-currency consistency across all rules and activities in the imported budget so `computeAvailableFunds` and `summarizeByTag` never sum mixed currencies.
 
-Only after `validateBackupPayload(rawJson)` returns a clean, fully validated `BudgetBackup` does `budget.importBackup(rawJson)` invoke `adapter.replaceAll({ rules: backup.rules, activities: backup.activities })` inside a single atomic IndexedDB `readwrite` transaction (see [storage.md](storage.md)).
+Only after the UI completes the pre-import safety flow (confirm dialog + auto-downloaded pre-import snapshot; see [storage.md → Atomic Backup Restoration (`replaceAll`)](storage.md#atomic-backup-restoration-replaceall)) and `validateBackupPayload(rawJson)` returns a clean, fully validated `BudgetBackup` does `budget.importBackup(rawJson)` invoke `adapter.replaceAll({ rules: backup.rules, activities: backup.activities })` inside a single atomic IndexedDB `readwrite` transaction (see [storage.md](storage.md)).
+
+### Post-MVP Encrypted Backup Envelope (Store-Release Gate)
+
+Plaintext JSON backups (`BudgetBackup`) expose full financial history if stored in cloud-synced folders such as iCloud Drive or Google Drive. While passphrase-encrypted export is deferred from the MVP, it is **required before the first App Store / Play Store release** (Phase 6 store-release gate; see [storage.md → Security properties](storage.md#security-properties) and [portability.md → Store Submission Checklist](portability.md#store-submission-checklist-phase-6)).
+
+Encrypted exports wrap the serialized UTF-8 `BudgetBackup` JSON inside a versioned envelope using built-in **WebCrypto (`crypto.subtle`)** — zero production dependencies:
+
+```ts
+interface EncryptedBudgetBackup {
+  schemaVersion: 1;
+  enc: {
+    alg: "AES-256-GCM";        // WebCrypto AES-GCM with 256-bit derived key
+    kdf: "PBKDF2-HMAC-SHA256"; // WebCrypto PBKDF2 + SHA-256
+    iter: number;              // >= 600_000 iterations (OWASP PBKDF2-HMAC-SHA256 baseline)
+    salt: string;              // base64-encoded random 16-byte salt (crypto.getRandomValues)
+    iv: string;                // base64-encoded random 12-byte AES-GCM IV (fresh per export)
+  };
+  ciphertext: string;          // base64-encoded AES-GCM ciphertext + 128-bit auth tag
+}
+```
+
+- **Key derivation:** `PBKDF2-HMAC-SHA256` with `iter >= 600_000` (OWASP minimum) and a fresh cryptographically random 16-byte `salt` per export.
+- **Authenticated encryption:** `AES-256-GCM` (WebCrypto `AES-GCM`, 256-bit key, fresh 12-byte `iv` per export). Tampering or a wrong passphrase fails GCM authentication before any JSON parsing occurs.
+- **Validation on restore:** On import, after checking the 10 MB `file.size` ceiling, the importer detects the `enc` header, prompts for the passphrase, verifies `enc.alg`, `enc.kdf`, and `enc.iter >= 600_000`, decrypts the UTF-8 payload, and passes the plaintext JSON through the exact same hardened `validateBackupPayload(rawJson)` pipeline before invoking `replaceAll`.
 
 ## Post-MVP Extensibility & Growth Seams
 
-The v1 data model (`RecurringRule`, `Activity`), `BudgetBackup` (`schemaVersion: 1`), and `StorageAdapter` (`DB_VERSION = 1` in [storage.md](storage.md)) are intentionally structured so the seven most sought-after modern budget-app capabilities layer onto v2+ via additive `onupgradeneeded` migrations and optional fields—**without breaking or rewriting v1 records**:
+The v1 data model (`RecurringRule`, `Activity`), `BudgetBackup` (`schemaVersion: 1`), and `StorageAdapter` (`DB_VERSION = 1` in [storage.md](storage.md)) are intentionally structured so modern budget-app capabilities layer onto v2+ via additive `onupgradeneeded` migrations and optional fields—**without breaking or rewriting v1 records**:
 
 1. **Category Budgets / Envelopes (YNAB / Monarch style):**
    - Add a new `"budgetTargets"` object store in `DB_VERSION = 2`:
@@ -254,8 +299,22 @@ The v1 data model (`RecurringRule`, `Activity`), `BudgetBackup` (`schemaVersion:
 5. **Multi-Account & Net-Worth Tracking / Transfers:**
    - Add a new `"accounts"` object store (`Account { id, name, type: "checking" | "savings" | "credit" | "investment", currency }`) and populate the already-reserved `Activity.sourceAccountId` field.
    - Add an optional `transferPeerId?: string` on `Activity` linking paired inter-account transfer records (net-zero across total Available Funds, while tracked individually per account).
-6. **Bank Sync / OAuth Reconciliation (Plaid / SimpleFin + RFC 8252):**
-   - Populate the already-reserved `source: "bank-sync"`, `externalTxnId`, and `sourceAccountId` fields on `Activity`, plus optional `pending?: boolean` and `reconciledRuleId?: string` to match imported bank transactions against auto-posted recurring activities without double-counting.
+6. **File Import (CSV/OFX/QFX) & Bank-Sync Options:**
+   - **First-class privacy-preserving seam — File Import (CSV / OFX / QFX):** Populate `source: "file-import"`, `importBatchId` (groups all rows from one file import for audit or batch rollback), and `externalTxnId` (native OFX/QFX `FITID` or a deterministic content hash over normalized date + `amountCents` + payee/memo for CSV) for idempotent deduplication across overlapping statement downloads. Runs 100% locally with zero network egress, preserving `connect-src 'none'` and the **"Data Not Collected"** store label.
+   - **Opt-in bridge — SimpleFIN Bridge:** Uses a user-owned Bridge token with no developer-operated backend. Must sit behind an explicit opt-in screen, requires a narrow `connect-src` allowlist for the user's Bridge endpoint, and requires a documented privacy-label update.
+   - **Separate project — Aggregator Bank Sync (Plaid / GoCardless / MX):** Populates the reserved `source: "bank-sync"`, `externalTxnId`, and `sourceAccountId` slots (plus optional `pending?: boolean` and `reconciledRuleId?: string` to reconcile against recurring activities without double-counting). **RFC 8252** loopback OAuth alone does not make aggregator sync a local-only addition: Plaid, GoCardless, and MX require a server-held secret and/or a vendor JS SDK, which breaks `connect-src 'none'` (and `script-src 'self'` if an SDK is loaded) and permanently changes the store privacy label. Treat aggregator bank sync as a separate project that re-opens Pillar 2.
 7. **Multi-Currency:**
    - MVP validation enforces single-currency consistency per budget while storing `currency` (ISO-4217) on every `RecurringRule` and `Activity`.
    - Post-MVP multi-currency support groups balances and tag rollups by `currency` (using `Intl.NumberFormat(locale, { style: "currency", currency }).resolvedOptions().maximumFractionDigits` for 0-, 2-, and 3-decimal minor-unit scaling) and optionally applies user-pinned or cached exchange rates at the reporting layer.
+8. **End-to-End Encrypted (E2EE) Multi-Device Sync:**
+   - MVP hard-deletes records (`adapter.delete`), but `RecurringRule` and `Activity` already reserve optional `deletedAt?: string` (ISO-8601 UTC tombstone) and `deviceId?: string` (origin attribution) so a future sync layer can transition to soft-delete tombstones and deterministic conflict resolution without migrating v1 records.
+   - Any future sync layer MUST be **end-to-end encrypted with a user-held key** so no developer or relay server can read plaintext financial data. The App Store / Play Store privacy label remains unaffected **only if** zero developer-readable plaintext (and zero unencrypted user identifiers/metadata) is collected; otherwise the privacy label must be updated.
+
+### Privacy-Label Impact and Sync Tradeoffs
+
+| Integration / Seam | Network & CSP impact | Backend / SDK requirement | Privacy label impact (App Store / Play Store) |
+| ------------------ | -------------------- | ------------------------- | --------------------------------------------- |
+| **File import (CSV / OFX / QFX)** | None — local file read only; `connect-src 'none'` preserved | None (pure client-side parser + `importBatchId` / `externalTxnId` dedupe) | **"Data Not Collected" label preserved** (zero off-device transmission) |
+| **SimpleFIN Bridge (opt-in)** | Narrow `connect-src` allowlist for user's Bridge endpoint (behind explicit opt-in) | No developer backend; user-owned Bridge token | **Privacy label requires review / update** (financial data traverses third-party Bridge) |
+| **Aggregator bank sync (Plaid / GoCardless / MX)** | Breaks `connect-src 'none'` (and `script-src 'self'` if vendor JS SDK is used) | Server-held secret and/or vendor SDK (RFC 8252 loopback alone is insufficient) | **Permanently changes privacy label** (Financial Info collected; re-opens Pillar 2) |
+| **E2EE multi-device sync** | Narrow `connect-src` allowlist for sync relay/storage endpoint | Ciphertext-only sync relay + user-held encryption key (`deletedAt?` / `deviceId?` tombstones) | **Privacy label unaffected only if no developer-readable plaintext** or unencrypted metadata is collected; otherwise label must be updated |

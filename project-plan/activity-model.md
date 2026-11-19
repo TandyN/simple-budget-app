@@ -23,14 +23,17 @@ interface Activity {
   currency: string;
   dateTime: string;      // defaults to "now" at creation, always editable
   tags: string[];
-  source: "manual" | "recurring" | "bank-sync";
-  sourceRuleId?: string; // present iff source === "recurring"
-  period?: string;       // present iff source === "recurring"
-  externalTxnId?: string;// reserved for a future bank-sync project (re-sync dedupe key)
-  sourceAccountId?: string; // reserved for a future bank-sync project (linked account)
+  source: "manual" | "recurring" | "file-import" | "bank-sync";
+  sourceRuleId?: string;   // present iff source === "recurring"
+  period?: string;         // present iff source === "recurring"
+  importBatchId?: string;  // reserved for local CSV/OFX/QFX file import (groups rows from one import batch)
+  externalTxnId?: string;  // reserved dedupe key (OFX/QFX FITID, CSV content hash, or bank-feed txn id)
+  sourceAccountId?: string;// reserved account label / future linked account id
   memo?: string;
   createdAt: string;
   updatedAt: string;
+  deletedAt?: string;      // reserved for future E2EE sync tombstones (unused in MVP; MVP hard-deletes)
+  deviceId?: string;       // reserved for future E2EE sync origin attribution (unused in MVP)
 }
 ```
 
@@ -38,6 +41,14 @@ interface Activity {
 - **`source: "recurring"`** → the engine generated it. Carries `sourceRuleId`
   (which rule) and `period` (which period it was posted for). See
   [recurring-engine.md](recurring-engine.md).
+- **`source: "file-import"`** *(post-MVP, first-class privacy-preserving seam)* →
+  imported locally from a user-supplied CSV, OFX, or QFX statement. Carries
+  `importBatchId` (for batch audit/rollback) and `externalTxnId` (native
+  OFX/QFX `FITID` or a deterministic CSV content hash) for idempotent
+  deduplication, with zero network egress.
+- **`source: "bank-sync"`** *(reserved)* → reserved for opt-in SimpleFIN Bridge
+  or a separate future bank-aggregator project (which re-opens Pillar 2; see
+  [data-model.md → Privacy-Label Impact and Sync Tradeoffs](data-model.md#privacy-label-impact-and-sync-tradeoffs)).
 
 Because they share one record type, the UI, the query layer, and the Available
 Funds calculation all treat them identically. There is no "recurring table" vs.
@@ -55,7 +66,7 @@ Funds calculation all treat them identically. There is no "recurring table" vs.
   future enhancement that does not change the data shape.
 - Tags power the **insights/search surface** in the MVP: query activities by
   date range + tag + type, and roll up spend/income **by tag**. See
-  [Insights / search](#insights-search).
+  [Insights / search](#insights--search).
 
 ## Timestamps: default to "now", always editable
 
@@ -65,11 +76,15 @@ Funds calculation all treat them identically. There is no "recurring table" vs.
 - **Always editable.** `dateTime` is a user-settable field on **every** activity,
   manual and recurring alike. Back-dating an expense to 2026-10-28 is a normal
   edit and is fully supported.
-- **Recurring default is the due date, not "now".** The recurring engine sets a
-  recurring activity's `dateTime` to the **due date** for that period (e.g.
-  `2026-11-01` for the November period), not the moment the engine ran. This is
-  the natural "the transaction happened on the 1st" semantics and is still
-  editable by the user afterwards.
+- **Recurring default is the due date at `12:00:00Z`, not "now" (OQ-2).** The
+  recurring engine sets a recurring activity's `dateTime` to fixed **`12:00:00Z`**
+  (noon UTC) on the clamped **due date** for that period (e.g.
+  `2026-11-01T12:00:00Z` for the November period), not the moment the engine ran
+  and not `00:00:00Z` (which shifts to the previous day for all UTC− users).
+  This keeps the local calendar day accurate across UTC−12 through UTC+11 (with
+  UTC+12..+14 documented as an accepted MVP residual in
+  [recurring-engine.md](recurring-engine.md#notes-and-resolved-defaults)) and
+  remains editable by the user afterwards.
 - **`createdAt` / `updatedAt`** are system-managed and are **not** the
   transaction date. They answer "when did this record appear / get last touched",
   distinct from "when did the money move" (`dateTime`).
@@ -86,7 +101,7 @@ surface is identical:
 | `dateTime` | yes | back-date or forward-date |
 | `tags` | yes | add / remove any |
 | `memo` | yes | free text |
-| `source`, `sourceRuleId`, `period` | no | provenance is fixed at creation; an edit never re-attributes origin |
+| `source`, `sourceRuleId`, `period`, `importBatchId`, `externalTxnId`, `sourceAccountId` | no | provenance & dedupe keys are fixed at creation/import; an edit never re-attributes origin |
 
 Consequences that fall out of this design:
 
@@ -99,8 +114,13 @@ Consequences that fall out of this design:
   fields → set `updatedAt = now` → `adapter.save("activities", activity)`. No
   special cases for "manual" vs. "recurring".
 - **Deletion** is a first-class operation on any activity (manual or recurring),
-  `adapter.delete("activities", id)`. Deleting a recurring-generated `Activity`
-  removes that record from the activity log and does *not* re-post it: because
+  `adapter.delete("activities", id)`. In the MVP, deletion **hard-deletes** the
+  record from IndexedDB; optional `deletedAt?` and `deviceId?` fields are
+  reserved on `Activity` and `RecurringRule` so a future E2EE multi-device sync
+  layer can switch to soft-delete tombstones without migrating v1 records (see
+  [data-model.md → Post-MVP Extensibility & Growth Seams](data-model.md#post-mvp-extensibility--growth-seams)).
+  Deleting a recurring-generated `Activity` removes that record from the activity
+  log and does *not* re-post it: because
   `rule.lastPostPeriod` already advanced past that period when it was originally
   posted, `missingPeriods` (which enumerates `(rule.lastPostPeriod, period(now)]`,
   starting from `nextMonth(rule.lastPostPeriod)`) never re-enumerates that period
@@ -183,12 +203,9 @@ function searchActivities(activities: Activity[], filter: ActivitySearchFilter):
 }
 ```
 
-- **Date range** is on `dateTime` (the transaction time, stored UTC) — so
-  "all of 2026" is `since: 2026-01-01T00:00:00Z, until: 2027-01-01T00:00:00Z`.
-  A 5-year window is just a wider range; the filter itself is O(n) over the
-  log, which is fine for local data and is where a storage index on `(dateTime)`
-  / `(tag, dateTime)` can later be slotted in behind the
-  [`StorageAdapter`](storage.md) without changing this contract.
+- **Date range & recurring period attribution (OQ-2):**
+  - Free-form date-range filtering (`searchActivities`) compares `dateTime` (stored UTC) — so "all of 2026" is `since: 2026-01-01T00:00:00Z, until: 2027-01-01T00:00:00Z`. A 5-year window is just a wider range; the filter itself is O(n) over the log, which is fine for local data and is where a storage index on `(dateTime)` / `(tag, dateTime)` can later be slotted in behind the [`StorageAdapter`](storage.md) without changing this contract.
+  - **Period rollups use `Activity.period` for recurring items:** Whenever computing monthly or period-based rollups (such as a month summary view or `summarizeByPeriod`), recurring activities (`source === "recurring"`) MUST be bucketed by **`Activity.period`** (e.g. `"2026-11"`) rather than slicing `dateTime` against local-midnight month boundaries, guaranteeing timezone offsets never misattribute a 1st-of-month recurring item to an adjacent month (non-recurring activities bucket by `dateTime`).
 - **`tag` + `type`** combine with the range — e.g. *housing expense in Q3 2026*.
 
 ### 2. `summarizeByTag(activities)` — roll up by tag
@@ -233,13 +250,15 @@ on the `BudgetApi` public surface
 
 Because `searchActivities` and `summarizeByTag` are pure functions over plain
 `Activity` arrays in integer cents, post-MVP analytics and budgeting extensions
-([data-model.md → Post-MVP Extensibility & Growth Seams](data-model.md#post-mvp-extensibility-growth-seams))
+([data-model.md → Post-MVP Extensibility & Growth Seams](data-model.md#post-mvp-extensibility--growth-seams))
 compose directly with them without changing the MVP contract:
 
 - **Time-series period bucketing (`summarizeByPeriod`):** A post-MVP
   `summarizeByPeriod(activities: Activity[], granularity: "month" | "quarter" | "year")`
   function in `src/core/insights.ts` groups any `searchActivities(all, { since, until, tag, type })`
-  slice by UTC period key (`"2026-11"`, `"2026-Q4"`, `"2026"`) and delegates each
+  slice by period key (`"2026-11"`, `"2026-Q4"`, `"2026"` — using
+  `Activity.period` where `source === "recurring"` and UTC `dateTime` for
+  non-recurring records, per OQ-2) and delegates each
   bucket's tag breakdown to `summarizeByTag(bucketActivities)`, powering multi-period
   trend comparisons and cash-flow forecasting in integer cents.
 - **Category envelopes / spending targets (`BudgetTarget`):** A post-MVP
