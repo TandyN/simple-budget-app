@@ -58,6 +58,10 @@ a minimal, adapter-agnostic filter (e.g. `{ field: 'sourceRuleId', eq: ruleId }`
   3. Resolves only when `tx.oncomplete` fires.
 - **Automatic rollback on failure:** Because IndexedDB transactions are atomic across all participating object stores, any unexpected write error, quota exhaustion, or transaction abort automatically rolls back both `"rules"` and `"activities"` to their exact pre-import state—guaranteeing that a failed import never clobbers or partially overwrites existing user data.
 - **Validation precedes storage writes:** `budget.importBackup(rawJson)` runs the pure `validateBackupPayload(rawJson)` validator in `src/core/validate.ts` (see [data-model.md](data-model.md)) **before** opening the `replaceAll` transaction.
+- **Pre-import safety (size check, confirm dialog & auto-snapshot):** Before invoking `budget.importBackup(rawJson)` / `replaceAll`, the Settings UI MUST:
+  1. Check `file.size <= 10 * 1024 * 1024` (10 MB) **before** reading the file into memory (complementing the in-core `validateBackupPayload` byte check).
+  2. Present an explicit confirmation dialog warning that importing will replace all existing local rules and activities.
+  3. Automatically trigger a download of a **pre-import safety snapshot** (`budget.exportBackup()`) before executing `replaceAll`, so the user always retains a recovery copy even if they import an unintended valid backup file.
 - **In-memory parity:** `InMemoryAdapter.replaceAll` validates and swaps both in-memory maps in one synchronous step so unit tests exercise the identical atomic contract.
 
 ### Why IndexedDB
@@ -78,11 +82,17 @@ a minimal, adapter-agnostic filter (e.g. `{ field: 'sourceRuleId', eq: ruleId }`
 - Lets us swap the store later (e.g. a file-backed adapter, or an encrypted
   layer) without changing the engine or the data model.
 - Makes the core unit-testable with an in-memory fake adapter.
-- **Shared across all three targets** — the *same* `indexeddb.ts` adapter
-  implements `StorageAdapter` on the PWA (any modern browser), iOS (WebKit), and
-  Android (Chromium), because all of them support IndexedDB. A **SQLite-backed
-  adapter** is a valid *future* swap behind the unchanged interface if we ever
-  want native storage; the core and front-end would not change.
+- **Shared for MVP PWA, native durability gate for store release (OQ-4):** The
+  `indexeddb.ts` adapter implements `StorageAdapter` for the MVP PWA across all
+  modern browsers. However, because iOS (`WKWebView`) and Android (`WebView`)
+  can evict WebView IndexedDB under OS storage pressure (see
+  [Storage Durability & WebKit Eviction Mitigation](#storage-durability-webkit-eviction-mitigation)),
+  a **durable native store** (a **SQLite-backed `StorageAdapter`**, or a
+  mirrored auto-snapshot written to the app's native Documents directory) is
+  **REQUIRED before the first App Store / Play Store release** (a mandatory
+  release gate, not an optional future swap). Because all persistence sits
+  behind `StorageAdapter`, swapping in the durable native adapter requires zero
+  changes to `src/core/` or the front-end.
 
 ## IndexedDB Schema Versioning, Indexes & Migration Strategy
 
@@ -103,9 +113,9 @@ To guarantee deterministic persistence in v1 and zero-data-loss migrations as po
   - If any step inside `onupgradeneeded` throws, IndexedDB automatically aborts the `versionchange` transaction and leaves the prior database version untouched.
 - **Object stores and secondary indexes created in v1 (`DB_VERSION = 1`):**
   1. **`"meta"`** (`{ keyPath: "key" }`):
-     - Stores database-level metadata, initialized on upgrade with `{ key: "schema", schemaVersion: 1, updatedAt: new Date().toISOString() }`.
+     - Stores database-level metadata, initialized on upgrade with `{ key: "schema", schemaVersion: 1, updatedAt: new Date().toISOString() }`, and tracks user backup metadata such as `{ key: "lastBackupAt", timestamp: ISO-8601 }` for the Settings backup-age indicator.
   2. **`"rules"`** (`{ keyPath: "id" }`):
-     - Secondary index **`by_active`** on keyPath `"active"` (`{ unique: false }`) for filtering active vs. paused recurring rules.
+     - No secondary index on `active` (`by_active` was removed because booleans are not valid IndexedDB keys per the W3C IndexedDB specification — valid key types are `number`, `string`, `Date`, binary, and `Array`; indexing a boolean field silently omits records and causes index queries to return empty results). Because the recurring rules list is small, active vs. paused rules are filtered in memory after reading `"rules"`.
   3. **`"activities"`** (`{ keyPath: "id" }`):
      - Secondary index **`by_dateTime`** on keyPath `"dateTime"` (`{ unique: false }`) for chronological ordering and `[since, until]` date-range queries.
      - Secondary index **`by_type`** on keyPath `"type"` (`{ unique: false }`) for filtering `"income" | "expense" | "deposit"`.
@@ -130,8 +140,9 @@ function handleUpgrade(db: IDBDatabase, tx: IDBTransaction, oldVersion: number):
       updatedAt: new Date().toISOString(),
     });
 
-    const rulesStore = db.createObjectStore("rules", { keyPath: "id" });
-    rulesStore.createIndex("by_active", "active", { unique: false });
+    db.createObjectStore("rules", { keyPath: "id" });
+    // Note: No index on boolean "active" — booleans are not valid IndexedDB keys;
+    // active vs. paused rules are filtered in memory.
 
     const activitiesStore = db.createObjectStore("activities", { keyPath: "id" });
     activitiesStore.createIndex("by_dateTime", "dateTime", { unique: false });
@@ -148,21 +159,28 @@ function handleUpgrade(db: IDBDatabase, tx: IDBTransaction, oldVersion: number):
 
 ## Storage Durability & WebKit Eviction Mitigation
 
-Local-first browser storage must guard against user-agent storage pressure and Safari/WebKit's Intelligent Tracking Prevention (ITP) 7-day script-writable storage eviction policy:
+Local-first browser and WebView storage is subject to user-agent storage pressure and platform eviction policies. The plan avoids overstated durability guarantees and pairs honest platform expectations with explicit user-visible controls and a store-release durability gate:
 
-- **Best-effort persistent storage request (`navigator.storage.persist()`):**
-  - During `IndexedDbAdapter.init()` / `IndexedDbAdapter.open()` (called by `budget.init()`), the adapter executes a best-effort persistence request wrapped in `try/catch` so it is strictly non-blocking if denied or unsupported by the runtime environment:
+- **Eviction & durability reality across targets:**
+  - **Standard browser tabs (Safari/WebKit, Chrome, Firefox):** Safari/WebKit applies Intelligent Tracking Prevention (ITP) 7-day script-writable storage eviction to unvisited browser-tab origins, and any browser may reclaim non-persistent origin storage under OS disk pressure. Installing the PWA to the iOS Home Screen (`display: "standalone"`) improves persistence heuristics compared to a casual tab, but does **not** guarantee immunity from OS storage reclamation.
+  - **Capacitor native shells (iOS `WKWebView` / Android `WebView`) — OQ-4 release gate:** Per Capacitor's official Storage documentation, **WebView `IndexedDB` and `localStorage` can be cleared by the OS under storage pressure** on both iOS and Android. WebView storage is therefore **not** durable enough on its own for a store-distributed personal finance app. While IndexedDB remains the MVP PWA store, a **durable native store** — either a **SQLite-backed `StorageAdapter`** behind the unchanged interface, or a **mirrored auto-snapshot written to the app's native Documents directory** — is **REQUIRED before the first App Store / Play Store release** (release gate, not an optional future swap).
+- **Best-effort `navigator.storage.persist()` after first user action (not cold `init()`):**
+  - Do **not** call `navigator.storage.persist()` unconditionally during cold `budget.init()` / `open()` — Firefox displays a permission prompt on `persist()` (jarring before the user has interacted with the app), while Safari and Chrome evaluate persistence heuristically based on engagement.
+  - Instead, invoke `navigator.storage?.persist?.()` once, wrapped in `try/catch`, **immediately after the user's first meaningful write/action** (e.g., creating their first recurring rule or manual activity), and surface the returned boolean result to the UI:
     ```ts
-    try {
-      await navigator.storage?.persist?.();
-    } catch {
-      // Non-blocking: proceed with standard IndexedDB storage if unsupported or denied
+    async function requestPersistenceAfterFirstAction(): Promise<boolean> {
+      try {
+        return (await navigator.storage?.persist?.()) ?? false;
+      } catch {
+        // Non-blocking: proceed with standard IndexedDB storage if unsupported or denied
+        return false;
+      }
     }
     ```
-- **WebKit 7-day ITP eviction mitigation (3-layer defense):**
-  1. **Home Screen PWA (`display: "standalone"`) & Capacitor native shells:** Under WebKit's storage policy, the 7-day inactivity eviction cap applies to standard browser tabs. Installing the PWA to the iOS Home Screen (standalone display mode) or running inside the iOS (`WKWebView`) / Android (`Chromium`) Capacitor native shell grants durable, app-scoped origin storage exempt from 7-day tab eviction.
-  2. **Storage API persistence (`navigator.storage?.persist?.()`):** Explicitly requests that the browser mark the origin's IndexedDB bucket as persistent so it is not cleared under routine storage pressure.
-  3. **Periodic JSON backup exports in the Settings UI:** The Settings tab provides a one-tap JSON backup export (`budget.exportBackup()`) and encourages periodic local file exports (to Files / iCloud Drive / Google Drive) so users always hold a portable, human-readable recovery copy.
+- **Settings durability status (`navigator.storage.persisted()`) & N-day backup nag:**
+  1. **Persisted status readout:** Settings queries `await navigator.storage?.persisted?.()` (falling back to `false` when unsupported) and displays the live storage persistence status (e.g., *"Persistent storage granted"* vs. *"Best-effort browser storage — export regular backups"*), updating immediately after the first-action `persist()` call.
+  2. **Last-backup date & N-day backup reminder:** Every successful `budget.exportBackup()` writes `{ key: "lastBackupAt", timestamp: new Date().toISOString() }` to the `"meta"` object store. Settings displays the **last-backup date** (or *"Never backed up"*) and shows a non-blocking **N-day backup nag** (default `N = 30` days since `lastBackupAt`, or once user data exists with no backup) prompting a one-tap JSON backup export to Files / iCloud Drive / Google Drive.
+  3. **Periodic JSON backup exports & pre-import safety:** Combining one-tap JSON export, the N-day backup nag, and the pre-import safety snapshot before `replaceAll` ensures users always hold a portable, human-readable recovery copy.
 
 ## Security properties
 

@@ -32,6 +32,9 @@ interface RecurringRule {
   lastPostPeriod: string | null; // last period already auto-posted (e.g. "2026-11"); null = never posted (always present, null is the "never" sentinel)
   createdAt: string;   // ISO-8601 timestamp
   updatedAt: string;   // ISO-8601 timestamp
+  // Sync / tombstone slots — RESERVED for future E2EE sync (unused in MVP; MVP hard-deletes).
+  deletedAt?: string;  // ISO-8601 UTC tombstone timestamp when soft-deleted in a future sync layer
+  deviceId?: string;   // originating device identifier for future E2EE conflict resolution
 }
 
 interface Schedule {
@@ -74,6 +77,9 @@ interface Activity {
   memo?: string;         // optional free-text note
   createdAt: string;     // ISO-8601; when the record was created
   updatedAt: string;     // ISO-8601; when last edited
+  // Sync / tombstone slots — RESERVED for future E2EE sync (unused in MVP; MVP hard-deletes).
+  deletedAt?: string;    // ISO-8601 UTC tombstone timestamp when soft-deleted in a future sync layer
+  deviceId?: string;     // originating device identifier for future E2EE conflict resolution
 }
 ```
 
@@ -179,6 +185,7 @@ function computeAvailableFunds(activities: Activity[]): number {
 | `Activity.sourceRuleId` | no | Determined at creation; not user-set |
 | `Activity.period` | no | Determined at creation; not user-set |
 | `Activity.createdAt` / `updatedAt` | no | System-managed |
+| `RecurringRule` / `Activity.deletedAt` / `deviceId` | no | Reserved optional slots for future E2EE sync tombstones (unused in MVP; MVP hard-deletes) |
 
 ## Mapping the user's ask → model
 
@@ -213,19 +220,22 @@ interface BudgetBackup {
 
 Because a user-selected backup file is untrusted external input, `validateBackupPayload(rawJson: string): BudgetBackup` in `src/core/validate.ts` enforces strict defense-in-depth checks **before** `IndexedDbAdapter.replaceAll` is ever called (see [storage.md](storage.md)):
 
-- **Size bound (10 MB ceiling):** Reject `rawJson` exceeding `10 * 1024 * 1024` bytes (10 MB, measured via `new TextEncoder().encode(rawJson).byteLength`) before calling `JSON.parse`, preventing main-thread memory exhaustion or denial-of-service on mobile WebViews.
+- **Size bound (10 MB ceiling, checked before reading):**
+  - At the file-input boundary (before calling `file.text()` / `FileReader`), the UI MUST check `file.size <= 10 * 1024 * 1024` (10 MB) and reject oversized files immediately without allocating them in memory.
+  - Inside `validateBackupPayload(rawJson)` itself, reject `rawJson` exceeding `10 * 1024 * 1024` bytes (measured via `new TextEncoder().encode(rawJson).byteLength`) **before** calling `JSON.parse`, preventing main-thread memory exhaustion or denial-of-service on mobile WebViews.
 - **Prototype-pollution guard:** Use a `JSON.parse` reviver and/or recursive `Object.keys` / `Object.getOwnPropertyNames` check that immediately rejects any object containing `__proto__`, `constructor`, or `prototype` as an own property, and construct clean plain objects with only allowlisted domain properties.
 - **Strict schema & type checks:**
   - Verify top-level envelope is a non-null plain object with `schemaVersion === 1`, a valid ISO-8601 UTC `exportedAt` timestamp, and arrays `rules` and `activities` (each bounded to `<= 100_000` items).
+  - **Reconciling the 10 MB byte cap vs. `<= 100_000` record cap:** The **10 MB byte ceiling is the hard primary bound**; the `<= 100_000` per-array cap is a secondary structural bound against pathological arrays of tiny records. Because records carrying maximum-length `memo`s (1,000 chars) and tags serialize to ~1.3 KB each, dense records hit the 10 MB byte ceiling well below 100,000 items (~7,500–10,000 records). Both bounds are enforced independently — whichever limit is hit first rejects the import.
   - Run the full `RecurringRule` and `Activity` domain validators on every element:
     - **Money invariants:** `Number.isSafeInteger(amountCents) && amountCents > 0` (strictly positive safe integers in minor units).
     - **Enum & schedule invariants:** Valid `RuleType` (`"income" | "expense"`), `ActivityType` (`"income" | "expense" | "deposit"`), `ActivitySource` (`"manual" | "recurring" | "bank-sync"`), `schedule.cadence === "monthly"`, and integer `schedule.dayOfMonth` in `1..31`.
-    - **Date & period invariants:** Valid `YYYY-MM` format (`1 <= month <= 12`) for `lastPostPeriod` (when non-null) and `Activity.period` (when `source === "recurring"`), and valid ISO-8601 UTC instants (`YYYY-MM-DDTHH:mm:ss(.sss)Z`) for `dateTime`, `createdAt`, and `updatedAt`.
-    - **Bounded string & array lengths:** Non-empty `id` (`<= 64` chars), rule `name` / `label` and each `tag` bounded to `<= 120` chars, optional `memo` bounded to `<= 1000` chars, and `tags.length <= 20`.
+    - **Date & period invariants:** Valid `YYYY-MM` format (`1 <= month <= 12`) for `lastPostPeriod` (when non-null) and `Activity.period` (when `source === "recurring"`), and valid ISO-8601 UTC instants (`YYYY-MM-DDTHH:mm:ss(.sss)Z`) for `dateTime`, `createdAt`, `updatedAt`, and optional `deletedAt` (when present).
+    - **Bounded string & array lengths:** Non-empty `id` (`<= 64` chars), optional `deviceId` (`<= 64` chars when present), rule `name` / `label` and each `tag` bounded to `<= 120` chars, optional `memo` bounded to `<= 1000` chars, and `tags.length <= 20`.
     - **Referential & uniqueness invariants:** Reject duplicate `id`s within `rules` or within `activities`; require `sourceRuleId` and `period` when `source === "recurring"`.
     - **Single-currency consistency:** Enforce a valid 3-letter uppercase ISO-4217 `currency` code (e.g. `"USD"`) and verify single-currency consistency across all rules and activities in the imported budget so `computeAvailableFunds` and `summarizeByTag` never sum mixed currencies.
 
-Only after `validateBackupPayload(rawJson)` returns a clean, fully validated `BudgetBackup` does `budget.importBackup(rawJson)` invoke `adapter.replaceAll({ rules: backup.rules, activities: backup.activities })` inside a single atomic IndexedDB `readwrite` transaction (see [storage.md](storage.md)).
+Only after the UI completes the pre-import safety flow (confirm dialog + auto-downloaded pre-import snapshot; see [storage.md → Atomic Backup Restoration (`replaceAll`)](storage.md#atomic-backup-restoration-replaceall)) and `validateBackupPayload(rawJson)` returns a clean, fully validated `BudgetBackup` does `budget.importBackup(rawJson)` invoke `adapter.replaceAll({ rules: backup.rules, activities: backup.activities })` inside a single atomic IndexedDB `readwrite` transaction (see [storage.md](storage.md)).
 
 ## Post-MVP Extensibility & Growth Seams
 

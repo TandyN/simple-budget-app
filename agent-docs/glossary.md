@@ -128,14 +128,18 @@ in its own topic doc, not here.
   `readwrite` transaction (`replaceAll`) that rolls back on any failure.
   [project-plan/data-model.md](../project-plan/data-model.md#versioned-budgetbackup-schema-hardened-import-validation)
 - **IndexedDB schema versioning (`DB_VERSION = 1`)** — the deterministic
-  `onupgradeneeded(event)` sequential migration switch on `DB_NAME = "simple-budget-app"`
+  `onupgradeneeded(event)` sequential migration switch on base-path-derived
+  `DB_NAME` (`simple-budget-app` / `simple-budget-app-pr-<N>`)
   provisioning the `"meta"`, `"rules"`, and `"activities"` stores and secondary
-  indexes (`by_active`, `by_dateTime`, `by_type`, `by_tags`, `by_rule_period`).
+  indexes (`by_dateTime`, `by_type`, `by_tags`, `by_rule_period`; active vs.
+  paused rules are filtered in memory since booleans are invalid IndexedDB keys).
   [project-plan/storage.md](../project-plan/storage.md#indexeddb-schema-versioning-indexes-migration-strategy)
-- **storage durability (`navigator.storage.persist()`)** — the 3-layer defense
-  against WebKit ITP 7-day storage eviction: Home Screen PWA / Capacitor shells,
-  best-effort `navigator.storage?.persist?.()` on `init()`, and periodic JSON
-  backup export.
+- **storage durability (`navigator.storage.persist()` / `persisted()`)** —
+  first-action best-effort `navigator.storage?.persist?.()` (not cold `init()`),
+  live `navigator.storage?.persisted?.()` status + `lastBackupAt` N-day backup
+  nag in Settings, pre-import confirmation + safety snapshot before `replaceAll`,
+  and a mandatory durable native store release gate (SQLite `StorageAdapter` or
+  mirrored auto-snapshot to app Documents) before store submission.
   [project-plan/storage.md](../project-plan/storage.md#storage-durability-webkit-eviction-mitigation)
 - **short-month `Date.UTC` clamping** — clamping `rule.schedule.dayOfMonth`
   (`1..31`) to `daysInMonth` (`new Date(Date.UTC(y, m, 0)).getUTCDate()`) in

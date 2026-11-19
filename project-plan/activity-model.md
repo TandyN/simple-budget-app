@@ -31,6 +31,8 @@ interface Activity {
   memo?: string;
   createdAt: string;
   updatedAt: string;
+  deletedAt?: string;    // reserved for future E2EE sync tombstones (unused in MVP)
+  deviceId?: string;     // reserved for future E2EE sync origin attribution (unused in MVP)
 }
 ```
 
@@ -65,11 +67,15 @@ Funds calculation all treat them identically. There is no "recurring table" vs.
 - **Always editable.** `dateTime` is a user-settable field on **every** activity,
   manual and recurring alike. Back-dating an expense to 2026-10-28 is a normal
   edit and is fully supported.
-- **Recurring default is the due date, not "now".** The recurring engine sets a
-  recurring activity's `dateTime` to the **due date** for that period (e.g.
-  `2026-11-01` for the November period), not the moment the engine ran. This is
-  the natural "the transaction happened on the 1st" semantics and is still
-  editable by the user afterwards.
+- **Recurring default is the due date at `12:00:00Z`, not "now" (OQ-2).** The
+  recurring engine sets a recurring activity's `dateTime` to fixed **`12:00:00Z`**
+  (noon UTC) on the clamped **due date** for that period (e.g.
+  `2026-11-01T12:00:00Z` for the November period), not the moment the engine ran
+  and not `00:00:00Z` (which shifts to the previous day for all UTC− users).
+  This keeps the local calendar day accurate across UTC−12 through UTC+11 (with
+  UTC+12..+14 documented as an accepted MVP residual in
+  [recurring-engine.md](recurring-engine.md#notes-and-resolved-defaults)) and
+  remains editable by the user afterwards.
 - **`createdAt` / `updatedAt`** are system-managed and are **not** the
   transaction date. They answer "when did this record appear / get last touched",
   distinct from "when did the money move" (`dateTime`).
@@ -183,12 +189,9 @@ function searchActivities(activities: Activity[], filter: ActivitySearchFilter):
 }
 ```
 
-- **Date range** is on `dateTime` (the transaction time, stored UTC) — so
-  "all of 2026" is `since: 2026-01-01T00:00:00Z, until: 2027-01-01T00:00:00Z`.
-  A 5-year window is just a wider range; the filter itself is O(n) over the
-  log, which is fine for local data and is where a storage index on `(dateTime)`
-  / `(tag, dateTime)` can later be slotted in behind the
-  [`StorageAdapter`](storage.md) without changing this contract.
+- **Date range & recurring period attribution (OQ-2):**
+  - Free-form date-range filtering (`searchActivities`) compares `dateTime` (stored UTC) — so "all of 2026" is `since: 2026-01-01T00:00:00Z, until: 2027-01-01T00:00:00Z`. A 5-year window is just a wider range; the filter itself is O(n) over the log, which is fine for local data and is where a storage index on `(dateTime)` / `(tag, dateTime)` can later be slotted in behind the [`StorageAdapter`](storage.md) without changing this contract.
+  - **Period rollups use `Activity.period` for recurring items:** Whenever computing monthly or period-based rollups (such as a month summary view or `summarizeByPeriod`), recurring activities (`source === "recurring"`) MUST be bucketed by **`Activity.period`** (e.g. `"2026-11"`) rather than slicing `dateTime` against local-midnight month boundaries, guaranteeing timezone offsets never misattribute a 1st-of-month recurring item to an adjacent month (non-recurring activities bucket by `dateTime`).
 - **`tag` + `type`** combine with the range — e.g. *housing expense in Q3 2026*.
 
 ### 2. `summarizeByTag(activities)` — roll up by tag
@@ -239,7 +242,9 @@ compose directly with them without changing the MVP contract:
 - **Time-series period bucketing (`summarizeByPeriod`):** A post-MVP
   `summarizeByPeriod(activities: Activity[], granularity: "month" | "quarter" | "year")`
   function in `src/core/insights.ts` groups any `searchActivities(all, { since, until, tag, type })`
-  slice by UTC period key (`"2026-11"`, `"2026-Q4"`, `"2026"`) and delegates each
+  slice by period key (`"2026-11"`, `"2026-Q4"`, `"2026"` — using
+  `Activity.period` where `source === "recurring"` and UTC `dateTime` for
+  non-recurring records, per OQ-2) and delegates each
   bucket's tag breakdown to `summarizeByTag(bucketActivities)`, powering multi-period
   trend comparisons and cash-flow forecasting in integer cents.
 - **Category envelopes / spending targets (`BudgetTarget`):** A post-MVP
