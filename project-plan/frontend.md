@@ -92,10 +92,14 @@ constant. This is an **explicit, configurable build decision**:
     set to the base so install/offline behave under either path.
   - **Service-worker scope** — `sw.js` is emitted at build time by a custom
     in-repo Vite plugin (not stored as a static file in `public/`) and registered
-    in web/PWA contexts only (never in Capacitor native shells) as
-    `navigator.serviceWorker.register(import.meta.env.BASE_URL + 'sw.js', { scope: import.meta.env.BASE_URL })`,
-    so the SW control scope matches the deployed path. The production SW
-    explicitly bypasses `pr-*` sub-paths (see
+    in web/PWA contexts only (never in Capacitor native shells) via a minimal
+    feature-detected Trusted Types `createScriptURL`-only policy (`sw-register`,
+    allowing only `import.meta.env.BASE_URL + "sw.js"`, falling back to the plain
+    string where `window.trustedTypes` is absent):
+    `navigator.serviceWorker.register(swScriptUrl, { scope: import.meta.env.BASE_URL })`,
+    so the SW control scope matches the deployed path while remaining compliant
+    with `require-trusted-types-for 'script'`. The production SW explicitly
+    bypasses `pr-*` sub-paths (see
     [Service Worker Design](#service-worker-design-pwa-offline-scoping--update-lifecycle)).
   - **Storage, cache & channel namespacing** — IndexedDB database names
     (`simple-budget-app` vs `simple-budget-app-pr-<N>`), CacheStorage names
@@ -136,9 +140,13 @@ service worker generated at build time:
    - **Versioned cache name:** `sbapp-<buildhash>` for production and
      `sbapp-pr-<N>-<buildhash>` for PR previews (derived from the base path +
      build hash so preview and production caches never collide).
-   - **Delete old caches on `activate`:** On `activate`, delete every cache in
-     `caches.keys()` matching this deployment's prefix whose name does not equal
-     the active cache name (leaving sibling preview/production caches untouched).
+   - **Delete old caches on `activate`:** On `activate`, delete obsolete caches
+     using an explicit non-overlapping predicate so production never deletes
+     sibling PR preview caches (which also begin with `sbapp-`):
+     - Production deletes keys matching
+       `key.startsWith("sbapp-") && !key.startsWith("sbapp-pr-") && key !== ACTIVE_CACHE`.
+     - PR preview `<N>` deletes keys matching
+       `key.startsWith("sbapp-pr-<N>-") && key !== ACTIVE_CACHE`.
    - **User-accepted `skipWaiting`:** Do **not** call `self.skipWaiting()`
      silently during `install` — swapping the controller mid-edit risks
      inconsistent UI or schema state. When a new SW enters the `waiting` state,
@@ -443,17 +451,37 @@ Every build (`index.html` → `dist/index.html`) MUST include the following stri
 Content Security Policy and Referrer Policy `<meta>` tags in `<head>`:
 
 ```html
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'; worker-src 'self'; manifest-src 'self'; require-trusted-types-for 'script'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'; worker-src 'self'; manifest-src 'self'; require-trusted-types-for 'script'; trusted-types sw-register">
 <meta name="referrer" content="no-referrer">
 ```
 
-- **Trusted Types (`require-trusted-types-for 'script'`) — defense-in-depth:**
-  `require-trusted-types-for 'script'` is valid inside `<meta>` CSP and acts as
-  browser-enforced defense-in-depth on top of our DOM XSS ban (below). Because
-  `src/` already prohibits HTML-parsing DOM sinks (`innerHTML`, `outerHTML`,
-  `insertAdjacentHTML`, `document.write`) and never creates a Trusted Types
-  policy, any accidental sink invocation is blocked by the browser engine at
-  runtime (supported in Chromium, with Safari/Firefox support landing 2025–2026).
+- **Trusted Types (`require-trusted-types-for 'script'; trusted-types sw-register`) —
+  defense-in-depth:** `require-trusted-types-for 'script'` is valid inside
+  `<meta>` CSP and acts as browser-enforced defense-in-depth on top of our DOM
+  XSS ban (below) (supported in Chromium, with Safari/Firefox support landing
+  2025–2026). Because `ServiceWorkerContainer.register(scriptURL)` is a
+  `TrustedScriptURL` injection sink under Trusted Types, the CSP allowlists
+  exactly one minimal policy (`trusted-types sw-register`):
+  - The `sw-register` policy defines **only** `createScriptURL` (no `createHTML`
+    and no `createScript` methods), and accepts **only** the exact URL
+    `import.meta.env.BASE_URL + "sw.js"` (throwing on any other input).
+  - Registration feature-detects `window.trustedTypes?.createPolicy` and falls
+    back to the plain string URL in browsers where Trusted Types is unavailable:
+    ```ts
+    const expectedSwUrl = `${import.meta.env.BASE_URL}sw.js`;
+    const swPolicy = window.trustedTypes?.createPolicy("sw-register", {
+      createScriptURL(url) {
+        if (url !== expectedSwUrl) throw new TypeError("Disallowed SW URL");
+        return url;
+      },
+    });
+    const swScriptUrl = swPolicy ? swPolicy.createScriptURL(expectedSwUrl) : expectedSwUrl;
+    navigator.serviceWorker.register(swScriptUrl as string, { scope: import.meta.env.BASE_URL });
+    ```
+  - Because `sw-register` exposes no `createHTML` or `createScript` methods and
+    no other policy is permitted, every HTML/script sink (`innerHTML`,
+    `outerHTML`, `insertAdjacentHTML`, `document.write`, `eval`) remains blocked
+    at the browser engine level.
 - **Referrer Policy (`no-referrer`):** `<meta name="referrer" content="no-referrer">`
   prevents leaking deployment paths (including `pr-<N>/` preview URLs) or origin
   information in `Referer` headers on any navigation.
