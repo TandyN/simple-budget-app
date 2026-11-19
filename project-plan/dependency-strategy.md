@@ -95,27 +95,43 @@ time and live in **`devDependencies`**.
 
 > **pnpm is the package manager, not a devDependency.** pnpm **installs** the
 > packages in the table; it is itself **provisioned, not installed** — via the
-> `packageManager` field in `package.json` + `corepack`, and in CI via
-> `pnpm/action-setup` (see [CI actions (the allowed set)](#ci-actions-the-allowed-set)).
-> It therefore **does not** appear in `devDependencies`. (npm is the zero-config
-> fallback.)
+> `packageManager` field in `package.json` and `pnpm/action-setup` in CI (see
+> [CI actions (the allowed set)](#ci-actions-the-allowed-set)). Do **not** assume
+> local `corepack` is available (newer Node.js releases no longer bundle
+> `corepack`). Require a modern pnpm version (10+) that uses npm's **bulk
+> advisory audit endpoint** (npm retired legacy audit endpoints, causing older
+> pnpm versions to fail `pnpm audit` with HTTP 410). pnpm therefore **does not**
+> appear in `devDependencies`. (npm is the zero-config fallback.)
 
 | Area | Tool (dev dep) | Well-maintained criterion — how it satisfies it (as of plan date) |
 | ---- | -------------- | ------------------------------------------------------------------ |
-| Package manager | **pnpm** *(provisioned, not a `devDependency`)* | **Active & current:** actively maintained, frequent releases. **First-party / tool-maintainer:** maintained by the pnpm project. **Industry-standard:** de-facto standard for the TS/Node ecosystem; strict/flat `node_modules`, fast, disk-efficient. It is provisioned via the `packageManager` field / `corepack` (and `pnpm/action-setup` in CI) and does **not** live in `devDependencies`. (npm is the zero-config fallback.) |
+| Package manager | **pnpm** *(provisioned, not a `devDependency`)* | **Active & current:** actively maintained, frequent releases (10+, using npm's bulk audit endpoint). **First-party / tool-maintainer:** maintained by the pnpm project. **Industry-standard:** de-facto standard for the TS/Node ecosystem; strict/flat `node_modules`, fast, disk-efficient. Provisioned via `packageManager` + `pnpm/action-setup` in CI (no `corepack` assumption) and does **not** live in `devDependencies`. (npm is the zero-config fallback.) |
 | Build / bundler | **Vite** | **Active & current:** very active repo, regular releases. **First-party / tool-maintainer:** maintained by the Vite core team. **Industry-standard:** the current best-practice web build tool; `build.lib` emits the shared bundle; pairs with Vitest. |
 | Testing | **Vitest** | **Active & current:** actively maintained, regular releases. **First-party / tool-maintainer:** maintained by the Vite core team (first-party to Vite). **Industry-standard:** the current best-practice TS test framework — fast, ESM/TS-native, zero babel config, Vite-compatible, large community. |
+| Coverage provider | **`@vitest/coverage-v8`** | **Active & current:** actively maintained in the Vitest monorepo, regular releases. **First-party / tool-maintainer:** maintained by the Vitest / Vite core team (first-party to Vitest). **Industry-standard:** the official V8 coverage provider required by `vitest run --coverage` to enforce the `>= 95%` `src/core/` coverage gate. |
 | E2E / browser testing | **Playwright (`@playwright/test`)** | **Active & current:** very active repo, regular releases. **First-party / tool-maintainer:** maintained by Microsoft (the browser-automation vendor). **Industry-standard:** the current standard for fast, reliable headless browser E2E across Chromium and WebKit. |
+| Accessibility testing | **`@axe-core/playwright`** | **Active & current:** actively maintained, regular releases. **First-party / tool-maintainer:** maintained by Deque Systems (the `axe-core` maintainers) and officially recommended in Playwright's accessibility testing docs. **Industry-standard:** the standard automated WCAG 2.2 AA accessibility scanner for Playwright E2E tests. |
 | IndexedDB test polyfill | **`fake-indexeddb`** | **Active & current:** maintained with releases; **First-party / tool-maintainer:** maintained by its dedicated author (a stable, single-maintainer project, not a fork); **Industry-standard:** the de-facto in-memory IndexedDB implementation so `src/storage/indexeddb.ts` can be unit-tested in Vitest (Node). *(Category: test-support, not a runtime framework.)* |
 | Lint + format | **Biome** | **Active & current:** actively maintained, regular releases. **First-party / tool-maintainer:** maintained by the Biome project (Rust-based, first-party). **Industry-standard:** the current best-practice single lint + format tool (sub-ms, no plugin config). (ESLint 9 + Prettier is the fallback if a plugin ecosystem is later needed.) |
 | Type check | **tsc** (TypeScript) | **Active & current:** the TypeScript compiler itself — the most actively maintained project in the JS/TS ecosystem, regular releases. **First-party / tool-maintainer:** maintained by Microsoft (the language owner). **Industry-standard:** `tsc --noEmit` runs in CI. |
 
-**The full `devDependencies` set:** `vite`, `vitest`, `fake-indexeddb`,
-`@playwright/test`, `@biomejs/biome`, `typescript`. **No framework runtime deps** —
-`dependencies` (production) MUST remain completely empty. **pnpm** is the *package
-manager* that installs these — it is **provisioned** (via the `packageManager`
-field / `corepack`, and `pnpm/action-setup` in CI), **not** a `devDependency`; the
-**CI actions** below are likewise provisioned, not installed as packages.
+**The full `devDependencies` set:** `vite`, `vitest`, `@vitest/coverage-v8`,
+`fake-indexeddb`, `@playwright/test`, `@axe-core/playwright`, `@biomejs/biome`,
+`typescript`. **No framework runtime deps** — `dependencies` (production) MUST
+remain completely empty. **pnpm** is the *package manager* that installs these —
+it is **provisioned** (via the `packageManager` field and `pnpm/action-setup` in
+CI, with no `corepack` assumption), **not** a `devDependency`; the **CI
+actions** below are likewise provisioned, not installed as packages.
+
+**Version currency (decided at bootstrap):** This plan deliberately avoids
+hardcoding potentially stale tool version numbers. The Phase 1 bootstrap task
+MUST verify and install the current stable major versions of every allowed
+`devDependencies` package (Vite, Vitest, `@vitest/coverage-v8`, `fake-indexeddb`,
+`@playwright/test`, `@axe-core/playwright`, Biome, TypeScript) along with the
+current Active-LTS even Node.js release (from `nodejs.org`) and a modern pnpm
+release (10+, supporting npm's bulk audit endpoint), pinned via `.npmrc`
+`save-exact=true`. Dependabot (`.github/dependabot.yml`) keeps both `npm`
+devDependencies and SHA-pinned GitHub Actions current thereafter.
 
 ## CI actions (the allowed set)
 
@@ -123,22 +139,28 @@ The CI actions are **also dev dependencies** — they are installed/invoked by
 GitHub Actions at **build / test / deploy time only**, never shipped to a
 browser or WebView, and they satisfy the **same well-maintained criterion** as
 the local tooling above. They are pinned in the workflow files under
-`.github/workflows/` (not `package.json`), and each is a **first-party action**
-of the upstream project or a GitHub first-party action.
+`.github/workflows/` (not `package.json`) to **full 40-character commit SHAs**
+with a trailing `# vX.Y.Z` version comment (never mutable tags such as `@v4`),
+and each is a **first-party action** of the upstream project or a GitHub
+first-party action.
 
-| Area | Action (version) | Well-maintained criterion — how it satisfies it (as of plan date) |
-| ---- | ---------------- | ------------------------------------------------------------------ |
-| Checkout code | **`actions/checkout`** v4 | **Active & current:** active, frequent releases. **First-party / tool-maintainer:** GitHub first-party action. **Industry-standard:** the canonical way to check out a repo in a workflow. |
-| Set up Node.js | **`actions/setup-node`** v4 | **Active & current:** active, frequent releases. **First-party / tool-maintainer:** GitHub first-party action. **Industry-standard:** the standard way to provision Node + the pnpm cache on a runner. |
-| Set up pnpm | **`pnpm/action-setup`** v4 | **Active & current:** active, frequent releases. **First-party / tool-maintainer:** maintained by the **pnpm** project (the tool's own maintainer — first-party to pnpm). **Industry-standard:** the canonical way to provision the exact pnpm version in CI. |
-| Upload Pages artifact | **`actions/upload-pages-artifact`** v3 | **Active & current:** active, frequent releases. **First-party / tool-maintainer:** GitHub first-party action. **Industry-standard:** the standard pairing with `actions/deploy-pages` for uploading build output. |
-| Deploy to GitHub Pages | **`actions/deploy-pages`** v4 | **Active & current:** active, frequent releases. **First-party / tool-maintainer:** GitHub first-party action. **Industry-standard:** the standard way to publish a built site to GitHub Pages (the production + per-PR-preview deploy, see [testing.md → CI deploy & preview](testing.md#ci-deploy-preview-github-pages)). |
+| Area | Action (full-SHA pinned) | Well-maintained criterion — how it satisfies it (as of plan date) |
+| ---- | ------------------------ | ------------------------------------------------------------------ |
+| Checkout code | **`actions/checkout`** `@<40-char-sha> # vX.Y.Z` | **Active & current:** active, frequent releases. **First-party / tool-maintainer:** GitHub first-party action. **Industry-standard:** the canonical way to check out a repo in a workflow. |
+| Set up Node.js | **`actions/setup-node`** `@<40-char-sha> # vX.Y.Z` | **Active & current:** active, frequent releases. **First-party / tool-maintainer:** GitHub first-party action. **Industry-standard:** the standard way to provision Node (via `node-version-file: '.nvmrc'`) + the pnpm cache on a runner. |
+| Set up pnpm | **`pnpm/action-setup`** `@<40-char-sha> # vX.Y.Z` | **Active & current:** active, frequent releases. **First-party / tool-maintainer:** maintained by the **pnpm** project (the tool's own maintainer — first-party to pnpm). **Industry-standard:** the canonical way to provision the exact pnpm version from `packageManager` in CI without relying on `corepack`. |
+| Static analysis (SAST) | **`github/codeql-action`** `@<40-char-sha> # vX.Y.Z` | **Active & current:** active, frequent releases. **First-party / tool-maintainer:** GitHub first-party action. **Industry-standard:** the canonical CodeQL JS/TS static security analysis action for PRs and `main`. |
+| PR dependency review | **`actions/dependency-review-action`** `@<40-char-sha> # vX.Y.Z` | **Active & current:** active, frequent releases. **First-party / tool-maintainer:** GitHub first-party action. **Industry-standard:** the standard PR gate that flags newly-introduced vulnerable or risky dependencies before merge. |
+| Set up JDK (Android native builds) | **`actions/setup-java`** `@<40-char-sha> # vX.Y.Z` | **Active & current:** active, frequent releases. **First-party / tool-maintainer:** GitHub first-party action. **Industry-standard:** the standard way to provision the JDK required by Gradle in optional Capacitor Android build jobs. *(iOS Xcode/keychain setup uses standard runner tooling and shell steps.)* |
+| Upload Pages artifact | **`actions/upload-pages-artifact`** `@<40-char-sha> # vX.Y.Z` | **Active & current:** active, frequent releases. **First-party / tool-maintainer:** GitHub first-party action. **Industry-standard:** the standard pairing with `actions/deploy-pages` for uploading build output. |
+| Deploy to GitHub Pages | **`actions/deploy-pages`** `@<40-char-sha> # vX.Y.Z` | **Active & current:** active, frequent releases. **First-party / tool-maintainer:** GitHub first-party action. **Industry-standard:** the standard way to publish a built site to GitHub Pages (see [testing.md → CI deploy & preview](testing.md#ci-deploy-preview-github-pages)). |
 
-**CI-actions note:** the **well-maintained criterion** is what *justifies* these
-five as the allowed set; the **zero-prod-dep constraint** is what *limits* them —
-none of them is ever loaded at runtime by the app. They only **produce** the
-build and **publish** it. Any additional CI action added to a workflow must
-pass the same well-maintained criterion before it is allowed.
+**CI-actions note:** the **well-maintained criterion** is what *justifies* the
+actions in this table as the allowed set; the **zero-prod-dep constraint** is
+what *limits* them — none of them is ever loaded at runtime by the app. They
+only **produce**, **verify**, and **publish** the build. Any additional CI
+action added to a workflow must pass the same well-maintained criterion and be
+full-SHA pinned before it is allowed.
 
 ## What this buys
 
@@ -168,22 +190,57 @@ pass the same well-maintained criterion before it is allowed.
   This keeps the **zero-prod-dep** hard constraint intact and the two rules
   consistent with each other.
 - **Supply-Chain & Lockfile Hardening (mandatory):**
-  - **Exact dependency pinning (`.npmrc`):** The repository root MUST include an
-    `.npmrc` file setting `save-exact=true` so every `devDependencies` entry in
-    `package.json` uses an exact version string (e.g. `"5.4.0"`, never `^` or
-    `~` floating ranges).
+  - **Exact dependency pinning (`.npmrc`) & versions decided at bootstrap:** The
+    repository root MUST include an `.npmrc` file setting `save-exact=true` so
+    every `devDependencies` entry in `package.json` uses an exact version string
+    (e.g. `"5.4.0"`, never `^` or `~` floating ranges). Exact current tool
+    majors are verified and selected at Phase 1 bootstrap rather than hardcoded
+    in this plan.
+  - **Node.js version pinning (`.nvmrc` + `engines` + `node-version-file`):**
+    The repository root MUST include an `.nvmrc` targeting the current
+    Active-LTS even Node.js release (exact LTS version verified at bootstrap
+    from `nodejs.org`), mirrored in `package.json` `"engines": { "node": "..." }`.
+    CI workflows MUST configure `actions/setup-node` with
+    `node-version-file: '.nvmrc'` so local and CI runtimes match.
+  - **pnpm workspace hardening (`pnpm-workspace.yaml`):** Because pnpm 10+
+    blocks dependency lifecycle/build scripts by default, the repository MUST
+    configure `pnpm-workspace.yaml` with:
+    - `onlyBuiltDependencies` explicitly allow-listing only required build-script
+      packages (e.g. `esbuild` for Vite/Vitest), and
+    - `minimumReleaseAge` (release-age cooldown) to mitigate newly-published
+      malicious package versions.
+    Require a minimum pnpm version (10+) that uses npm's **bulk advisory audit
+    endpoint** (legacy audit endpoints were retired and return HTTP 410).
+    Provision pnpm via `packageManager` + `pnpm/action-setup` in CI — do **not**
+    assume local `corepack`.
   - **Immutable lockfile in CI (`--frozen-lockfile`):** Every CI job MUST install
     dependencies via `pnpm install --frozen-lockfile` so `pnpm-lock.yaml` is the
     single deterministic source of truth and lockfile drift fails immediately.
-  - **Automated vulnerability gate (`pnpm audit`):** CI MUST run
-    `pnpm audit --audit-level=high` on every PR and `main` push to block any
-    known `high` or `critical` CVE in the dev/build toolchain.
+  - **Full-SHA GitHub Actions pinning & repository setting:** Every `uses:`
+    reference in `.github/workflows/*.yml` MUST be pinned to a **full
+    40-character commit SHA** with a trailing `# vX.Y.Z` version comment (never
+    mutable tags such as `@v4`), and the repository's GitHub Actions settings
+    MUST enable **"Require actions to be pinned to a full-length commit SHA"**.
+  - **Automated dependency updates (`.github/dependabot.yml`):** Configure
+    Dependabot for both `github-actions` (keeping SHA-pinned workflow actions
+    current) and `npm` (keeping exact-pinned `devDependencies` current).
+  - **Automated vulnerability, SAST & PR dependency review gates:** CI MUST run
+    `pnpm audit --audit-level=high` on every PR and `main` push, run
+    **CodeQL** (`github/codeql-action`, JS/TS) static analysis, and run
+    **`actions/dependency-review-action`** on pull requests to block any newly
+    introduced `high`/`critical` CVE or risky dependency in the dev/build
+    toolchain. *(OSV-Scanner is optional.)*
   - **Least-privilege GitHub Actions workflow permissions:** Every workflow under
     `.github/workflows/` MUST declare top-level least-privilege
     `permissions: { contents: read }` by default, elevating permissions only at
-    the specific job level where required (i.e. `pages: write` and
-    `id-token: write` on the GitHub Pages deployment job in
-    `deploy-pages.yml`; see [testing.md](testing.md)).
+    the specific job level where required (e.g. `security-events: write` on the
+    CodeQL analysis job, or `pages: write` / `id-token: write` on deployment
+    jobs; see [testing.md](testing.md)).
+  - **Skipped — Subresource Integrity (SRI):** Deliberately skipped. Every
+    runtime asset is same-origin and self-hosted with Vite content-hashed
+    filenames under `default-src 'self'` CSP; SRI only protects
+    third-party-hosted subresources, which are banned by the zero-prod-dep and
+    zero-external-URL rules.
 
 ## Strict TypeScript Compiler Flags (`tsconfig.json`)
 

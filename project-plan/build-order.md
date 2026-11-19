@@ -57,17 +57,19 @@ Phase 5: Comprehensive Playwright E2E Suite, Zero-Egress/Security Audit Gates & 
 ### Phase 1 — Toolchain, Security/CSP Baseline & CI Gate Bootstrap
 
 - **Scope & Target Files:**
-  - `package.json` (`"dependencies": {}`, `packageManager: "pnpm@..."`, scripts for `build`, `test`, `test:e2e`, `lint`, `typecheck`)
-  - `.npmrc` (`save-exact=true`) and `pnpm-lock.yaml`
+  - `package.json` (`"dependencies": {}`, `"engines": { "node": "..." }`, `packageManager: "pnpm@..."` using a pnpm 10+ release that supports npm's bulk audit endpoint, exact current `devDependencies` majors decided at bootstrap including `@vitest/coverage-v8` and `@axe-core/playwright`, scripts for `build`, `test`, `test:e2e`, `lint`, `typecheck`)
+  - `.nvmrc` (current Active-LTS even Node.js release verified from `nodejs.org` at bootstrap, referenced by CI via `node-version-file: '.nvmrc'`)
+  - `.npmrc` (`save-exact=true`), `pnpm-workspace.yaml` (`onlyBuiltDependencies` e.g. `esbuild`, `minimumReleaseAge` cooldown), and `pnpm-lock.yaml`
   - `tsconfig.json` (with all mandatory strict flags from [dependency-strategy.md](dependency-strategy.md#strict-typescript-compiler-flags-tsconfigjson))
   - `biome.json` (lint + format rules)
   - `vite.config.ts` (`base: process.env.VITE_BASE_PATH ?? "/simple-budget-app/"`)
-  - `vitest.config.ts` (enforcing `>= 95%` line & branch coverage threshold on `src/core/`)
-  - `playwright.config.ts` (configuring `375×667` folded, `829×1194` unfolded, and `390×844` secondary slab projects across headless Chromium and WebKit against `vite preview`)
+  - `vitest.config.ts` (enforcing `>= 95%` line & branch coverage threshold on `src/core/` via `@vitest/coverage-v8`)
+  - `playwright.config.ts` (configuring `375×667` folded, `829×1194` unfolded, and `390×844` secondary slab projects across headless Chromium and WebKit against `vite preview`, with `@axe-core/playwright` available for WCAG 2.2 AA scans)
   - `index.html` (with the strict `<meta http-equiv="Content-Security-Policy">` tag including `connect-src 'none'` per [frontend.md](frontend.md#1-strict-content-security-policy-indexhtml))
-  - Minimal `src/main.ts` bootstrap shell + initial smoke unit test (`src/main.test.ts` or `tests/unit/smoke.test.ts`)
-  - `.github/workflows/ci.yml` (least-privilege `permissions: contents: read`, post-build CSP/XSS/zero-external-URL/zero-prod-dep gates, and `pnpm audit --audit-level=high` per [testing.md](testing.md#the-test-pyramid-who-does-what-when))
-  - GitHub branch protection rules configured on `main`
+  - Minimal `src/main.ts` bootstrap shell + initial colocated smoke unit test (`src/main.test.ts`)
+  - `.github/workflows/ci.yml` (all `uses:` actions full-40-char-SHA pinned `# vX.Y.Z`, `pnpm/action-setup` without assuming `corepack`, `actions/setup-node` with `node-version-file: '.nvmrc'`, least-privilege `permissions: contents: read`, post-build CSP/XSS/zero-external-URL/zero-prod-dep gates, `pnpm audit --audit-level=high`, `actions/dependency-review-action`, and CodeQL via `github/codeql-action` per [testing.md](testing.md#the-test-pyramid-who-does-what-when))
+  - `.github/dependabot.yml` (`github-actions` and `npm` ecosystems)
+  - GitHub repository settings: branch protection rules on `main` and **"Require actions to be pinned to a full-length commit SHA"** enabled
 - **Dependencies:** None (first code implementation phase).
 - **Why This Order (Pillars 1–5 Alignment):** Locks in Pillar 1 (supply-chain hygiene, CSP `connect-src 'none'`, DOM XSS CI ban), Pillar 2 (zero external asset URLs in `dist/`), Pillar 3 (deterministic lockfile, strict TS, CI gates), and Pillar 4 (modern Vite + Vitest + Biome + Playwright toolchain) before feature code begins.
 - **Enforced Security, Privacy & Test Invariants:**
@@ -93,7 +95,7 @@ Phase 5: Comprehensive Playwright E2E Suite, Zero-Egress/Security Audit Gates & 
   - `src/core/engine.ts` (`missingPeriods` and `dueDateTime` with short-month `daysInMonth` clamping + idempotent `(sourceRuleId, period)` materialization per [recurring-engine.md](recurring-engine.md#the-algorithm-mvp-monthly))
   - `src/core/funds.ts` (`computeAvailableFunds` derived in integer cents per [activity-model.md](activity-model.md#available-funds-derived-from-the-activity-log))
   - `src/core/insights.ts` (`searchActivities` intersecting `since`/`until`/`tag`/`type` predicates and `summarizeByTag` rollups per [activity-model.md](activity-model.md#insights-search))
-  - Unit test suite (`src/core/*.test.ts` / `tests/unit/*.test.ts`)
+  - Unit test suite (`src/core/*.test.ts`)
 - **Dependencies:** Phase 1.
 - **Why This Order (Pillars 1–5 Alignment):** Enforces the strict [portability boundary](portability.md#the-boundary) (`src/core/` imports nothing from `src/storage/`, the DOM, or Node globals) and proves all financial arithmetic, date math, and untrusted backup validation in fast, deterministic unit tests.
 - **Enforced Security, Privacy & Test Invariants:**
@@ -114,7 +116,7 @@ Phase 5: Comprehensive Playwright E2E Suite, Zero-Egress/Security Audit Gates & 
   - `src/storage/indexeddb.ts` (`IndexedDbAdapter` with `DB_NAME = "simple-budget-app"`, `DB_VERSION = 1`, `onupgradeneeded(event)` sequential migration switch, `"meta"` / `"rules"` / `"activities"` object stores, secondary indexes `by_active`, `by_dateTime`, `by_type`, `by_tags` (`multiEntry: true`), and compound `by_rule_period` (`["sourceRuleId", "period"]`), single-transaction atomic `replaceAll`, and best-effort `navigator.storage?.persist?.()` per [storage.md](storage.md#indexeddb-schema-versioning-indexes-migration-strategy))
   - `src/budgetApi.ts` (`createBudgetApi` implementing `BudgetApi`, including `exportBackup()` and `importBackup(json: string)` per [portability.md](portability.md#the-public-api-what-the-front-end-calls))
   - `src/index.ts` (public library exports)
-  - Integration test suite (`src/storage/*.test.ts` / `tests/integration/*.test.ts` using `fake-indexeddb`)
+  - Integration test suite (`src/storage/*.test.ts` using `fake-indexeddb`)
 - **Dependencies:** Phase 2.
 - **Why This Order (Pillars 1–5 Alignment):** Combines Pillar 1 (atomic all-or-nothing backup restoration), Pillar 2 (100% local IndexedDB persistence with zero cloud calls), Pillar 4 (WebKit ITP 7-day storage eviction mitigation via `navigator.storage?.persist?.()`), and Pillar 5 (`DB_VERSION = 1` migration switch and secondary indexes for post-MVP scale) into the single `BudgetApi` façade before UI work begins.
 - **Enforced Security, Privacy & Test Invariants:**
@@ -165,7 +167,7 @@ Phase 5: Comprehensive Playwright E2E Suite, Zero-Egress/Security Audit Gates & 
 - **Enforced Security, Privacy & Test Invariants:**
   - Mathematical E2E proof of zero external network requests (`new URL(req.url()).origin === previewOrigin`), directly substantiating Apple App Store Connect "Data Not Collected" and Google Play Console "No data shared / No data collected" declarations
   - Serialized GitHub Pages deployments (`cancel-in-progress: false`) preventing concurrent PR preview race conditions
-  - Native mobile jobs gated by `if: env.HAS_ANDROID_CREDS == 'true'` / `if: env.HAS_IOS_CREDS == 'true'` (skip-not-fail when secrets are absent, build-only when present)
+  - Native mobile jobs gated at job level by `if: ${{ vars.NATIVE_BUILDS_ENABLED == 'true' }}` (no `secrets` or `env` in job-level `if:`; signing secrets mapped to step `env:` inside the job — skip-not-fail when disabled, build-only when enabled, matching [testing.md](testing.md#android-ios-test-build-pipeline-credential-skip-build-only) identically)
 - **Executable Verification Gates:**
   - `pnpm exec playwright test` passing 100% of E2E specs on Chromium + WebKit across all 3 viewports (`375×667`, `829×1194`, `390×844`) with zero console errors/warnings, zero page errors, and zero external network requests (using headless CLI execution with no hanging server processes per [testing.md](testing.md#headless-cli-execution-rule-no-hanging-dev-servers)).
 
