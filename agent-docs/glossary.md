@@ -106,21 +106,25 @@ in its own topic doc, not here.
   [project-plan/build-order.md](../project-plan/build-order.md)
 - **Content Security Policy (CSP — `connect-src 'none'`)** — the strict W3C CSP3
   `<meta http-equiv="Content-Security-Policy">` tag in `index.html` (`default-src 'self'`,
-  `connect-src 'none'`, `require-trusted-types-for 'script'`, omitting
-  `frame-ancestors`) paired with `<meta name="referrer" content="no-referrer">`,
-  a `top !== self` frame-buster, a Vite-generated `sw.js` same-origin guard, and
-  a strict DOM XSS ban (no `innerHTML` / `outerHTML` / `insertAdjacentHTML` / `eval`).
+  `connect-src 'none'`, `require-trusted-types-for 'script'`,
+  `trusted-types sw-register`, omitting `frame-ancestors`) paired with
+  `<meta name="referrer" content="no-referrer">`, a `top !== self` frame-buster,
+  a Vite-generated `sw.js` same-origin guard, and a strict DOM XSS ban (no
+  `innerHTML` / `outerHTML` / `insertAdjacentHTML` / `eval`).
   [project-plan/frontend.md](../project-plan/frontend.md#1-strict-content-security-policy-indexhtml)
-- **Trusted Types** — defense-in-depth CSP directive
-  (`require-trusted-types-for 'script'`) in `index.html` enforcing at the
-  browser engine level that no unsafe DOM injection sink can receive raw strings
+- **Trusted Types** — defense-in-depth CSP directives
+  (`require-trusted-types-for 'script'; trusted-types sw-register`) in
+  `index.html` enforcing at the browser engine level that no unsafe DOM
+  injection sink can receive raw strings, while allowlisting a single
+  `createScriptURL`-only `sw-register` policy for `navigator.serviceWorker.register`
   (layering on top of the CI-enforced DOM XSS ban).
   [project-plan/frontend.md](../project-plan/frontend.md#1-strict-content-security-policy-indexhtml)
-- **origin isolation** — deriving IndexedDB (`DB_NAME`) and CacheStorage names
-  from `import.meta.env.BASE_URL` (`simple-budget-app` vs.
-  `simple-budget-app-pr-<N>`) so PR previews on the shared `tandyn.github.io`
-  origin never collide with or upgrade the production DB (OQ-1; custom domain
-  optional for full origin isolation).
+- **origin isolation** — deriving IndexedDB (`DB_NAME`), CacheStorage, and
+  `BroadcastChannel` names from `import.meta.env.BASE_URL`
+  (`simple-budget-app` / `simple-budget-sync` vs.
+  `simple-budget-app-pr-<N>` / `simple-budget-sync-pr-<N>`) so PR previews on
+  the shared `tandyn.github.io` origin never collide with or upgrade production
+  storage, caches, or tabs (OQ-1; custom domain optional for full origin isolation).
   [project-plan/frontend.md](../project-plan/frontend.md#4-shared-origin-isolation-on-github-pages-oq-1-adopted-default)
 - **Data Not Collected (App Store & Play Store privacy)** — the verified store
   privacy qualification ("Data Not Collected" in Apple App Store Connect and
@@ -172,12 +176,16 @@ in its own topic doc, not here.
   [project-plan/storage.md](../project-plan/storage.md#storage-durability--webkit-eviction-mitigation)
 - **short-month `Date.UTC` clamping** — clamping `rule.schedule.dayOfMonth`
   (`1..31`) to `daysInMonth` (`new Date(Date.UTC(y, m, 0)).getUTCDate()`) in
-  `missingPeriods` and `dueDateTime` so rules due on days 29–31 never overflow
-  short months into the next month.
+  `missingPeriods` and `dueDateTime` (anchored at fixed noon UTC `12:00:00Z`,
+  OQ-2) so rules due on days 29–31 never overflow short months into the next
+  month.
   [project-plan/recurring-engine.md](../project-plan/recurring-engine.md#short-month-dateutc-clamping)
-- **`BroadcastChannel` (multi-tab sync)** — the `"simple-budget-sync"` channel
-  that broadcasts `"budget-mutated"` events on state-mutating `BudgetApi` calls
-  so sibling PWA tabs re-query and update without reload.
+- **`BroadcastChannel` (multi-tab sync)** — the base-path-scoped channel
+  (`"simple-budget-sync"` on production, `"simple-budget-sync-pr-<N>"` on PR
+  previews, derived from `import.meta.env.BASE_URL`) that broadcasts
+  `"budget-mutated"` events on state-mutating `BudgetApi` calls so sibling PWA
+  tabs re-query and update without reload (without cross-triggering between
+  production and preview tabs).
   [project-plan/frontend.md](../project-plan/frontend.md#2-multi-tab-state-synchronization-broadcastchannel)
 - **post-MVP extensibility seams** — the non-breaking v2+ growth seams layered
   over `DB_VERSION = 1` and `RecurringRule`/`Activity` (category envelopes
