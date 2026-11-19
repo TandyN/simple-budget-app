@@ -86,7 +86,7 @@ a minimal, adapter-agnostic filter (e.g. `{ field: 'sourceRuleId', eq: ruleId }`
   `indexeddb.ts` adapter implements `StorageAdapter` for the MVP PWA across all
   modern browsers. However, because iOS (`WKWebView`) and Android (`WebView`)
   can evict WebView IndexedDB under OS storage pressure (see
-  [Storage Durability & WebKit Eviction Mitigation](#storage-durability-webkit-eviction-mitigation)),
+  [Storage Durability & WebKit Eviction Mitigation](#storage-durability--webkit-eviction-mitigation)),
   a **durable native store** (a **SQLite-backed `StorageAdapter`**, or a
   mirrored auto-snapshot written to the app's native Documents directory) is
   **REQUIRED before the first App Store / Play Store release** (a mandatory

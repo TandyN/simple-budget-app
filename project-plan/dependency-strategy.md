@@ -175,7 +175,7 @@ only; Pages source = "Deploy from a branch" → `gh-pages`), rather than the
 legacy `actions/upload-pages-artifact` + `actions/deploy-pages` flow (which is
 incompatible with `pull_request` branch rules on the `github-pages` environment
 and replaces the entire site per run; see
-[testing.md → CI deploy & preview](testing.md#ci-deploy-preview-github-pages)).
+[testing.md → CI deploy & preview](testing.md#ci-deploy--preview-github-pages)).
 Third-party Pages publishing actions (`peaceiris/actions-gh-pages`,
 `rossjrw/pr-preview-action`, etc.) are rejected under the first-party criterion.
 

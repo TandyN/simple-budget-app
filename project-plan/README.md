@@ -96,9 +96,9 @@ where the boundary matters.
   Guideline 4.2 mitigation, Play Financial features declaration, Data safety form,
   closed-test check), and an automated Playwright E2E `context.on("request")`
   zero-external-egress assertion. See
-  [portability.md → App Store & Play Store privacy compliance](portability.md#app-store-play-store-privacy-compliance-data-not-collected),
+  [portability.md → App Store & Play Store privacy compliance](portability.md#app-store--play-store-privacy-compliance-data-not-collected),
   [portability.md → Store Submission Checklist](portability.md#store-submission-checklist-phase-6),
-  and [testing.md → mandatory Playwright E2E scenarios](testing.md#4-mandatory-playwright-e2e-security-privacy-viewport-scenarios-e2espects).
+  and [testing.md → mandatory Playwright E2E scenarios](testing.md#4-mandatory-playwright-e2e-security-privacy--viewport-scenarios-e2espects).
 - **Zero production dependencies (web bundle) & `native/` package boundary**:
   the root web bundle package (backend *and* frontend) uses only Web-platform
   APIs (IndexedDB, WebCrypto, `fetch`, `Date`/`Intl`, `crypto.randomUUID`, pure
@@ -157,17 +157,17 @@ where the boundary matters.
   logical units + safe-area insets, WCAG 2.2 AA semantics (`<dialog>`,
   `role="tablist"`, `aria-live="polite"`, `44×44 CSS px` touch targets), and
   `BroadcastChannel("simple-budget-sync")` multi-tab sync. See
-  [frontend.md → responsive viewport](frontend.md#responsive-viewport-iphone-duo-foldable-dual-state-req-2).
+  [frontend.md → responsive viewport](frontend.md#responsive-viewport--iphone-duo-foldable-dual-state-req-2).
 - **Insights / search surface** (reqs 4 & 9): search & filter by period + tag +
   type, and tag-based rollup (`searchActivities` / `summarizeByTag`) rendered
   from the activity log — supporting 5-year tag analysis without a stored
-  aggregate. See [activity-model.md](activity-model.md#insights-search) and
-  [frontend.md → search / insights](frontend.md#search-insights-reqs-4-9).
+  aggregate. See [activity-model.md](activity-model.md#insights--search) and
+  [frontend.md → search / insights](frontend.md#search--insights-reqs-4--9).
 - **Integer-cent money** (req 10): all amounts stored as integer `amountCents`
   (minor units); decimal-unit conversion only at the display boundary. Integer
   arithmetic throughout. See
   [data-model.md → derived values](data-model.md#derived-values-never-stored)
-  and [frontend.md → money](frontend.md#money-integer-cents-req-10).
+  and [frontend.md → money](frontend.md#money-integer-cents--req-10).
 - **IndexedDB `DB_VERSION = 1` schema versioning, storage durability & post-MVP
   extensibility seams (Pillars 4 & 5)**: deterministic `onupgradeneeded`
   migrations (`"meta"`, `"rules"`, `"activities"` stores and secondary indexes
@@ -187,7 +187,7 @@ where the boundary matters.
   and [data-model.md → post-MVP extensibility](data-model.md#post-mvp-extensibility--growth-seams).
 - **UTC-stored, local-TZ display** (req 7): the backend stores ISO-8601 UTC
   instants; the frontend renders them in the user's local timezone via
-  `Intl.DateTimeFormat`. See [frontend.md → time display](frontend.md#time-timezone-display-req-7).
+  `Intl.DateTimeFormat`. See [frontend.md → time display](frontend.md#time--timezone-display-req-7).
 - **Execution & build order (5-Phase PWA MVP + Phase 6 Native Shell & Store Submission)**:
   a sequenced implementation blueprint (Phase 1: Toolchain, Security/CSP & CI Gate
   Bootstrap → Phase 2: Pure Core Domain, Validation, Recurring Engine & Insights →

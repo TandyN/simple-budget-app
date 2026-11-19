@@ -127,7 +127,7 @@ in its own topic doc, not here.
   "No data shared / No data collected" in Google Play Console) achieved via
   100% on-device IndexedDB storage, zero analytics/telemetry SDKs, zero remote
   assets, and automated Playwright E2E zero-egress verification.
-  [project-plan/portability.md](../project-plan/portability.md#app-store-play-store-privacy-compliance-data-not-collected)
+  [project-plan/portability.md](../project-plan/portability.md#app-store--play-store-privacy-compliance-data-not-collected)
 - **`PrivacyInfo.xcprivacy` (iOS privacy manifest)** — the Apple iOS privacy
   manifest (`native/ios/App/App/PrivacyInfo.xcprivacy`) declaring `NSPrivacyTracking: false`,
   empty `NSPrivacyCollectedDataTypes`, and every Required-Reason API used by Capacitor
@@ -162,14 +162,14 @@ in its own topic doc, not here.
   provisioning the `"meta"`, `"rules"`, and `"activities"` stores and secondary
   indexes (`by_dateTime`, `by_type`, `by_tags`, `by_rule_period`; active vs.
   paused rules are filtered in memory since booleans are invalid IndexedDB keys).
-  [project-plan/storage.md](../project-plan/storage.md#indexeddb-schema-versioning-indexes-migration-strategy)
+  [project-plan/storage.md](../project-plan/storage.md#indexeddb-schema-versioning-indexes--migration-strategy)
 - **storage durability (`navigator.storage.persist()` / `persisted()`)** —
   first-action best-effort `navigator.storage?.persist?.()` (not cold `init()`),
   live `navigator.storage?.persisted?.()` status + `lastBackupAt` N-day backup
   nag in Settings, pre-import confirmation + safety snapshot before `replaceAll`,
   and a mandatory durable native store release gate (SQLite `StorageAdapter` or
   mirrored auto-snapshot to app Documents) before store submission.
-  [project-plan/storage.md](../project-plan/storage.md#storage-durability-webkit-eviction-mitigation)
+  [project-plan/storage.md](../project-plan/storage.md#storage-durability--webkit-eviction-mitigation)
 - **short-month `Date.UTC` clamping** — clamping `rule.schedule.dayOfMonth`
   (`1..31`) to `daysInMonth` (`new Date(Date.UTC(y, m, 0)).getUTCDate()`) in
   `missingPeriods` and `dueDateTime` so rules due on days 29–31 never overflow
@@ -194,7 +194,7 @@ in its own topic doc, not here.
 - **recurring engine** — idempotent, period-based auto-poster; rule edits affect
   future periods only. [project-plan/recurring-engine.md](../project-plan/recurring-engine.md)
 - **Available Funds** — derived (income − expense) from the activity log, never
-  stored. [project-plan/activity-model.md](../project-plan/activity-model.md#available-funds-derived-from-the-activity-log)
+  stored. [project-plan/activity-model.md](../project-plan/activity-model.md#available-funds--derived-from-the-activity-log)
 - **storage adapter** — the thin `open/save/delete/query/replaceAll` seam over
   IndexedDB; the only platform surface the backend depends on.
   [project-plan/storage.md](../project-plan/storage.md)
@@ -227,10 +227,10 @@ in its own topic doc, not here.
   [project-plan/dependency-strategy.md](../project-plan/dependency-strategy.md)
 - **testing strategy** — the 3-layer test pyramid (Vitest unit/integration with `>= 95%` `src/core/` coverage, Playwright 3-viewport Chromium + WebKit E2E + zero-egress gate, QA headless live spec check) and GitHub Actions CI gates, conditional on code infrastructure existing. [project-plan/testing.md](../project-plan/testing.md)
 - **integer-cent money** — amounts stored as canonical integer `amountCents` (minor units), integer arithmetic throughout, decimal-unit conversion only at the display boundary. [project-plan/data-model.md](../project-plan/data-model.md#derived-values-never-stored)
-- **input guard (upper bound)** — runtime validation on decimal-unit input: `decimal > 0`, a whole cent after rounding, **and** `decimal <= Number.MAX_SAFE_INTEGER / 100` so the derived `amountCents` never overflows a 64-bit integer (closes the unbounded gap where `Number.isInteger(1e23)` is `true`). [project-plan/data-model.md](../project-plan/data-model.md#2-activity-a-concrete-independent-always-editable-record)
+- **input guard (upper bound)** — runtime validation on decimal-unit input: `decimal > 0`, a whole cent after rounding, **and** `decimal <= Number.MAX_SAFE_INTEGER / 100` so the derived `amountCents` never overflows a 64-bit integer (closes the unbounded gap where `Number.isInteger(1e23)` is `true`). [project-plan/data-model.md](../project-plan/data-model.md#2-activity--a-concrete-independent-always-editable-record)
 - **ActivityFilter** — the optional filter for `listActivities()`; **aliased to `ActivitySearchFilter`** (same `since` / `until` / `tag` / `type` predicates), so the two are the same shape; the full `searchActivities` surface is the dedicated insights/search entry point. [project-plan/portability.md](../project-plan/portability.md#the-public-api-what-the-front-end-calls)
 - **offline / installable (PWA-scoped)** — a **PWA (built-in-browser) capability only**: service worker + manifest deliver offline caching and add-to-home-screen in the PWA and the Android (Chromium) browser; on **iOS (Capacitor / WKWebView) the SW is limited / not available**, so it is not a guarantee there. [project-plan/frontend.md](../project-plan/frontend.md)
-- **insights / search surface** — `searchActivities(filter)` (period + tag + type) and `summarizeByTag(activities)` (roll-up), pure and derived from the activity log, so 5-year tag analysis needs no stored aggregate. [project-plan/activity-model.md](../project-plan/activity-model.md#insights-search)
+- **insights / search surface** — `searchActivities(filter)` (period + tag + type) and `summarizeByTag(activities)` (roll-up), pure and derived from the activity log, so 5-year tag analysis needs no stored aggregate. [project-plan/activity-model.md](../project-plan/activity-model.md#insights--search)
 - **bank-sync / file-import seams** — reserved optional fields (`importBatchId`,
   `source: "bank-sync"`, `externalTxnId`, `sourceAccountId`) supporting
   privacy-preserving CSV/OFX/QFX file import first; aggregator bank sync
