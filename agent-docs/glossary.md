@@ -97,18 +97,31 @@ in its own topic doc, not here.
   whole app under `project-plan/` (data model, storage, recurring engine,
   activity model, frontend / UI surface, portability, dependency strategy,
   testing, and MVP build order). [budget-app.md](budget-app.md#the-app-plan)
-- **MVP build order (5-phase execution plan)** — the sequenced 5-phase MVP
+- **MVP build order (5-phase PWA + Phase 6 native/store)** — the sequenced
   implementation plan (Phase 1: Toolchain/CSP/CI → Phase 2: Pure `src/core/` →
   Phase 3: IndexedDB Storage & `BudgetApi` → Phase 4: Zero-Prod-Dep Frontend UI
-  & PWA SW → Phase 5: Playwright E2E, Zero-Egress Gate & Mode-(a) Pages Deploy)
+  & Vite-Generated PWA SW → Phase 5: Playwright E2E, Zero-Egress/A11y Gates &
+  `gh-pages` Deploy → Phase 6: Native Shell Packaging & Store Submission)
   guaranteeing all 5 core engineering pillars from commit #1.
   [project-plan/build-order.md](../project-plan/build-order.md)
 - **Content Security Policy (CSP — `connect-src 'none'`)** — the strict W3C CSP3
   `<meta http-equiv="Content-Security-Policy">` tag in `index.html` (`default-src 'self'`,
-  `connect-src 'none'`, omitting `frame-ancestors`) paired with a same-origin
-  guard in `sw.js` and a strict DOM XSS ban (no `innerHTML` / `outerHTML` /
-  `insertAdjacentHTML` / `eval`).
+  `connect-src 'none'`, `require-trusted-types-for 'script'`, omitting
+  `frame-ancestors`) paired with `<meta name="referrer" content="no-referrer">`,
+  a `top !== self` frame-buster, a Vite-generated `sw.js` same-origin guard, and
+  a strict DOM XSS ban (no `innerHTML` / `outerHTML` / `insertAdjacentHTML` / `eval`).
   [project-plan/frontend.md](../project-plan/frontend.md#1-strict-content-security-policy-indexhtml)
+- **Trusted Types** — defense-in-depth CSP directive
+  (`require-trusted-types-for 'script'`) in `index.html` enforcing at the
+  browser engine level that no unsafe DOM injection sink can receive raw strings
+  (layering on top of the CI-enforced DOM XSS ban).
+  [project-plan/frontend.md](../project-plan/frontend.md#1-strict-content-security-policy-indexhtml)
+- **origin isolation** — deriving IndexedDB (`DB_NAME`) and CacheStorage names
+  from `import.meta.env.BASE_URL` (`simple-budget-app` vs.
+  `simple-budget-app-pr-<N>`) so PR previews on the shared `tandyn.github.io`
+  origin never collide with or upgrade the production DB (OQ-1; custom domain
+  optional for full origin isolation).
+  [project-plan/frontend.md](../project-plan/frontend.md#4-shared-origin-isolation-on-github-pages-oq-1-adopted-default)
 - **Data Not Collected (App Store & Play Store privacy)** — the verified store
   privacy qualification ("Data Not Collected" in Apple App Store Connect and
   "No data shared / No data collected" in Google Play Console) achieved via
@@ -132,7 +145,17 @@ in its own topic doc, not here.
   (10 MB byte ceiling, `__proto__` / `constructor` / `prototype` key rejection,
   full entity invariant checks) and restored atomically via a single IndexedDB
   `readwrite` transaction (`replaceAll`) that rolls back on any failure.
-  [project-plan/data-model.md](../project-plan/data-model.md#versioned-budgetbackup-schema-hardened-import-validation)
+  [project-plan/data-model.md](../project-plan/data-model.md#versioned-budgetbackup-schema--hardened-import-validation)
+- **encrypted backup envelope** — the Phase 6 store-release passphrase-encrypted
+  backup format (`{ schemaVersion, enc: { alg: "AES-256-GCM", kdf: "PBKDF2-HMAC-SHA256", iter >= 600_000, salt, iv }, ciphertext }`)
+  built on WebCrypto so exported financial history is never left in plaintext in
+  iCloud/Drive.
+  [project-plan/data-model.md](../project-plan/data-model.md#post-mvp-encrypted-backup-envelope-store-release-gate)
+- **tombstone** — reserved optional `deletedAt?: string` (ISO-8601 UTC) and
+  `deviceId?: string` fields on `RecurringRule` and `Activity` (unused in MVP,
+  which hard-deletes) so a future E2EE sync layer can propagate deletions and
+  resolve conflicts without a v1 schema migration.
+  [project-plan/data-model.md](../project-plan/data-model.md#post-mvp-extensibility--growth-seams)
 - **IndexedDB schema versioning (`DB_VERSION = 1`)** — the deterministic
   `onupgradeneeded(event)` sequential migration switch on base-path-derived
   `DB_NAME` (`simple-budget-app` / `simple-budget-app-pr-<N>`)
@@ -156,11 +179,13 @@ in its own topic doc, not here.
   that broadcasts `"budget-mutated"` events on state-mutating `BudgetApi` calls
   so sibling PWA tabs re-query and update without reload.
   [project-plan/frontend.md](../project-plan/frontend.md#2-multi-tab-state-synchronization-broadcastchannel)
-- **post-MVP extensibility seams** — the 7 non-breaking v2+ growth seams layered
+- **post-MVP extensibility seams** — the non-breaking v2+ growth seams layered
   over `DB_VERSION = 1` and `RecurringRule`/`Activity` (category envelopes
   `BudgetTarget`, multi-period `summarizeByPeriod`, flexible cadences, split
-  transactions, multi-account transfers, bank-sync/OAuth, multi-currency).
-  [project-plan/data-model.md](../project-plan/data-model.md#post-mvp-extensibility-growth-seams)
+  transactions, multi-account transfers, first-class CSV/OFX/QFX file import via
+  `importBatchId`, encrypted backup envelope, E2EE sync tombstones, opt-in bank
+  sync that re-opens Pillar 2, and multi-currency).
+  [project-plan/data-model.md](../project-plan/data-model.md#post-mvp-extensibility--growth-seams)
 - **RecurringRule** — the user-editable "what repeats"; separate from the
   activities it generates. [project-plan/data-model.md](../project-plan/data-model.md)
 - **Activity** — one unified, always-editable record (manual or auto-posted);
@@ -181,10 +206,22 @@ in its own topic doc, not here.
   the iOS (WKWebView) and Android (System WebView / Chromium) apps.
   [project-plan/portability.md](../project-plan/portability.md)
 - **dependency strategy** — the hard constraint of zero production dependencies
-  (runtime uses only Web-platform APIs) plus a curated set of well-maintained
-  dev dependencies; **pnpm is the package manager (provisioned via the
-  `packageManager` field / corepack, not a `devDependency`)**.
+  in the root web bundle (runtime uses only Web-platform APIs; native shell deps
+  isolated in `native/` for Phase 6) plus a curated set of well-maintained dev
+  dependencies; **pnpm is the package manager (provisioned via `packageManager`
+  + `pnpm/action-setup` without assuming local `corepack`)**, paired with
+  `.nvmrc`, `pnpm-workspace.yaml` (`onlyBuiltDependencies`, `minimumReleaseAge`),
+  full-SHA-pinned CI actions, and Dependabot.
   [project-plan/dependency-strategy.md](../project-plan/dependency-strategy.md)
+- **SHA pinning** — pinning every `uses:` GitHub Action in `.github/workflows/`
+  to its full 40-character commit SHA with a `# vX.Y.Z` version comment (never a
+  mutable tag) and enabling the repository setting "Require actions to be pinned
+  to a full-length commit SHA".
+  [project-plan/dependency-strategy.md](../project-plan/dependency-strategy.md#guardrails-enforce-in-ci--review)
+- **Dependabot** — `.github/dependabot.yml` configured for both `github-actions`
+  (keeping SHA-pinned workflow actions fresh) and `npm` (keeping exact-pinned
+  `devDependencies` current).
+  [project-plan/dependency-strategy.md](../project-plan/dependency-strategy.md#guardrails-enforce-in-ci--review)
 - **zero-prod-deps** — `package.json` `dependencies` is empty; at runtime the app
   uses only IndexedDB, WebCrypto, `fetch`, `Date`/`Intl`, and pure TS logic.
   [project-plan/dependency-strategy.md](../project-plan/dependency-strategy.md)
@@ -194,18 +231,24 @@ in its own topic doc, not here.
 - **ActivityFilter** — the optional filter for `listActivities()`; **aliased to `ActivitySearchFilter`** (same `since` / `until` / `tag` / `type` predicates), so the two are the same shape; the full `searchActivities` surface is the dedicated insights/search entry point. [project-plan/portability.md](../project-plan/portability.md#the-public-api-what-the-front-end-calls)
 - **offline / installable (PWA-scoped)** — a **PWA (built-in-browser) capability only**: service worker + manifest deliver offline caching and add-to-home-screen in the PWA and the Android (Chromium) browser; on **iOS (Capacitor / WKWebView) the SW is limited / not available**, so it is not a guarantee there. [project-plan/frontend.md](../project-plan/frontend.md)
 - **insights / search surface** — `searchActivities(filter)` (period + tag + type) and `summarizeByTag(activities)` (roll-up), pure and derived from the activity log, so 5-year tag analysis needs no stored aggregate. [project-plan/activity-model.md](../project-plan/activity-model.md#insights-search)
-- **bank-OAuth slots** — reserved (not implemented) fields for future bank-sync: `ActivitySource: "bank-sync"`, `externalTxnId`, `sourceAccountId`; the data model must not foreclose it. **Feasibility is affirmed**: bank-OAuth account-linking is an explicit go for a later platform-layer project (RFC 8252 loopback pattern), needing no data-model change. [project-plan/data-model.md](../project-plan/data-model.md#2-activity-a-concrete-independent-always-editable-record)
+- **bank-sync / file-import seams** — reserved optional fields (`importBatchId`,
+  `source: "bank-sync"`, `externalTxnId`, `sourceAccountId`) supporting
+  privacy-preserving CSV/OFX/QFX file import first; aggregator bank sync
+  (Plaid/GoCardless/MX) requires a server-held secret or vendor SDK and
+  explicitly re-opens Pillar 2 ("Data Not Collected"), while SimpleFIN Bridge is
+  a user-token opt-in seam with a narrow `connect-src` and documented label
+  change. [project-plan/data-model.md](../project-plan/data-model.md#privacy-label-impact-and-sync-tradeoffs)
 - **BudgetApi** — the backend's single public API surface (`createBudgetApi(...)`); the only thing a frontend shell imports/calls (rules, activities, the insights/search surface, the recurring-engine run, derived Available Funds, and `exportBackup`/`importBackup`). [project-plan/portability.md](../project-plan/portability.md#the-public-api-what-the-front-end-calls)
 - **frontend / PWA plan** — the UI surface, a first-class designed area of the plan: zero-prod-dep static bundle, iPhone-Duo foldable viewport (folded/unfolded), configurable base path, rendering all ten requirements over the shared `BudgetApi`. [project-plan/frontend.md](../project-plan/frontend.md)
 - **zero-prod-dep frontend** — the frontend is a zero-prod-dep shell (`dependencies: {}`): plain TS/HTML against the `BudgetApi` + built-in Web-platform APIs, no framework runtime dep in production; the build output is a single static web bundle with an empty `dependencies`. [project-plan/frontend.md](../project-plan/frontend.md#zero-production-dependencies-req-1)
-- **cross-platform static bundle** — the build output is one static web bundle (`vite build` → `dist/`) with an empty `dependencies`; the **identical artifact** is served on all phones (PWA now, iOS/Android Capacitor shells later) — **no per-platform bundle, build flag, or code path**. [project-plan/portability.md](../project-plan/portability.md#what-this-buys)
-- **iPhone-Duo foldable** — the **primary** viewport target: a foldable phone with two states — **folded** (slab-like, baseline 1-page, the mobile baseline) and **unfolded** (dual-panel, enhanced 1-page); **supersedes** the "iPhone class" (SE → 16 Pro Max) verification set. [project-plan/frontend.md](../project-plan/frontend.md#responsive-viewport-iphone-duo-foldable-dual-state-req-2)
-- **responsive viewport (folded/unfolded)** — the state-aware layout model built on **logical units + safe-area insets**, not fixed pixel widths; breakpoint is **folded → unfolded** (NOT mobile → tablet → desktop); **slab phones (≈ folded) are the secondary target**. [project-plan/frontend.md](../project-plan/frontend.md#responsive-viewport-iphone-duo-foldable-dual-state-req-2)
-- **safe-area inset** — `env(safe-area-inset-*)` used in padding/margin/position so content is never obscured by the notch, Dynamic Island, home indicator, or status bar; the iPhone-Duo layout relies on it rather than hard-pixel viewports. [project-plan/frontend.md](../project-plan/frontend.md#responsive-viewport-iphone-duo-foldable-dual-state-req-2)
+- **cross-platform static bundle** — the build output is one static web bundle (`vite build` → `dist/`) with an empty root `dependencies` and zero `@capacitor/*` imports; the **identical artifact** is served on all phones (PWA now, iOS/Android Capacitor shells in `native/` via `PlatformServices` later). [project-plan/portability.md](../project-plan/portability.md#what-this-buys)
+- **iPhone-Duo foldable** — the **primary** viewport target: a foldable phone with two states — **folded** (slab-like, baseline 1-page, the mobile baseline) and **unfolded** (dual-panel, enhanced 1-page); **supersedes** the "iPhone class" (SE → 16 Pro Max) verification set. [project-plan/frontend.md](../project-plan/frontend.md#responsive-viewport--iphone-duo-foldable-dual-state-req-2)
+- **responsive viewport (folded/unfolded)** — the state-aware layout model built on **logical units + safe-area insets**, not fixed pixel widths; breakpoint is **folded → unfolded** (NOT mobile → tablet → desktop); **slab phones (≈ folded) are the secondary target**. [project-plan/frontend.md](../project-plan/frontend.md#responsive-viewport--iphone-duo-foldable-dual-state-req-2)
+- **safe-area inset** — `env(safe-area-inset-*)` used in padding/margin/position so content is never obscured by the notch, Dynamic Island, home indicator, or status bar; the iPhone-Duo layout relies on it rather than hard-pixel viewports. [project-plan/frontend.md](../project-plan/frontend.md#responsive-viewport--iphone-duo-foldable-dual-state-req-2)
 - **base path (configurable)** — the Vite `base` / `VITE_BASE_PATH` build-time input (read from `import.meta.env.BASE_URL` at runtime) that rewrites asset URLs; production = `/simple-budget-app/`, PR preview = `/simple-budget-app/pr-<PR#>/`; an explicit, non-hardcoded build decision. [project-plan/frontend.md](../project-plan/frontend.md#base-path-configurable-explicit-build-decision)
-- **PR# preview (mode a)** — the confirmed PR-preview architecture: **same-site sub-path** `tandyn.github.io/simple-budget-app/pr-<PR#>/` serialized via `concurrency: { group: "pages-deploy", cancel-in-progress: false }`, with two guarantees — **production root untouched** on a PR deploy and **PR sub-path pruned on merge/close**. [project-plan/testing.md](../project-plan/testing.md#ci-deploy-preview-github-pages)
-- **well-maintained criterion** — the governing rule for **any** dev dependency (local package *or* CI action): must be **Active & current**, **First-party / tool-maintainer**, and **Industry-standard** in its category; the curated dev-dep set (pnpm, Vite, Vitest, Playwright, fake-indexeddb, Biome, tsc) and the CI actions all pass it. [project-plan/dependency-strategy.md](../project-plan/dependency-strategy.md#the-well-maintained-criterion-the-governing-rule-for-any-dev-dependency)
-- **credential-gated build** — the Android/iOS native build jobs are **skip-not-fail** gated on the presence of signing secrets (absent → **skipped, not failed**); the always-run Web/PWA build is **not** credential-gated. Build-only, no store upload. [project-plan/testing.md](../project-plan/testing.md#android-ios-test-build-pipeline-credential-skip-build-only)
+- **gh-pages preview (mode a)** — the mode-(a) same-site sub-path PR-preview architecture (`tandyn.github.io/simple-budget-app/pr-<PR#>/`) published via plain `git` to the `gh-pages` branch using `GITHUB_TOKEN` (no third-party Pages action; OQ-5, flagged to the user for confirmation), serialized via `concurrency: { group: "pages-deploy", cancel-in-progress: false }`, guaranteeing **production root untouched** on PR deploys and **PR sub-path pruned on merge/close**. [project-plan/testing.md](../project-plan/testing.md#ci-workflow-mechanics-gh-pages-branch-publishing--prune-on-merge--production-unchanged)
+- **well-maintained criterion** — the governing rule for **any** dev dependency (local package *or* CI action): must be **Active & current**, **First-party / tool-maintainer**, and **Industry-standard** in its category; the curated dev-dep set (pnpm, Vite, Vitest, `@vitest/coverage-v8`, Playwright, `@axe-core/playwright`, `fake-indexeddb`, Biome, tsc) and the SHA-pinned CI actions all pass it. [project-plan/dependency-strategy.md](../project-plan/dependency-strategy.md#the-well-maintained-criterion-the-governing-rule-for-any-dev-dependency)
+- **credential-gated build** — the Android/iOS native build jobs are **skip-not-fail** gated at job level by `if: ${{ vars.NATIVE_BUILDS_ENABLED == 'true' }}` with signing secrets mapped to step-level `env:` (disabled/absent → **skipped, not failed**); the always-run Web/PWA build is **not** credential-gated. Build-only, no store upload. [project-plan/testing.md](../project-plan/testing.md#android--ios-test-build-pipeline-credential-skip-build-only)
 
 > As backend / frontend / data topics land, add their terms here and split the
 > area doc into `budget-app/<area>.md` when it grows.
