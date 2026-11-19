@@ -76,10 +76,12 @@ constant. This is an **explicit, configurable build decision**:
 - **Production:** `VITE_BASE_PATH=/simple-budget-app/` → the app is served at
   `https://tandyn.github.io/simple-budget-app/`.
 - **PR preview:** `VITE_BASE_PATH=/simple-budget-app/pr-<PR#>/` (PR number from
-  `github.event.pull_request.number`) → the preview is served at
+  `github.event.pull_request.number` on `pull_request` targeting `main`) → the
+  preview is served at
   `https://tandyn.github.io/simple-budget-app/pr-<PR#>/`, a sub-path of the
-  same production site. The per-PR preview deploy flow (compose into the
-  `pr-<PR#>/` sub-path, production root untouched, prune on close) lives in
+  same production site. The per-PR preview deploy flow (plain `git` publishing
+  to `pr-<PR#>/` on the `gh-pages` branch via `GITHUB_TOKEN`, production root
+  untouched, `git rm -rf pr-<PR#>/` on close) lives in
   [testing.md → CI deploy & preview](testing.md#ci-deploy-preview-github-pages).
 - **Asset-path correctness (holds for both paths):** because the base is threaded
   through at build, every consumer resolves under **either** `/simple-budget-app/`

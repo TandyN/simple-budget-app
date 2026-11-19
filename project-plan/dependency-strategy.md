@@ -152,8 +152,17 @@ first-party action.
 | Static analysis (SAST) | **`github/codeql-action`** `@<40-char-sha> # vX.Y.Z` | **Active & current:** active, frequent releases. **First-party / tool-maintainer:** GitHub first-party action. **Industry-standard:** the canonical CodeQL JS/TS static security analysis action for PRs and `main`. |
 | PR dependency review | **`actions/dependency-review-action`** `@<40-char-sha> # vX.Y.Z` | **Active & current:** active, frequent releases. **First-party / tool-maintainer:** GitHub first-party action. **Industry-standard:** the standard PR gate that flags newly-introduced vulnerable or risky dependencies before merge. |
 | Set up JDK (Android native builds) | **`actions/setup-java`** `@<40-char-sha> # vX.Y.Z` | **Active & current:** active, frequent releases. **First-party / tool-maintainer:** GitHub first-party action. **Industry-standard:** the standard way to provision the JDK required by Gradle in optional Capacitor Android build jobs. *(iOS Xcode/keychain setup uses standard runner tooling and shell steps.)* |
-| Upload Pages artifact | **`actions/upload-pages-artifact`** `@<40-char-sha> # vX.Y.Z` | **Active & current:** active, frequent releases. **First-party / tool-maintainer:** GitHub first-party action. **Industry-standard:** the standard pairing with `actions/deploy-pages` for uploading build output. |
-| Deploy to GitHub Pages | **`actions/deploy-pages`** `@<40-char-sha> # vX.Y.Z` | **Active & current:** active, frequent releases. **First-party / tool-maintainer:** GitHub first-party action. **Industry-standard:** the standard way to publish a built site to GitHub Pages (see [testing.md → CI deploy & preview](testing.md#ci-deploy-preview-github-pages)). |
+
+**GitHub Pages publishing note (OQ-5):** GitHub Pages deployment (mode (a)
+production root + `pr-<PR#>/` previews) is published via **plain `git` to the
+`gh-pages` branch using `GITHUB_TOKEN`** (`contents: write` on the publish job
+only; Pages source = "Deploy from a branch" → `gh-pages`), rather than the
+legacy `actions/upload-pages-artifact` + `actions/deploy-pages` flow (which is
+incompatible with `pull_request` branch rules on the `github-pages` environment
+and replaces the entire site per run; see
+[testing.md → CI deploy & preview](testing.md#ci-deploy-preview-github-pages)).
+Third-party Pages publishing actions (`peaceiris/actions-gh-pages`,
+`rossjrw/pr-preview-action`, etc.) are rejected under the first-party criterion.
 
 **CI-actions note:** the **well-maintained criterion** is what *justifies* the
 actions in this table as the allowed set; the **zero-prod-dep constraint** is
@@ -234,8 +243,8 @@ full-SHA pinned before it is allowed.
     `.github/workflows/` MUST declare top-level least-privilege
     `permissions: { contents: read }` by default, elevating permissions only at
     the specific job level where required (e.g. `security-events: write` on the
-    CodeQL analysis job, or `pages: write` / `id-token: write` on deployment
-    jobs; see [testing.md](testing.md)).
+    CodeQL analysis job, or `contents: write` on the `gh-pages` publish job
+    only; see [testing.md](testing.md)).
   - **Skipped — Subresource Integrity (SRI):** Deliberately skipped. Every
     runtime asset is same-origin and self-hosted with Vite content-hashed
     filenames under `default-src 'self'` CSP; SRI only protects

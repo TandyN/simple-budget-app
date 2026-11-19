@@ -114,11 +114,13 @@ All Playwright E2E scenarios run against the production-built bundle (`vite prev
 
 ## CI deploy & preview (GitHub Pages)
 
-The deployment target is **GitHub Pages** (HTTPS, secure context). There is no
+The deployment target is **GitHub Pages** (HTTPS, secure context), configured
+with source **"Deploy from a branch" → `gh-pages` (`/`)**. There is no
 Cloudflare Pages in this plan; the architecture below is the **one and only**
 deploy/preview architecture. (See [dependency-strategy.md → CI actions
 (the allowed set)](dependency-strategy.md#ci-actions-the-allowed-set) for the
-allowed, well-maintained GitHub Actions that implement this.)
+allowed, well-maintained GitHub Actions that implement the build steps;
+publishing itself uses plain `git` with `GITHUB_TOKEN`.)
 
 ### Production base path
 
@@ -126,9 +128,10 @@ allowed, well-maintained GitHub Actions that implement this.)
 - The production build is configured with **base path `/simple-budget-app/`**
   (the repo's `VITE_BASE_PATH` / `base` in `vite.config.ts`). This is the URL
   the **production** app is served from on GitHub Pages.
-- **Production deploy is unchanged** — it builds to `/simple-budget-app/` and
-  writes the production root exactly as before. It is **not** touched by PR
-  preview deploys (see the production-untouched guarantee below).
+- **Production deploy writes only the root** — it builds to `/simple-budget-app/`
+  and updates root files on the `gh-pages` branch while preserving all open
+  `pr-*/` directories. The production root is **not** touched by PR preview
+  deploys (see the production-untouched guarantee below).
 
 ### Configurable base path (explicit build decision)
 
@@ -138,11 +141,11 @@ allowed, well-maintained GitHub Actions that implement this.)
   previews possible without a second site, and it is what lets the **per-PR
   preview path** be computed at build/deploy time from the **PR number**.
 - **PR-number source at build/deploy time:** the PR number is read from the
-  GitHub event context in the workflow — `github.event.number` (for
-  `pull_request`) or `github.event.pull_request.number` (for `pull_request_target`
-  / `pull_request_target` close). It is injected into the build as
-  `VITE_BASE_PATH=/simple-budget-app/pr-<PR#>/`. This is the **only** source of
-  the PR number; nothing else (env var, config file) is used.
+  GitHub event context in the workflow — `github.event.pull_request.number` on
+  `pull_request` events (`opened`, `synchronize`, `reopened`, `closed`). It is
+  injected into the build as `VITE_BASE_PATH=/simple-budget-app/pr-<PR#>/`. This
+  is the **only** source of the PR number; nothing else (env var, config file)
+  is used.
 - **Worked example:** for **PR #120**, the preview build is configured with
   `VITE_BASE_PATH=/simple-budget-app/pr-120/` and is published to
   `https://tandyn.github.io/simple-budget-app/pr-120/` — a **sub-path** of the
@@ -152,7 +155,7 @@ allowed, well-maintained GitHub Actions that implement this.)
 ### Mode (a) — same-site sub-path (confirmed architecture)
 
 The **confirmed** PR-preview architecture is **mode (a)**: **same-site,
-sub-path**. Each open PR gets a preview at
+sub-path**. Each open PR targeting `main` gets a preview at
 `tandyn.github.io/simple-budget-app/pr-<PR#>/` — a sub-path of the production
 site. The **two hard guarantees** (2026-11-15 user clarification) are:
 
@@ -168,64 +171,95 @@ These two guarantees together mean a PR preview is a **pure additive,
 self-cleaning** artifact on the same site: it adds a sub-path while open, and
 removes it when the PR ends.
 
-### CI workflow mechanics (compose-and-deploy / prune-on-merge / production-unchanged)
+> **Decision note (OQ-5 — flagged to user):** The user-confirmed **mode (a)**
+> behavior and guarantees above (production at root, `pr-<PR#>/` previews,
+> cleanup on PR close, serialized `concurrency: { group: "pages-deploy",
+> cancel-in-progress: false }`) are preserved unchanged; only the underlying
+> publishing **mechanism** is changed from the legacy `actions/deploy-pages`
+> artifact flow to **plain `git` publishing to the `gh-pages` branch using
+> `GITHUB_TOKEN`** (Pages source = **"Deploy from a branch" → `gh-pages`**).
+> This mechanism change is explicitly flagged to the user. **Why (G2):**
+> `actions/deploy-pages` on `pull_request` is rejected by the `github-pages`
+> environment's default deployment-branch rule (only the default branch may
+> deploy), and `actions/deploy-pages` replaces the entire site on every run with
+> no built-in source for the previously deployed tree. Publishing to `gh-pages`
+> via plain `git` makes the branch itself the persistent source of truth for the
+> existing site tree without adding any third-party Pages action (actions such
+> as `peaceiris/actions-gh-pages` and `rossjrw/pr-preview-action` are rejected
+> under the [first-party / well-maintained criterion](dependency-strategy.md#the-well-maintained-criterion-the-governing-rule-for-any-dev-dependency)).
 
-The CI workflow (a **deploy** workflow, separate from the `ci` test job above)
-implements the three mechanics below. All five actions used here —
-`actions/checkout`, `actions/setup-node`, `pnpm/action-setup`,
-`actions/upload-pages-artifact`, `actions/deploy-pages` — are in the
-[CI actions (the allowed set)](dependency-strategy.md#ci-actions-the-allowed-set)
-table in [dependency-strategy.md](dependency-strategy.md).
+### CI workflow mechanics (`gh-pages` branch publishing / prune-on-merge / production-unchanged)
 
-**1. Compose-and-deploy (on `pull_request`).**
+The CI deploy workflow (`.github/workflows/deploy-pages.yml`, separate from the
+`ci` test job above) implements the three mechanics below. It uses only the
+already-allowed build actions — `actions/checkout`, `actions/setup-node`, and
+`pnpm/action-setup` (all full-SHA pinned, see
+[CI actions (the allowed set)](dependency-strategy.md#ci-actions-the-allowed-set))
+— plus built-in **`git`** with `GITHUB_TOKEN`. No third-party Pages action is
+used, and GitHub Pages is configured in repository settings as **"Deploy from a
+branch" → `gh-pages` (`/`)**.
 
-- **Trigger:** `on: pull_request` (any PR targeting any branch).
-- **Read the PR number** from the event context (see *PR-number source* above).
+- **Conscious PR trigger scope:** PR preview deploys and prunes trigger **only
+  on pull requests targeting `main`** (`on: pull_request: branches: [main],
+  types: [opened, synchronize, reopened, closed]`), **not** on every
+  intermediate task PR targeting a feature branch. This prevents unnecessary
+  `gh-pages` commit churn and deploy-queue contention during task-level work
+  while ensuring every feature/story PR targeting `main` receives a live preview
+  before merge and is cleaned up on close. Fork PRs do not receive
+  `contents: write` on `GITHUB_TOKEN`, so the publish job is skipped on fork PRs
+  rather than elevating untrusted triggers.
+
+**1. Preview publish (on `pull_request` targeting `main`: `opened`, `synchronize`, `reopened`).**
+
+- **Trigger:** `on: pull_request: branches: [main], types: [opened, synchronize, reopened]`.
+- **Read the PR number** from `github.event.pull_request.number` (see
+  *PR-number source* above).
 - **Build with the per-PR base path:** `VITE_BASE_PATH=/simple-budget-app/pr-<PR#>/ pnpm run build`
   (e.g. `VITE_BASE_PATH=/simple-budget-app/pr-120/ pnpm run build` for PR #120).
-- **Deploy the PR assets into the `pr-<PR#>/` sub-path only.** Concretely:
-  - Build to a **staged** directory (e.g. `.pr-preview/pr-<PR#>/dist`).
-  - **Compose** the existing production site + the PR's `pr-<PR#>/` sub-path into
-    a single Pages artifact (the production files **unchanged** at the root, the
-    PR's files added under `pr-<PR#>/`). This is the *compose* step — it **adds**
-    the sub-path without rewriting the root.
-  - `actions/upload-pages-artifact` uploads the composed artifact.
-  - `actions/deploy-pages` deploys to GitHub Pages. Because the **production
-    root files are byte-for-byte unchanged** in the composed artifact and only
-    the `pr-<PR#>/` sub-path was added, **the production root is untouched**
-    (guarantee 1).
-- **The production root is NOT written** — only the `pr-<PR#>/` sub-path is
-  written by a PR preview deploy.
+- **Publish only the `pr-<PR#>/` sub-path to `gh-pages`:**
+  - Check out the `gh-pages` branch into a working directory (initializing an
+    orphan `gh-pages` branch on first run if it does not yet exist).
+  - Replace **only** `pr-<PR#>/` (`rm -rf pr-<PR#> && mkdir -p pr-<PR#> && cp -R dist/. pr-<PR#>/`), leaving all production root files and all other
+    active `pr-*/` directories byte-for-byte untouched.
+  - Commit and `git push origin gh-pages` using `GITHUB_TOKEN` (with
+    `contents: write` scoped strictly to the publish job).
+- **The production root is NOT written** — only the `pr-<PR#>/` directory is
+  written by a PR preview deploy (guarantee 1).
 
-**2. Prune-on-merge (on PR merge or close).**
+**2. Prune-on-close (on `pull_request` targeting `main`: `closed`).**
 
-- **Trigger:** `on: pull_request: types: [closed]` (fires on **both** merge and
-  non-merge close).
-- **Read the PR number** from the event context.
-- **Remove the `pr-<PR#>/` sub-path** from the Pages site: compose the
-  production site (root only) without the `pr-<PR#>/` sub-path, upload via
-  `actions/upload-pages-artifact`, and deploy via `actions/deploy-pages`.
-  Because the production root files are unchanged and the `pr-<PR#>/` sub-path
-  is now **absent**, the sub-path is **pruned** (guarantee 2) while the
-  production root remains **untouched**.
+- **Trigger:** `on: pull_request: branches: [main], types: [closed]` (fires on
+  **both** merge and non-merge close).
+- **Read the PR number** from `github.event.pull_request.number`.
+- **Remove the `pr-<PR#>/` sub-path** from the `gh-pages` branch:
+  - Check out `gh-pages`.
+  - If `pr-<PR#>/` exists, run `git rm -rf pr-<PR#>/`, commit, and
+    `git push origin gh-pages` using `GITHUB_TOKEN`.
+  - Because the production root files and all other `pr-*/` directories are
+    unchanged and `pr-<PR#>/` is now removed, the sub-path is **pruned**
+    (guarantee 2) while the production root remains **untouched**.
 
-**3. Production deploy unchanged (on `main`).**
+**3. Production deploy (on `push` to `main`).**
 
 - **Trigger:** `on: push: branches: [main]`.
 - **Build with the production base path:** `VITE_BASE_PATH=/simple-budget-app/ pnpm run build`.
-- **Deploy to the production root** (`/simple-budget-app/`) via
-  `actions/upload-pages-artifact` + `actions/deploy-pages` — **exactly as before,
-  unmodified** by this plan. A `main` push is the only thing that writes the
-  production root.
+- **Publish only the root files excluding `pr-*/` to `gh-pages`:**
+  - Check out `gh-pages` (orphan-initializing on first run if absent).
+  - Remove stale production root files/directories **excluding `.git` and
+    `pr-*/`**, then copy `dist/.` into the `gh-pages` root.
+  - Commit and `git push origin gh-pages` using `GITHUB_TOKEN`.
+  - A `main` push is the only thing that writes the production root, and all
+    open `pr-*/` preview directories remain preserved.
 
-**In summary:** a PR preview is a **pure additive** sub-path on the same site;
-it is **pruned** on merge/close; the production root is **only ever** written by
-a `main` push. These three mechanics, taken together, implement the two hard
+**In summary:** a PR preview is a **pure additive** `pr-<PR#>/` directory on
+`gh-pages`; it is **pruned** via `git rm -rf pr-<PR#>/` on merge/close; the
+production root is **only ever** written by a `main` push (excluding `pr-*/`).
+These three mechanics, taken together, implement the two hard mode-(a)
 guarantees above.
 
 ### GitHub Pages Mode-(a) Concurrency & Site-Tree Preservation (`.github/workflows/deploy-pages.yml`)
 
-Because `actions/deploy-pages` replaces the deployed GitHub Pages site with the uploaded artifact on each run, concurrent PR preview builds, PR-close prune jobs, and `main` production deploys must serialize cleanly so they never race or clobber each other's composed site trees:
+Because concurrent pushes to the `gh-pages` branch (PR preview publishes, PR-close prune jobs, and `main` production deploys) would otherwise race on non-fast-forward pushes or overwrite each other's changes, all publishes must serialize cleanly:
 
 - **Serialized FIFO workflow concurrency:** `.github/workflows/deploy-pages.yml` MUST declare workflow-level concurrency:
   ```yaml
@@ -233,9 +267,9 @@ Because `actions/deploy-pages` replaces the deployed GitHub Pages site with the 
     group: "pages-deploy"
     cancel-in-progress: false
   ```
-  Setting `cancel-in-progress: false` guarantees that every queued PR preview compose, PR-close prune, and `main` deploy runs to completion sequentially in FIFO order rather than aborting an in-flight Pages deployment or losing a prune event.
-- **Least-privilege permissions:** Top-level workflow permissions default to `permissions: { contents: read }`, elevating to `permissions: { contents: read, pages: write, id-token: write }` only on the deployment job (see [dependency-strategy.md](dependency-strategy.md)).
-- **Deterministic site-tree composition:** During each serialized run, the compose step preserves the current production root files alongside all active `pr-<N>/` sub-paths, mutating only the target `pr-<PR#>/` sub-path (on `pull_request` open/synchronize/reopen or `closed`) or updating only the root files while preserving open `pr-<N>/` directories (on `push` to `main`).
+  Setting `cancel-in-progress: false` guarantees that every queued PR preview publish, PR-close prune, and `main` deploy runs to completion sequentially in FIFO order against the latest `gh-pages` tip rather than aborting an in-flight publish or losing a prune event.
+- **Least-privilege permissions:** Top-level workflow permissions default to `permissions: { contents: read }`, elevating to `permissions: { contents: write }` **only on the `gh-pages` publish job** (see [dependency-strategy.md](dependency-strategy.md)).
+- **Deterministic site-tree preservation:** The `gh-pages` branch itself is the canonical source of truth for the existing site tree. During each serialized run, the publish job mutates only the target `pr-<PR#>/` directory (writing `pr-<PR#>/` on `pull_request` open/synchronize/reopen or running `git rm -rf pr-<PR#>/` on `closed`) or updates only the root files excluding `pr-*/` (on `push` to `main`).
 
 ## Android + iOS test-build pipeline (credential-skip, build-only)
 
