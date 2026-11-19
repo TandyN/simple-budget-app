@@ -209,7 +209,7 @@ tooling (Vite, Vitest, Biome, tsc, Playwright) lives in `devDependencies` and is
 **not** a production dependency (see
 [dependency-strategy.md → dev dependencies](dependency-strategy.md#dev-dependencies-the-allowed-set)).
 
-**The build output is a static web bundle; the identical artifact is served on all three targets.** `vite build` emits `dist/` (an `index.html`, hashed JS/CSS chunks, and any public assets) with no server-side rendering and no Node runtime. The **identical `dist/`** is served by GitHub Pages (production + per-PR preview), by the iOS Capacitor shell in **WKWebView (iOS Safari — the primary native target)**, and by the Android Capacitor shell in **Chromium (Android Chrome)**. There is **no per-platform bundle**, no per-platform build flag, and no per-platform code path — **cross-platform = the same web artifact, no per-platform code**. The only platform-specific surface is the Capacitor shell (native wrapper), not the library or the UI; see [portability.md → what this buys](portability.md#what-this-buys).
+**The build output is a static web bundle; the identical artifact is served on all three targets.** `vite build` emits `dist/` (an `index.html`, hashed JS/CSS chunks, and any public assets) with no server-side rendering and no Node runtime. The **identical `dist/`** is served by GitHub Pages (production + per-PR preview), by the iOS Capacitor shell in **WKWebView (iOS Safari — the primary native target)**, and by the Android Capacitor shell in **Chromium (Android Chrome)**. There is **no per-platform bundle and no per-platform build flag**: the root web package keeps `dependencies: {}` with zero `@capacitor/*` imports in `src/`, while native packaging and plugins live in the isolated `native/` workspace package and are reached from the web bundle solely via runtime `window.Capacitor` feature detection in `PlatformServices` (plus the SW registration guard above and `StorageAdapter` for the durable native store); see [portability.md → what this buys](portability.md#what-this-buys) and [portability.md → Package boundary & `PlatformServices` seam](portability.md#package-boundary--platformservices-seam).
 
 > **Guardrail (inherited):** a PR that introduces a production dependency —
 > including a frontend framework runtime dep — requires an explicit justification
@@ -389,9 +389,11 @@ that the backend stores ISO-8601 UTC (`Activity.dateTime`, the engine's
 - Recurring postings show the **due date** (e.g. the 1st) in the local timezone,
   matching the "the transaction happened on the 1st" semantics.
 
-> The backend treats a recurring due date as **midnight UTC** on `dayOfMonth`
-> (a documented MVP simplification); the frontend renders whatever UTC instant the
-> log holds, in the user's zone. See
+> The backend anchors each recurring due date at fixed **noon UTC (`12:00:00Z`, OQ-2)**
+> on the clamped `dayOfMonth`, which renders on the intended local calendar day for
+> UTC−12 through UTC+11 (UTC+12..+14 is the accepted MVP residual). Recurring period
+> rollups use `Activity.period` rather than `dateTime`, while the frontend renders
+> whatever UTC instant the log holds in the user's local timezone. See
 > [recurring-engine.md → notes](recurring-engine.md#notes-and-resolved-defaults).
 
 ## Money (integer cents — req 10)
@@ -414,23 +416,45 @@ backend**:
 The frontend offers **manual JSON export / import** — a local backup with **no
 server**, wired directly to the `BudgetApi` backup methods:
 
-- **Export (`budget.exportBackup()`):** calls `await budget.exportBackup()` to
-  produce a versioned `BudgetBackup` envelope (`{ schemaVersion: 1, exportedAt, rules, activities }`,
-  see [data-model.md → Versioned `BudgetBackup` Schema & Hardened Import Validation](data-model.md#versioned-budgetbackup-schema--hardened-import-validation))
-  and serializes it to a downloadable `.json` file (or via the **File System
-  Access API**) that the user can save locally (e.g. to Files / iCloud Drive /
-  Google Drive) or copy off-device.
-- **Import (`budget.importBackup(json)`):** reads a user-selected `.json` file as
-  text and passes the raw string to `await budget.importBackup(json)`. The backend
-  validates the untrusted payload via `validateBackupPayload(rawJson)` in
-  `src/core/validate.ts` (enforcing the 10 MB size ceiling, `__proto__` /
-  `constructor` / `prototype` prototype-pollution rejection, and full schema /
-  safe-integer-cent / ISO-UTC / single-currency invariants; see
+- **Export (`budget.exportBackup()` + `PlatformServices`):** calls
+  `await budget.exportBackup()` to produce a versioned `BudgetBackup` envelope
+  (`{ schemaVersion: 1, exportedAt, rules, activities }`, see
+  [data-model.md → Versioned `BudgetBackup` Schema & Hardened Import Validation](data-model.md#versioned-budgetbackup-schema--hardened-import-validation))
+  and records `lastBackupAt` in `"meta"`. Because iOS `WKWebView` does not honour
+  `<a download>`, the UI delegates file delivery through the runtime
+  `PlatformServices` seam (`saveBackup` / `shareBackup`, see
+  [portability.md → Package boundary & `PlatformServices` seam](portability.md#package-boundary--platformservices-seam)):
+  in web/PWA browsers it uses `<a download>` (or the **File System Access API** /
+  `navigator.share`) so the user can save locally (e.g. to Files / iCloud Drive /
+  Google Drive) or copy off-device; in Phase 6 Capacitor native shells it
+  delegates to the native bridge exposed on `window.Capacitor.Plugins` without
+  importing `@capacitor/*` in `src/`.
+- **Import (`budget.importBackup(json)`) & pre-import safety flow:** before
+  reading or calling `budget.importBackup(json)`, the Settings UI MUST enforce
+  the pre-import safety flow (see
+  [storage.md → Atomic Backup Restoration (`replaceAll`)](storage.md#atomic-backup-restoration-replaceall)):
+  1. Check `file.size <= 10 * 1024 * 1024` (10 MB) **before** reading the file
+     into memory.
+  2. Present an explicit confirmation dialog warning that importing replaces all
+     existing local rules and activities.
+  3. Automatically trigger a **pre-import safety snapshot** (`budget.exportBackup()`
+     via `PlatformServices.saveBackup`) before executing `replaceAll`.
+  Once confirmed, the UI reads the `.json` file as text and passes the raw string
+  to `await budget.importBackup(json)`. The backend validates the untrusted
+  payload via `validateBackupPayload(rawJson)` in `src/core/validate.ts`
+  (enforcing the 10 MB size ceiling, `__proto__` / `constructor` / `prototype`
+  prototype-pollution rejection, and full schema / safe-integer-cent / ISO-UTC /
+  single-currency invariants; see
   [data-model.md](data-model.md#hardened-import-validation-validatebackuppayloadrawjson-string-budgetbackup))
   and restores all records atomically in a single IndexedDB `readwrite`
   transaction via `storage.replaceAll({ rules, activities })` (rolling back
-  automatically on any error so existing data is never clobbered; see
-  [storage.md → Atomic Backup Restoration (`replaceAll`)](storage.md#atomic-backup-restoration-replaceall)).
+  automatically on any error so existing data is never clobbered).
+- **Durability status (`persisted()`) & `lastBackupAt` N-day backup nag:**
+  Settings queries `await navigator.storage?.persisted?.()` to display the live
+  storage persistence status alongside the `lastBackupAt` timestamp and shows a
+  non-blocking N-day backup reminder (default `N = 30` days, or once user data
+  exists with no backup) prompting a one-tap JSON backup export (see
+  [storage.md → Storage Durability & WebKit Eviction Mitigation](storage.md#storage-durability--webkit-eviction-mitigation)).
 - **No account, no network, no server** — backup is the user's file, consistent
   with the local-only, zero-egress storage model. See
   [storage.md → security properties](storage.md#security-properties).
@@ -630,9 +654,9 @@ requiring a manual page reload:
   (`addRule`, `editRule`, `deleteRule`, `addActivity`, `editActivity`,
   `deleteActivity`, `runRecurringEngine`, or `importBackup`), the active tab
   posts `{ type: "budget-mutated", timestamp: Date.now() }` on the
-  `"simple-budget-sync"` channel.
-- **Subscribe & re-render:** Sibling tabs listening on `"simple-budget-sync"`
-  respond to `"budget-mutated"` messages by re-querying `BudgetApi` (`listRules`,
+  base-path-scoped channel.
+- **Subscribe & re-render:** Sibling tabs listening on the base-path-scoped
+  channel respond to `"budget-mutated"` messages by re-querying `BudgetApi` (`listRules`,
   `listActivities`, `getAvailableFunds`, and active `searchActivities` /
   `summarizeByTag` views) and updating the DOM via safe `replaceChildren` /
   `textContent` patches—eliminating stale cross-tab state.
