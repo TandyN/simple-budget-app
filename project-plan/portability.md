@@ -393,16 +393,18 @@ Since May 1, 2024, Apple App Store Connect rejects iOS submissions (`ITMS-91053:
     <?xml version="1.0" encoding="utf-8"?>
     <data-extraction-rules>
       <cloud-backup>
-        <exclude domain="root" />
-        <exclude domain="database" />
-        <exclude domain="sharedpref" />
-        <exclude domain="external" />
+        <exclude domain="root" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="external" path="." />
       </cloud-backup>
       <device-transfer>
-        <exclude domain="root" />
-        <exclude domain="database" />
-        <exclude domain="sharedpref" />
-        <exclude domain="external" />
+        <exclude domain="root" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="external" path="." />
       </device-transfer>
     </data-extraction-rules>
     ```
