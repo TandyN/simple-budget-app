@@ -6,11 +6,24 @@ dependencies**. This is a hard constraint, not a preference.
 
 ## The two rules
 
-1. **Zero production dependencies (the hard constraint).** `package.json`
-   `dependencies` is **empty**. At runtime the app uses only **Web-platform
-   APIs** that are present in all three targets (PWA in a modern browser, iOS
-   WebKit WebView, Android Chromium WebView). No runtime npm package is
-   required. This is the rule that is never relaxed.
+1. **Zero production dependencies in the web bundle package (the hard constraint).**
+   The root **web bundle package** (`package.json`) MUST keep `dependencies`
+   **completely empty (`{}`)** and MUST **never import `@capacitor/*`**. At
+   runtime the web bundle (`dist/`) uses only **Web-platform APIs** that are
+   present in all three targets (PWA in a modern browser, iOS WebKit WebView,
+   Android Chromium WebView), reaching optional native capabilities solely via
+   the runtime `PlatformServices` feature-detection seam (`window.Capacitor`;
+   see [portability.md → Package boundary & `PlatformServices` seam](portability.md#package-boundary--platformservices-seam)).
+   No runtime npm package is ever bundled into `dist/`. This rule is never
+   relaxed for the web bundle.
+   - **Isolated `native/` workspace package (Phase 6 store packaging):** When
+     Capacitor native shells are introduced in Phase 6, they live in their own
+     isolated **`native/` workspace package** (`native/package.json` +
+     `native/capacitor.config.ts`). `@capacitor/*` and approved native plugins
+     (e.g., durable native storage, native file save/share, biometric lock) are
+     permitted **only** inside `native/package.json`, and remain subject to
+     exact pinning (`save-exact=true`), `pnpm install --frozen-lockfile`,
+     `pnpm audit --audit-level=high`, and the well-maintained criterion.
 2. **Curated dev dependencies under the well-maintained criterion (the
    governing rule for every dev dependency).** The *only* packages we allow are
    the dev tools that make the codebase correct, clean, and testable — and each
@@ -20,14 +33,16 @@ dependencies**. This is a hard constraint, not a preference.
    runs (see [Dev dependencies (the allowed set)](#dev-dependencies-the-allowed-set)
    and [CI actions (the allowed set)](#ci-actions-the-allowed-set)).
 
-> **Zero-prod-dep vs dev-only — the crisp distinction.** `dependencies` is
-> **empty**: the runtime loads **no npm package**. `devDependencies` holds a
+> **Zero-prod-dep vs dev-only vs `native/` shell — the crisp distinction.** The
+> root web package's `dependencies` is **empty**: the web bundle (`dist/`) loads
+> **no npm package** and never imports `@capacitor/*`. `devDependencies` holds a
 > small, curated toolchain (build / test / lint / type-check) that is **only
 > ever run at build, test, or lint time** and is **never imported or executed
-> at runtime**. In other words: production code ships with **zero** third-party
-> runtime code; the dev tools are pinned, build-time-only, and leave the bundle.
-> CI mirrors this: it installs the dev toolchain to *produce* the build, and
-> never installs or ships anything into `dependencies`.
+> at runtime**. Native wrapper packages (`@capacitor/*`) live strictly in the
+> separate `native/` workspace package (`native/package.json`, Phase 6) so the
+> web bundle stays zero-prod-dep and identical across PWA, iOS, and Android.
+> CI mirrors this: it asserts root `package.json` `dependencies` is `{}` and
+> `src/` has zero `@capacitor/*` imports.
 
 ## The well-maintained criterion (the governing rule for any dev dependency)
 
@@ -184,10 +199,15 @@ full-SHA pinned before it is allowed.
 
 ## Guardrails (enforce in CI / review)
 
-- **`dependencies` must stay empty (CI-enforced).** CI must **assert that
-  `package.json` `dependencies` is empty** (a `pnpm`/`node` check in the pipeline)
-  in addition to the human gate: a PR that adds a production dependency requires
-  an explicit justification and a senior-software-engineer sign-off.
+- **Root web-package `dependencies` must stay empty & zero `@capacitor/*` imports in `src/` (CI-enforced).**
+  CI must **assert that root `package.json` `dependencies` is empty (`{}`)** and
+  that `src/` contains **zero `@capacitor/*` imports** (a `pnpm`/`node` check in
+  the pipeline) in addition to the human gate: a PR that adds a production
+  dependency to the web bundle requires an explicit justification and a
+  senior-software-engineer sign-off. Native wrapper dependencies (`@capacitor/*`
+  and approved native plugins) are allowed **only** inside the isolated
+  `native/package.json` workspace package (Phase 6), still exact-pinned and
+  audited.
 - **Any new dev dependency — local package *or* CI action — must pass the
   [well-maintained criterion](#the-well-maintained-criterion-the-governing-rule-for-any-dev-dependency)**
   (Active & current · First-party / tool-maintainer · Industry-standard), and the

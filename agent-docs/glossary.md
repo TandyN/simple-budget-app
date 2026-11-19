@@ -116,11 +116,17 @@ in its own topic doc, not here.
   assets, and automated Playwright E2E zero-egress verification.
   [project-plan/portability.md](../project-plan/portability.md#app-store-play-store-privacy-compliance-data-not-collected)
 - **`PrivacyInfo.xcprivacy` (iOS privacy manifest)** — the Apple iOS privacy
-  manifest (`ios/App/App/PrivacyInfo.xcprivacy`) declaring `NSPrivacyTracking: false`,
-  empty `NSPrivacyCollectedDataTypes`, and `NSPrivacyAccessedAPICategoryUserDefaults`
-  (`CA92.1`) for Capacitor's local app-scoped preferences bridge (preventing App
-  Store Connect error `ITMS-91053`).
-  [project-plan/portability.md](../project-plan/portability.md#2-ios-required-reason-api-privacy-manifest-iosappappprivacyinfoxcprivacy)
+  manifest (`native/ios/App/App/PrivacyInfo.xcprivacy`) declaring `NSPrivacyTracking: false`,
+  empty `NSPrivacyCollectedDataTypes`, and every Required-Reason API used by Capacitor
+  core and installed native plugins (verified via Xcode's "Generate Privacy Report",
+  starting from `NSPrivacyAccessedAPICategoryUserDefaults` / `CA92.1`, preventing
+  App Store Connect error `ITMS-91053`).
+  [project-plan/portability.md](../project-plan/portability.md#2-ios-required-reason-api-privacy-manifest-nativeiosappappprivacyinfoxcprivacy)
+- **`PlatformServices`** — the tiny runtime interface (`saveBackup`, `shareBackup`,
+  `isNative`) resolved via `window.Capacitor` feature detection so the zero-prod-dep
+  web bundle (`dist/`) stays identical and never imports `@capacitor/*`, while native
+  shell wrappers live in the isolated `native/` workspace package.
+  [project-plan/portability.md](../project-plan/portability.md#package-boundary--platformservices-seam)
 - **`BudgetBackup` (atomic JSON export/import & validation)** — the versioned
   (`schemaVersion: 1`) JSON backup envelope validated by `validateBackupPayload`
   (10 MB byte ceiling, `__proto__` / `constructor` / `prototype` key rejection,
