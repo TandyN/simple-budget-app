@@ -26,23 +26,24 @@ This document defines the test pyramid, tooling, and CI gates for `simple-budget
     push:
       branches: [main]
   ```
-   Pipeline steps (a single job, e.g. `jobs: ci:`):
-   0. `actions/checkout`, `pnpm/action-setup`, `actions/setup-node` (with pnpm cache), then `pnpm install --frozen-lockfile`
-   0b. **Zero-prod-dep & supply-chain CI checks** — assert `package.json` **`dependencies` is empty** (`{}`) so a PR that introduces a production dependency fails the gate *before* review, not after (e.g. `node -e "const p=require('./package.json'); if (Object.keys(p.dependencies ?? {}).length) { throw new Error('dependencies must be empty (zero-prod-dep)') }"`), and run `pnpm audit --audit-level=high` to block any known high/critical vulnerability in the dev toolchain. This is the CI-enforced half of the zero-prod-dep and supply-chain rules in [dependency-strategy.md](dependency-strategy.md); the human gate (senior sign-off) still applies.
+   Pipeline steps (main `ci` job, with every `uses:` action pinned to a full 40-character commit SHA `# vX.Y.Z` per [dependency-strategy.md](dependency-strategy.md#ci-actions-the-allowed-set)):
+   0. `actions/checkout`, `pnpm/action-setup` (reading `packageManager` from `package.json`, no `corepack` assumption), `actions/setup-node` (`node-version-file: '.nvmrc'` with pnpm cache), then `pnpm install --frozen-lockfile`
+   0b. **Zero-prod-dep & supply-chain CI checks** — assert `package.json` **`dependencies` is empty** (`{}`) so a PR that introduces a production dependency fails the gate *before* review, not after (e.g. `node -e "const p=require('./package.json'); if (Object.keys(p.dependencies ?? {}).length) { throw new Error('dependencies must be empty (zero-prod-dep)') }"`), run `pnpm audit --audit-level=high` (using pnpm 10+ bulk advisory audit endpoint) to block any known high/critical vulnerability in the dev toolchain, and on `pull_request` run **`actions/dependency-review-action`** to flag newly-introduced vulnerable or risky dependencies. This is the CI-enforced half of the zero-prod-dep and supply-chain rules in [dependency-strategy.md](dependency-strategy.md); the human gate (senior sign-off) still applies.
    1. `pnpm run lint` (Biome)
    2. `pnpm run typecheck` (`tsc --noEmit` with strict compiler flags from [dependency-strategy.md](dependency-strategy.md#strict-typescript-compiler-flags-tsconfigjson))
-   3. `pnpm run test` (`vitest run --coverage`, enforcing `>= 95%` line and branch coverage on `src/core/`)
+   3. `pnpm run test` (`vitest run --coverage`, using `@vitest/coverage-v8` and enforcing `>= 95%` line and branch coverage on `src/core/`)
    4. `pnpm run build` (`vite build`)
    4b. **Post-Build Security & Privacy Artifact Gates** — immediately after `pnpm run build`, run automated Node/shell assertions against `src/` and `dist/` verifying:
       1. **Zero production dependencies:** `package.json` `dependencies` is `{}` (reinforcing step 0b).
       2. **CSP `<meta>` present in `dist/index.html`:** `dist/index.html` contains `<meta http-equiv="Content-Security-Policy"` with `connect-src 'none'` and `form-action 'none'` (see [frontend.md → Strict Content Security Policy](frontend.md#1-strict-content-security-policy-indexhtml)).
       3. **Zero external `http://` or `https://` URLs in `dist/`:** No file in `dist/` contains external `http://` or `https://` asset, font, CDN, or API URLs (allowing only standard W3C SVG/XML namespace URIs such as `http://www.w3.org/2000/svg` or `http://www.w3.org/1999/xhtml`).
       4. **Zero banned DOM XSS sinks in `src/`:** No file in `src/` uses banned HTML-parsing or code-evaluation sinks (`innerHTML`, `outerHTML`, `insertAdjacentHTML`, `document.write`, `eval(`).
-   5. Once a UI shell / Playwright E2E suite exists (the PWA UI from [frontend.md](frontend.md)): run `pnpm exec playwright install --with-deps chromium webkit` to install the headless browser binaries on the runner, followed by `pnpm run test:e2e` — Playwright headless (**Chromium + WebKit**) exercising the PWA UI end-to-end (add expense, set recurring, edit/backdate, search/insights, export/import, plus the mandatory zero-egress and DOM XSS gates below). `test:e2e` is **gated on the UI shell existing**: until a UI shell ships, step 5 is a no-op in CI and the backend regression is covered by the Vitest integration test in layer 2.
+   5. Once a UI shell / Playwright E2E suite exists (the PWA UI from [frontend.md](frontend.md)): run `pnpm exec playwright install --with-deps chromium webkit` to install the headless browser binaries on the runner, followed by `pnpm run test:e2e` — Playwright headless (**Chromium + WebKit**) exercising the PWA UI end-to-end (add expense, set recurring, edit/backdate, search/insights, export/import, plus the mandatory zero-egress, DOM XSS, and `@axe-core/playwright` a11y gates below). `test:e2e` is **gated on the UI shell existing**: until a UI shell ships, step 5 is a no-op in CI and the backend regression is covered by the Vitest integration test in layer 2.
+   6. **Static security analysis (CodeQL):** A companion `codeql` job (or dedicated `.github/workflows/codeql.yml` workflow) runs **`github/codeql-action`** (`javascript-typescript`) on PRs and pushes to `main` with job-level `permissions: { contents: read, security-events: write }`. *(OSV-Scanner is optional.)*
 
   The bootstrap task defines the `lint`, `typecheck`, `test`, `build` (and later `test:e2e`) scripts in `package.json` so these names are real.
 
-  **Zero-prod-dep coherence (req 1).** The CI/dev-deps surface is consistent with [dependency-strategy.md](dependency-strategy.md): every *package* the pipeline installs or runs — Vite, Vitest, Playwright, `fake-indexeddb`, Biome, tsc — lives in **`devDependencies`** and is used **only** at build/test/lint time; `package.json` **`dependencies` MUST stay empty**, so CI never installs or ships a production dependency and nothing production is loaded at runtime. **pnpm** is the *package manager* that provisions these — it is **not** a `devDependency`; it is set up via the `packageManager` field / `corepack` and `pnpm/action-setup` in CI (see [dependency-strategy.md](dependency-strategy.md)). The two load-bearing decisions — **integer-cent money** (`amountCents`, pure integer-domain TS) and the **reserved bank-OAuth slots** (`bank-sync` / `externalTxnId` / `sourceAccountId`) — are **pure TypeScript logic** over built-in Web APIs and therefore **introduce no production dependency**: they never appear as a new package in `dependencies` or `devDependencies`, and they are exercised by the `test` (Vitest unit/integration) and `test:e2e` (PWA UI) steps, not by any runtime package. See [data-model.md](data-model.md) and [activity-model.md](activity-model.md).
+  **Zero-prod-dep coherence (req 1).** The CI/dev-deps surface is consistent with [dependency-strategy.md](dependency-strategy.md): every *package* the pipeline installs or runs — Vite, Vitest, `@vitest/coverage-v8`, Playwright, `@axe-core/playwright`, `fake-indexeddb`, Biome, tsc — lives in **`devDependencies`** and is used **only** at build/test/lint time; `package.json` **`dependencies` MUST stay empty**, so CI never installs or ships a production dependency and nothing production is loaded at runtime. **pnpm** is the *package manager* that provisions these — it is **not** a `devDependency`; it is set up via the `packageManager` field and `pnpm/action-setup` in CI (no `corepack` assumption; see [dependency-strategy.md](dependency-strategy.md)). The two load-bearing decisions — **integer-cent money** (`amountCents`, pure integer-domain TS) and the **reserved bank-OAuth slots** (`bank-sync` / `externalTxnId` / `sourceAccountId`) — are **pure TypeScript logic** over built-in Web APIs and therefore **introduce no production dependency**: they never appear as a new package in `dependencies` or `devDependencies`, and they are exercised by the `test` (Vitest unit/integration) and `test:e2e` (PWA UI) steps, not by any runtime package. See [data-model.md](data-model.md) and [activity-model.md](activity-model.md).
 - **System-enforced `main` gate (GitHub branch protection):** Once `.github/workflows/ci.yml` is merged to `main`, the `staff-software-engineer` (immediately after that merge) enables branch protection on `main` requiring the CI **job** status check to pass before a PR can be merged. The required check name is the **job name** from `ci.yml` (e.g. `ci`), not the individual step names — a single-job workflow produces one check. `enforce_admins` MUST be `true`, because every agent authenticates as the repo owner and admins bypass protection by default:
   ```bash
   gh api -X PUT "repos/$REPO_OWNER/$REPO_NAME/branches/main/protection" --input - <<'EOF'
@@ -107,8 +108,9 @@ All Playwright E2E scenarios run against the production-built bundle (`vite prev
   - Enters `<img src=x onerror="window.__xss=true">` and `<script>window.__xss=true</script>` in rule labels, activity labels, tags, memos, and imported JSON backup payloads. Asserts that every payload renders literally as visible text via `textContent`, `await page.evaluate(() => (window as any).__xss)` is `undefined`, and zero `pageerror`, `console.error`, or CSP violation events occur.
 - **Atomic backup import rollback E2E test:**
   - Exports a valid backup from the Settings UI, attempts to import a corrupt/prototype-polluting `.json` file, verifies an accessible error alert (`aria-invalid` / error banner) is displayed while existing activities and Available Funds remain 100% intact, and then imports the valid backup to verify full restoration.
-- **iPhone-Duo dual-state layout & WCAG accessibility verification:**
+- **iPhone-Duo dual-state layout & WCAG accessibility verification (including automated `axe` scans):**
   - Asserts one-page fit (`document.documentElement.scrollHeight <= window.innerHeight` and `scrollWidth <= window.innerWidth`) on `375×667` (folded single-panel) and `829×1194` (unfolded split-pane), `>= 44×44 CSS px` interactive touch targets, and `aria-live="polite"` Available Funds updates.
+  - Runs an automated **`@axe-core/playwright`** (`AxeBuilder`) accessibility scan with tags `["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]` across **every tab** (Budget, Insights, Settings) and **every open `<dialog>`** modal, asserting zero violations.
 
 ## CI deploy & preview (GitHub Pages)
 
@@ -245,27 +247,34 @@ Play Store); it only produces the signed build artifacts.
 
 ### Behavior: skip-when-credentials-absent
 
-- The Android and iOS build jobs are **gated on the presence of signing
-  credentials** (secrets) in the CI environment. **When the secrets are absent,
-  the job is SKIPPED (not failed).** This is the **skip-not-fail** behavior:
-  the pipeline must not be red when the credentials simply have not been
-  provisioned yet.
-- **The Web / PWA build is always-run.** It is **not** credential-gated and
-  always runs. The native builds are **optional / credential-gated** and coexist
-  with the always-run Web build in the same CI pipeline.
+- The Android and iOS build jobs are **gated at job level by a repository
+  variable** (`vars.NATIVE_BUILDS_ENABLED == 'true'`). **When the variable is
+  unset or not `'true'` (e.g. before signing credentials have been provisioned),
+  the native jobs are SKIPPED (not failed).** This is the **skip-not-fail**
+  behavior: the pipeline must not be red when native builds are not yet enabled.
+- **The Web / PWA build is always-run.** It is **not** variable- or
+  credential-gated and always runs. The native builds are **optional /
+  variable-gated** and coexist with the always-run Web build in the same CI
+  pipeline.
 
-### Credential gates (the secret-presence check / conditional)
+### Credential gates (job-level repo variable + step-level secret env)
 
-| Platform | Gating condition (the conditional) |
-| -------- | --------------------------------- |
-| **Android** | The Android build job runs **only when** `env.ANDROID_KEYSTORE_B64 != ''` (the base64-encoded Android signing keystore secret is present). If absent, the job **skips**. |
-| **iOS** | The iOS build job runs **only when** `env.IOS_CERTIFICATE_B64 != ''` **AND** `env.IOS_PROVISIONING_PROFILE_B64 != ''` (both the base64-encoded iOS signing certificate and the base64-encoded iOS provisioning profile are present). If either is absent, the job **skips**. |
+> **Why a repository variable (`vars.*`) and never `secrets.*` in `if:`:**
+> GitHub Actions forbids referencing the `secrets` context inside `if:`
+> expressions, and job-level `if:` does not have access to the `env` context.
+> Gating at job level with `vars.NATIVE_BUILDS_ENABLED == 'true'` is valid
+> GitHub Actions syntax and cleanly skips the entire runner allocation when
+> native builds are disabled.
 
-In GitHub Actions `if:` expressions, this is expressed as a **conditional job**
-(e.g. `if: ${{ secrets.ANDROID_KEYSTORE_B64 != '' }}` for Android, and
-`if: ${{ secrets.IOS_CERTIFICATE_B64 != '' && secrets.IOS_PROVISIONING_PROFILE_B64 != '' }}`
-for iOS) so that the job is **skipped** (green/skipped) — **not failed** — when
-the secrets are absent.
+| Platform | Job-level gate (`jobs.<id>.if`) | Signing secrets (mapped to step `env:` inside the job) |
+| -------- | ------------------------------- | ------------------------------------------------------ |
+| **Android** | `if: ${{ vars.NATIVE_BUILDS_ENABLED == 'true' }}` | `ANDROID_KEYSTORE_B64` (base64-encoded Android signing keystore; JDK provisioned via full-SHA pinned `actions/setup-java`) |
+| **iOS** | `if: ${{ vars.NATIVE_BUILDS_ENABLED == 'true' }}` | `IOS_CERTIFICATE_B64` and `IOS_PROVISIONING_PROFILE_B64` (base64-encoded iOS signing certificate and provisioning profile; Xcode/keychain configured via runner tooling) |
+
+When `vars.NATIVE_BUILDS_ENABLED` is not `'true'`, both jobs are **skipped**
+(green/skipped, not failed). When enabled, signing secrets are mapped into
+job/step `env:` and consumed by the build steps — never referenced directly in
+an `if:` expression. This matches [build-order.md](build-order.md) identically.
 
 ### Build-only scope
 
@@ -277,7 +286,32 @@ the secrets are absent.
   inspection, but the pipeline's job is **build-only**.
 - This coexists with the **always-run Web / PWA build** in the same CI pipeline:
   the Web build runs regardless of native credentials, and the native builds are
-  skipped when their credentials are absent.
+  skipped when `vars.NATIVE_BUILDS_ENABLED` is not `'true'`.
+
+## Explicitly Skipped / Deferred Testing & Verification Techniques
+
+The following techniques were evaluated and deliberately **not** adopted as MVP
+CI gates:
+
+- **Mutation testing (e.g. Stryker):** Skipped as a blocking PR CI gate for MVP
+  because its runtime and maintenance cost outweigh its value alongside `>= 95%`
+  `src/core/` line/branch coverage. May be added later as an optional nightly
+  (non-blocking) run scoped to `src/core/engine.ts` and `src/core/validate.ts`.
+- **Visual regression testing (screenshot diffs):** Skipped as a CI gate for
+  MVP. WebKit-on-Linux rendering differs from iOS Safari/`WKWebView`, producing
+  flaky pixel diffs whose triage cost outweighs value; layout invariants are
+  enforced deterministically via viewport geometry assertions (`scrollHeight <=
+  window.innerHeight`, `scrollWidth <= window.innerWidth`, `>= 44×44 CSS px`
+  touch targets).
+- **Vitest browser mode:** Skipped for MVP. `src/core/` is pure TypeScript,
+  `src/storage/` is tested against `fake-indexeddb` in Node, and real-browser
+  DOM/rendering behavior is already verified end-to-end by Playwright across
+  Chromium and WebKit against `vite preview`.
+- **Subresource Integrity (SRI):** Skipped. Every runtime asset is same-origin
+  and self-hosted with Vite content-hashed filenames under `default-src 'self'`
+  CSP; SRI only protects third-party-hosted subresources, which are banned by
+  the zero-prod-dep and zero-external-URL rules (see
+  [dependency-strategy.md](dependency-strategy.md)).
 
 ## Headless / CLI Execution Rule (No Hanging Dev Servers)
 
