@@ -87,7 +87,7 @@ Phase 6: Native Shell Packaging (native/ Workspace) & App Store / Play Store Sub
 - **Why This Order (Pillars 1–5 Alignment):** Locks in Pillar 1 (supply-chain hygiene, CSP `connect-src 'none'`, DOM XSS CI ban), Pillar 2 (zero external asset URLs in `dist/`), Pillar 3 (deterministic lockfile, strict TS, CI gates), and Pillar 4 (modern Vite + Vitest + Biome + Playwright toolchain) before feature code begins.
 - **Enforced Security, Privacy & Test Invariants:**
   - `Object.keys(pkg.dependencies ?? {}).length === 0`
-  - `dist/index.html` contains `http-equiv="Content-Security-Policy"`, `connect-src 'none'`, `require-trusted-types-for 'script'`, and `<meta name="referrer" content="no-referrer">` (and omits `frame-ancestors` in `<meta>` so browsers log zero console warnings)
+  - `dist/index.html` contains `http-equiv="Content-Security-Policy"`, `connect-src 'none'`, `require-trusted-types-for 'script'`, `trusted-types sw-register`, and `<meta name="referrer" content="no-referrer">` (and omits `frame-ancestors` in `<meta>` so browsers log zero console warnings)
   - Zero `innerHTML`, `outerHTML`, `insertAdjacentHTML`, `document.write`, or `eval(` in `src/`
   - Zero external `http(s)://` URLs in `dist/`
 - **Executable Verification Gates:**
