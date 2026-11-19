@@ -88,8 +88,15 @@ a minimal, adapter-agnostic filter (e.g. `{ field: 'sourceRuleId', eq: ruleId }`
 
 To guarantee deterministic persistence in v1 and zero-data-loss migrations as post-MVP features ship (see [data-model.md](data-model.md)), `src/storage/indexeddb.ts` enforces an explicit schema and migration contract:
 
-- **Database constants:**
-  - `DB_NAME = "simple-budget-app"`
+- **Database constants & base-path namespacing (origin isolation, OQ-1):**
+  - Because GitHub Pages serves production (`/simple-budget-app/`) and every PR
+    preview (`/simple-budget-app/pr-<N>/`) from the same browser origin
+    (`https://tandyn.github.io`), and IndexedDB is scoped per origin (not per
+    path), the database name MUST be derived from the build's base path
+    (`import.meta.env.BASE_URL`) so previews never open, mutate, or bump
+    `DB_VERSION` on the production database:
+    - Production (`/simple-budget-app/`): `DB_NAME = "simple-budget-app"`
+    - PR preview (`/simple-budget-app/pr-<N>/`): `DB_NAME = "simple-budget-app-pr-<N>"`
   - `DB_VERSION = 1`
 - **Deterministic `onupgradeneeded(event)` migration switch:**
   - Upgrades run sequentially from `event.oldVersion` to `event.newVersion` (or `DB_VERSION`) inside IndexedDB's atomic `versionchange` transaction (`if (oldVersion < 1) { ... }`, `if (oldVersion < 2) { ... }` in future releases).
@@ -106,7 +113,12 @@ To guarantee deterministic persistence in v1 and zero-data-loss migrations as po
      - Compound secondary index **`by_rule_period`** on keyPath `["sourceRuleId", "period"]` (`{ unique: false }`) for O(1) recurring-engine idempotency lookups (`(sourceRuleId, period)`).
 
 ```ts
-export const DB_NAME = "simple-budget-app";
+export function deriveDbName(basePath: string): string {
+  const prMatch = /\/pr-(\d+)\/?$/.exec(basePath);
+  return prMatch ? `simple-budget-app-pr-${prMatch[1]}` : "simple-budget-app";
+}
+
+export const DB_NAME = deriveDbName(import.meta.env.BASE_URL ?? "/simple-budget-app/");
 export const DB_VERSION = 1;
 
 function handleUpgrade(db: IDBDatabase, tx: IDBTransaction, oldVersion: number): void {
@@ -164,8 +176,24 @@ Local-first browser storage must guard against user-agent storage pressure and S
 - **Strict CSP `connect-src 'none'` & App Store / Play Store "Data Not Collected" alignment:**
   - At the document boundary, `index.html` enforces a strict Content Security Policy with `connect-src 'none'` and `form-action 'none'` (see [frontend.md](frontend.md)), guaranteeing at the browser engine level that zero outbound connections can ever be initiated.
   - Because all records reside strictly in on-device IndexedDB (and user-controlled local JSON backup exports) with zero off-device transmission, zero telemetry, and zero third-party SDKs, the app legitimately qualifies for Apple App Store Connect's **"Data Not Collected"** nutrition label and Google Play Console's **"No data shared with third parties" / "No data collected"** Data Safety declaration (see [portability.md](portability.md)).
-- **Isolation** — data is namespaced per browser profile / app instance; one
-  user's budget is not visible to another.
+- **Isolation & shared-origin residual risk (OQ-1 adopted default):**
+  - Data is isolated per browser profile / native app sandbox.
+  - On GitHub Pages project sites, production (`/simple-budget-app/`), PR
+    previews (`/simple-budget-app/pr-<N>/`), and any other repository under
+    `https://tandyn.github.io` share the same browser origin. Deriving the
+    IndexedDB database name (`simple-budget-app` vs `simple-budget-app-pr-<N>`)
+    and CacheStorage names (`sbapp-<buildhash>` vs `sbapp-pr-<N>-<buildhash>`)
+    from `import.meta.env.BASE_URL` prevents accidental cross-contamination or
+    `DB_VERSION` upgrades between previews and production.
+  - **Residual risk & optional upgrade:** Base-path namespacing does **not**
+    prevent an XSS-compromised sibling GitHub Pages repo on
+    `https://tandyn.github.io` from reading same-origin IndexedDB (neither CSP
+    nor a service worker can isolate same-origin IndexedDB). Hosting the
+    production PWA on a **dedicated custom domain** provides true origin
+    isolation and is **recommended-optional, not required** for MVP. Native iOS
+    and Android Capacitor store builds are unaffected because each native app
+    runs in its own isolated WebView origin and OS sandbox (see
+    [frontend.md → Shared-Origin Isolation on GitHub Pages](frontend.md#4-shared-origin-isolation-on-github-pages-oq-1-adopted-default)).
 - **Optional hardening: client-side encryption with WebCrypto**, keyed by a
   user-provided passphrase. This is **deferred** (see
   [resolved MVP defaults](portability.md#resolved-mvp-defaults)) — on-device + no-network

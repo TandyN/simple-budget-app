@@ -90,11 +90,79 @@ constant. This is an **explicit, configurable build decision**:
   - **CSS** `url()` references — rewritten by Vite to the base.
   - **Manifest** — `icons` are base-relative/absolute; `start_url` and `scope` are
     set to the base so install/offline behave under either path.
-  - **Service-worker scope** — registered as
+  - **Service-worker scope** — `sw.js` is emitted at build time by a custom
+    in-repo Vite plugin (not stored as a static file in `public/`) and registered
+    in web/PWA contexts only (never in Capacitor native shells) as
     `navigator.serviceWorker.register(import.meta.env.BASE_URL + 'sw.js', { scope: import.meta.env.BASE_URL })`,
-    so the SW control scope matches the deployed path (a mismatched scope is the
-    most common PR-preview breakage; `BASE_URL` threads it correctly for free).
+    so the SW control scope matches the deployed path. The production SW
+    explicitly bypasses `pr-*` sub-paths (see
+    [Service Worker Design](#service-worker-design-pwa-offline-scoping--update-lifecycle)).
+  - **Storage, cache & channel namespacing** — IndexedDB database names
+    (`simple-budget-app` vs `simple-budget-app-pr-<N>`), CacheStorage names
+    (`sbapp-<buildhash>` vs `sbapp-pr-<N>-<buildhash>`), and `BroadcastChannel`
+    names are derived from `import.meta.env.BASE_URL` so PR previews never share
+    or upgrade the production database or cache (see
+    [Shared-Origin Isolation on GitHub Pages](#4-shared-origin-isolation-on-github-pages-oq-1-adopted-default)).
   - **Index HTML** — `<script src>` / `<link href>` rewritten by Vite to the base.
+
+### Service Worker Design (PWA Offline, Scoping & Update Lifecycle)
+
+Offline caching on the PWA target is delivered by a minimal, zero-dependency
+service worker generated at build time:
+
+1. **Emitted by a custom in-repo Vite plugin (no `public/` static SW, no
+   `vite-plugin-pwa` / Workbox):**
+   - A static file in `public/` is copied verbatim by Vite without substituting
+     `import.meta.env.BASE_URL` or generating a precache manifest of content-hashed
+     chunks.
+   - Instead, a custom in-repo Vite plugin (~40 lines in `vite.config.ts` or
+     `scripts/`) emits `dist/sw.js` during `vite build` with the resolved
+     `VITE_BASE_PATH`, a deterministic `<buildhash>`, and the complete precache
+     asset manifest (`index.html`, hashed JS/CSS chunks, icons, manifest).
+   - **Do NOT use `vite-plugin-pwa` or Workbox:** Workbox bundles third-party
+     runtime code into production, violating the zero-production-dependency
+     invariant (`dependencies: {}`).
+2. **Production SW bypasses `pr-*` paths:**
+   - Because the production SW scope (`/simple-budget-app/`) is a URL prefix of
+     every PR preview (`/simple-budget-app/pr-<N>/`), a naive navigation fallback
+     would intercept preview requests and serve the cached production
+     `index.html`.
+   - The production SW MUST explicitly **bypass / exclude `pr-*` paths**: on
+     every `fetch` event, if running at the production root and
+     `new URL(event.request.url).pathname.startsWith(BASE_URL + "pr-")`, return
+     immediately without calling `event.respondWith(...)` so preview navigations
+     and assets are not intercepted.
+3. **Cache versioning, cleanup, user-accepted `skipWaiting`, and fetch strategy:**
+   - **Versioned cache name:** `sbapp-<buildhash>` for production and
+     `sbapp-pr-<N>-<buildhash>` for PR previews (derived from the base path +
+     build hash so preview and production caches never collide).
+   - **Delete old caches on `activate`:** On `activate`, delete every cache in
+     `caches.keys()` matching this deployment's prefix whose name does not equal
+     the active cache name (leaving sibling preview/production caches untouched).
+   - **User-accepted `skipWaiting`:** Do **not** call `self.skipWaiting()`
+     silently during `install` — swapping the controller mid-edit risks
+     inconsistent UI or schema state. When a new SW enters the `waiting` state,
+     the UI displays an accessible **"Update available"** banner; only after the
+     user accepts does the page post `{ type: "SKIP_WAITING" }` to the waiting
+     worker, which then calls `self.skipWaiting()` and triggers a clean reload
+     on `controllerchange`.
+   - **Fetch strategy:** **Network-first for navigations**
+     (`event.request.mode === "navigate"`) with cached app-shell fallback when
+     offline; cache-first for content-hashed static assets.
+4. **Do not register in Capacitor native shells:**
+   - Registration is gated at runtime so the SW is **only** registered in
+     web/PWA browser contexts (e.g.
+     `"serviceWorker" in navigator && !("Capacitor" in window)`), **never** in
+     iOS or Android Capacitor native shells where bundled assets are already
+     local and WKWebView SW support is limited/unavailable.
+5. **SW CSP limitation & same-origin guard (compensating control):**
+   - A document-level `<meta http-equiv="Content-Security-Policy">` tag does
+     **not** govern `ServiceWorkerGlobalScope`; applying CSP to a service worker
+     script requires HTTP response headers, which GitHub Pages cannot set.
+   - Therefore, the strict same-origin guard on every `fetch` event inside
+     `sw.js` (`new URL(event.request.url).origin === self.location.origin`,
+     rejecting any cross-origin request immediately) is the **compensating
+     control** enforcing zero egress inside the worker scope.
 
 ## Zero production dependencies (req 1)
 
@@ -366,33 +434,65 @@ automatic cloud sync (iCloud Drive / a server) is **out of MVP scope**.
 
 Because the frontend is a zero-framework vanilla TypeScript application handling
 personal financial records across the PWA, iOS `WKWebView`, and Android
-`Chromium` WebView, three hard security and privacy guardrails are enforced from
+`Chromium` WebView, four hard security and privacy guardrails are enforced from
 commit #1:
 
 ### 1. Strict Content Security Policy (`index.html`)
 
 Every build (`index.html` → `dist/index.html`) MUST include the following strict
-Content Security Policy `<meta>` tag in `<head>`:
+Content Security Policy and Referrer Policy `<meta>` tags in `<head>`:
 
 ```html
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'; worker-src 'self'; manifest-src 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'; worker-src 'self'; manifest-src 'self'; require-trusted-types-for 'script'">
+<meta name="referrer" content="no-referrer">
 ```
 
-- **Why `frame-ancestors` is omitted from `<meta>`:** Per W3C Content Security
-  Policy Level 3 §6.2 (`meta` element delivery), browsers ignore the
-  `frame-ancestors` directive inside `<meta http-equiv="Content-Security-Policy">`
-  elements and emit a console warning. Omitting `frame-ancestors` from `<meta>`
-  keeps `<meta>` 100% standards-compliant and avoids tripping our zero-console-warning
-  Playwright E2E gate (see [testing.md](testing.md)).
+- **Trusted Types (`require-trusted-types-for 'script'`) — defense-in-depth:**
+  `require-trusted-types-for 'script'` is valid inside `<meta>` CSP and acts as
+  browser-enforced defense-in-depth on top of our DOM XSS ban (below). Because
+  `src/` already prohibits HTML-parsing DOM sinks (`innerHTML`, `outerHTML`,
+  `insertAdjacentHTML`, `document.write`) and never creates a Trusted Types
+  policy, any accidental sink invocation is blocked by the browser engine at
+  runtime (supported in Chromium, with Safari/Firefox support landing 2025–2026).
+- **Referrer Policy (`no-referrer`):** `<meta name="referrer" content="no-referrer">`
+  prevents leaking deployment paths (including `pr-<N>/` preview URLs) or origin
+  information in `Referer` headers on any navigation.
+- **Why `frame-ancestors` is omitted from `<meta>` + clickjacking frame-buster
+  (accepted residual risk):** Per W3C Content Security Policy Level 3 §6.2
+  (`meta` element delivery), browsers ignore `frame-ancestors` inside
+  `<meta http-equiv="Content-Security-Policy">` and emit a console warning; and
+  GitHub Pages does not support custom HTTP response headers (`X-Frame-Options`
+  or HTTP `frame-ancestors 'none'`). Omitting `frame-ancestors` from `<meta>`
+  keeps `<meta>` standards-compliant and preserves our zero-console-warning
+  Playwright E2E gate (see [testing.md](testing.md)). As a compensating
+  clickjacking mitigation, `src/main.ts` includes a minimal 3-line
+  **`top !== self` frame-buster** at bootstrap:
+  ```ts
+  if (window.top !== window.self) {
+    document.documentElement.replaceChildren();
+    throw new Error("Framing is not permitted");
+  }
+  ```
+  **Accepted residual risk:** a malicious framing page using `<iframe sandbox>`
+  without `allow-top-navigation` can prevent top-level breakout, though refusing
+  to mount or render budget data neutralizes UI redressing. Hosting on a custom
+  reverse proxy that sends HTTP `Content-Security-Policy: frame-ancestors 'none'`
+  or using the native Capacitor shells eliminates this residual risk completely.
 - **Document & Service Worker zero-egress enforcement:** `connect-src 'none'` and
   `form-action 'none'` block all document-context network egress (`fetch`,
   `XMLHttpRequest`, `WebSocket`, `EventSource`, `navigator.sendBeacon`, and form
-  submissions) at the browser engine level. For offline asset caching on the PWA
-  target (`worker-src 'self'`), the same-origin service worker (`sw.js`) runs in
-  `ServiceWorkerGlobalScope` and additionally enforces a strict same-origin guard
-  on every `fetch` event:
-  `new URL(event.request.url).origin === self.location.origin` (rejecting any
-  cross-origin request immediately).
+  submissions) at the browser engine level. Because `<meta>` CSP does not govern
+  `ServiceWorkerGlobalScope` (and GitHub Pages cannot set HTTP headers on
+  `sw.js`), the plugin-emitted service worker enforces a strict same-origin guard
+  on every `fetch` event
+  (`new URL(event.request.url).origin === self.location.origin`, rejecting any
+  cross-origin request immediately) as the compensating control (see
+  [Service Worker Design](#service-worker-design-pwa-offline-scoping--update-lifecycle)).
+- **Why Subresource Integrity (SRI) is not needed:** Every runtime asset is
+  same-origin and self-hosted with Vite content-hashed filenames under
+  `default-src 'self'` CSP; SRI only protects third-party-hosted subresources,
+  which are banned by the zero-prod-dep and zero-external-URL rules (see
+  [testing.md → Explicitly Skipped](testing.md#explicitly-skipped--deferred-testing--verification-techniques)).
 
 ### 2. DOM XSS Ban (Safe DOM APIs Only)
 
@@ -425,6 +525,35 @@ leakage to third-party font or asset servers; see
   created via `document.createElementNS("http://www.w3.org/2000/svg", ...)` or
   local static assets bundled inside `public/` / `dist/`. Zero external
   stylesheets, scripts, fonts, or images (`https://...`) are ever referenced.
+
+### 4. Shared-Origin Isolation on GitHub Pages (OQ-1 Adopted Default)
+
+On GitHub Pages project sites, production (`https://tandyn.github.io/simple-budget-app/`),
+every PR preview (`https://tandyn.github.io/simple-budget-app/pr-<N>/`), and any
+other GitHub Pages repository published under `tandyn.github.io` share the **same
+browser origin** (`https://tandyn.github.io`). IndexedDB, CacheStorage, and
+`BroadcastChannel` are scoped **per origin, not per path** — neither CSP nor a
+service worker can isolate same-origin storage. Without namespacing, a PR preview
+that bumps `DB_VERSION` would upgrade the production IndexedDB database in the
+developer's browser, or overwrite production records.
+
+- **Adopted default (OQ-1) — base-path namespacing:** Derive IndexedDB database
+  names (`simple-budget-app` for `/simple-budget-app/` vs
+  `simple-budget-app-pr-<N>` for `/simple-budget-app/pr-<N>/`), CacheStorage
+  names (`sbapp-<buildhash>` vs `sbapp-pr-<N>-<buildhash>`), and
+  `BroadcastChannel` names (`simple-budget-sync` vs
+  `simple-budget-sync-pr-<N>`) from `import.meta.env.BASE_URL` so PR previews
+  never share or mutate production storage or caches (see
+  [storage.md → IndexedDB Schema Versioning, Indexes & Migration Strategy](storage.md#indexeddb-schema-versioning-indexes--migration-strategy)).
+- **Documented residual risk:** Base-path namespacing eliminates accidental
+  cross-contamination between production and `pr-<N>/` previews, but does **not**
+  prevent an XSS-compromised sibling GitHub Pages repository hosted under
+  `https://tandyn.github.io` from reading same-origin IndexedDB.
+- **Recommended-optional upgrade (custom domain):** Hosting the production PWA
+  on a **dedicated custom domain** provides true browser origin isolation; this
+  is **recommended-optional, not required** for MVP. Native iOS and Android
+  Capacitor store builds are unaffected because each native app runs inside its
+  own isolated WebView origin and OS sandbox.
 
 ## Accessibility (WCAG 2.2 AA) & Multi-Tab State Synchronization
 
@@ -463,9 +592,12 @@ When a user has the PWA open in multiple browser tabs or windows on the same
 origin, mutations in one tab must immediately reflect in sibling tabs without
 requiring a manual page reload:
 
-- **Channel name:** `new BroadcastChannel("simple-budget-sync")` (feature-detected
-  via `typeof BroadcastChannel !== "undefined"` so environments without it degrade
-  gracefully).
+- **Channel name:** derived from `import.meta.env.BASE_URL` —
+  `"simple-budget-sync"` on production (`/simple-budget-app/`) and
+  `"simple-budget-sync-pr-<N>"` on PR previews (`/simple-budget-app/pr-<N>/`) —
+  opened via `new BroadcastChannel(channelName)` (feature-detected via
+  `typeof BroadcastChannel !== "undefined"` so environments without it degrade
+  gracefully) so preview tabs never trigger refreshes in production tabs.
 - **Publish on commit:** Whenever a local state-mutating `BudgetApi` call commits
   (`addRule`, `editRule`, `deleteRule`, `addActivity`, `editActivity`,
   `deleteActivity`, `runRecurringEngine`, or `importBackup`), the active tab
