@@ -23,16 +23,17 @@ interface Activity {
   currency: string;
   dateTime: string;      // defaults to "now" at creation, always editable
   tags: string[];
-  source: "manual" | "recurring" | "bank-sync";
-  sourceRuleId?: string; // present iff source === "recurring"
-  period?: string;       // present iff source === "recurring"
-  externalTxnId?: string;// reserved for a future bank-sync project (re-sync dedupe key)
-  sourceAccountId?: string; // reserved for a future bank-sync project (linked account)
+  source: "manual" | "recurring" | "file-import" | "bank-sync";
+  sourceRuleId?: string;   // present iff source === "recurring"
+  period?: string;         // present iff source === "recurring"
+  importBatchId?: string;  // reserved for local CSV/OFX/QFX file import (groups rows from one import batch)
+  externalTxnId?: string;  // reserved dedupe key (OFX/QFX FITID, CSV content hash, or bank-feed txn id)
+  sourceAccountId?: string;// reserved account label / future linked account id
   memo?: string;
   createdAt: string;
   updatedAt: string;
-  deletedAt?: string;    // reserved for future E2EE sync tombstones (unused in MVP)
-  deviceId?: string;     // reserved for future E2EE sync origin attribution (unused in MVP)
+  deletedAt?: string;      // reserved for future E2EE sync tombstones (unused in MVP; MVP hard-deletes)
+  deviceId?: string;       // reserved for future E2EE sync origin attribution (unused in MVP)
 }
 ```
 
@@ -40,6 +41,14 @@ interface Activity {
 - **`source: "recurring"`** → the engine generated it. Carries `sourceRuleId`
   (which rule) and `period` (which period it was posted for). See
   [recurring-engine.md](recurring-engine.md).
+- **`source: "file-import"`** *(post-MVP, first-class privacy-preserving seam)* →
+  imported locally from a user-supplied CSV, OFX, or QFX statement. Carries
+  `importBatchId` (for batch audit/rollback) and `externalTxnId` (native
+  OFX/QFX `FITID` or a deterministic CSV content hash) for idempotent
+  deduplication, with zero network egress.
+- **`source: "bank-sync"`** *(reserved)* → reserved for opt-in SimpleFIN Bridge
+  or a separate future bank-aggregator project (which re-opens Pillar 2; see
+  [data-model.md → Privacy-Label Impact and Sync Tradeoffs](data-model.md#privacy-label-impact-and-sync-tradeoffs)).
 
 Because they share one record type, the UI, the query layer, and the Available
 Funds calculation all treat them identically. There is no "recurring table" vs.
@@ -92,7 +101,7 @@ surface is identical:
 | `dateTime` | yes | back-date or forward-date |
 | `tags` | yes | add / remove any |
 | `memo` | yes | free text |
-| `source`, `sourceRuleId`, `period` | no | provenance is fixed at creation; an edit never re-attributes origin |
+| `source`, `sourceRuleId`, `period`, `importBatchId`, `externalTxnId`, `sourceAccountId` | no | provenance & dedupe keys are fixed at creation/import; an edit never re-attributes origin |
 
 Consequences that fall out of this design:
 
@@ -105,8 +114,13 @@ Consequences that fall out of this design:
   fields → set `updatedAt = now` → `adapter.save("activities", activity)`. No
   special cases for "manual" vs. "recurring".
 - **Deletion** is a first-class operation on any activity (manual or recurring),
-  `adapter.delete("activities", id)`. Deleting a recurring-generated `Activity`
-  removes that record from the activity log and does *not* re-post it: because
+  `adapter.delete("activities", id)`. In the MVP, deletion **hard-deletes** the
+  record from IndexedDB; optional `deletedAt?` and `deviceId?` fields are
+  reserved on `Activity` and `RecurringRule` so a future E2EE multi-device sync
+  layer can switch to soft-delete tombstones without migrating v1 records (see
+  [data-model.md → Post-MVP Extensibility & Growth Seams](data-model.md#post-mvp-extensibility-growth-seams)).
+  Deleting a recurring-generated `Activity` removes that record from the activity
+  log and does *not* re-post it: because
   `rule.lastPostPeriod` already advanced past that period when it was originally
   posted, `missingPeriods` (which enumerates `(rule.lastPostPeriod, period(now)]`,
   starting from `nextMonth(rule.lastPostPeriod)`) never re-enumerates that period

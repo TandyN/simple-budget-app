@@ -477,16 +477,35 @@ Before submitting the iOS or Android native shell to Apple App Store Connect or 
 
 These three design questions have locked-in **MVP defaults** so engineering tasks never block waiting for product-owner sign-off. Alternative approaches are documented as future options.
 
-### A. Client-side encryption — in scope for the MVP or deferred?
+### A. Client-side encryption, encrypted backups, and app lock — in scope for the MVP or deferred?
 
-- **Recommendation: defer.** "Purely locally and securely" is already satisfied
-  by on-device storage + **zero network egress** (see [storage.md](storage.md)).
-- If in scope, it is a **WebCrypto** field-level encryption layer keyed by a
-  user passphrase, slotted in behind the same `StorageAdapter` interface — no
-  rewrite of the engine or data model.
+- **Recommendation: defer at-rest IndexedDB encryption from the MVP; require
+  passphrase-encrypted backup export (and optional native biometric app lock)
+  before the first App Store / Play Store release (Phase 6).**
+  - **MVP:** "Purely locally and securely" is satisfied for the MVP by on-device
+    IndexedDB + **zero network egress (`connect-src 'none'`)** plus the
+    pre-import confirm dialog and automatic pre-import safety snapshot (see
+    [storage.md](storage.md)).
+  - **Pre-store-release gate (post-MVP, Phase 6):** Plaintext JSON exports
+    stored in iCloud Drive / Google Drive expose full financial history. Before
+    store submission, add **passphrase-encrypted backup export** using WebCrypto
+    **AES-256-GCM** (`AES-GCM`) + **PBKDF2-HMAC-SHA256** (`>= 600,000`
+    iterations) in the versioned envelope
+    `{ schemaVersion, enc: { alg, kdf, iter, salt, iv }, ciphertext }` (see
+    [data-model.md → Post-MVP Encrypted Backup Envelope](data-model.md#post-mvp-encrypted-backup-envelope-store-release-gate)),
+    paired with an **optional native biometric app lock** (iOS Face ID / Touch ID
+    and Android `BiometricPrompt`, native shell only — also strengthens Apple
+    Guideline 4.2 compliance).
+  - **Deferred future options:** Full at-rest IndexedDB encryption (WebCrypto
+    behind `StorageAdapter`) and **E2EE multi-device sync** (user-held key over
+    the reserved `deletedAt?` / `deviceId?` tombstone slots; privacy label
+    unaffected only if no developer-readable plaintext is ever collected — see
+    [data-model.md → Privacy-Label Impact and Sync Tradeoffs](data-model.md#privacy-label-impact-and-sync-tradeoffs))
+    remain deferred and require no v1 data-model rewrite.
 - **Why it's a decision:** encryption changes the UX (passphrase prompt, key
-  recovery if forgotten) and the threat model. It does not change the data shape
-  or the API surface, so deferring it costs nothing structurally.
+  recovery if forgotten) and the threat model. Separating MVP plaintext local
+  storage from the pre-store encrypted-backup gate keeps the MVP small while
+  protecting store users' exported files.
 - **MVP status: RESOLVED.** Use the recommended default above for the MVP; do not block implementation tickets on this item.
 
 ### B. Is `deposit` a first-class type, or an income-type Activity with a tag?
