@@ -30,10 +30,10 @@ README.md  (you are here — what this is, MVP scope, links, out-of-scope)
     ├── recurring-engine.md     — how recurring income/expense auto-posts (idempotent, short-month Date.UTC clamping)
     ├── activity-model.md       — the unified, editable Activity record + insights/search
     ├── frontend.md             — the UI surface (zero-prod-dep static bundle, iPhone-Duo foldable viewport, configurable base path, strict CSP & DOM XSS ban)
-    ├── portability.md          — one bundle / three webview targets boundary + shared BudgetApi + App Store / Play Store "Data Not Collected" privacy compliance
-    ├── dependency-strategy.md  — zero prod deps + the well-maintained dev-dep & CI-action set + strict tsconfig & supply-chain hardening (Story #21 / #153)
+    ├── portability.md          — one bundle / three webview targets, native/ package boundary + PlatformServices seam, App Store / Play Store privacy & Store Submission Checklist
+    ├── dependency-strategy.md  — zero prod deps in web bundle (native/ isolated for Phase 6) + well-maintained dev-dep & CI-action set + strict tsconfig & supply-chain hardening (Story #21 / #153)
     ├── testing.md              — Testing & CI/CD strategy (unit, integration, E2E, >= 95% core coverage, zero-egress E2E gate, mode-(a) PR preview, credential-gated builds)
-    └── build-order.md          — MVP Execution & Build Order (5-phase implementation sequence, verification gates, and 5-pillar cross-reference matrix)
+    └── build-order.md          — MVP Execution & Build Order (5-phase PWA MVP + Phase 6 native shell & store submission, verification gates, and 5-pillar cross-reference matrix)
 ```
 
 Read in this order for a first pass: **data-model → storage →
@@ -70,28 +70,40 @@ where the boundary matters.
   [frontend.md → security & privacy guardrails](frontend.md#security-privacy-guardrails),
   [data-model.md → BudgetBackup validation](data-model.md#versioned-budgetbackup-schema-hardened-import-validation),
   and [storage.md → atomic backup restoration](storage.md#atomic-backup-restoration-replaceall).
-- **App Store & Play Store "Data Not Collected" privacy compliance (Pillar 2)**:
-  100% on-device IndexedDB storage, zero third-party analytics/telemetry/crash
+- **App Store & Play Store "Data Not Collected" privacy compliance & store submission (Pillar 2)**:
+  100% on-device storage (IndexedDB for the MVP PWA, durable native store gate
+  OQ-4 before store submission), zero third-party analytics/telemetry/crash
   SDKs, and zero remote fonts/CDNs/icons qualify the app for Apple App Store
   Connect **"Data Not Collected"** and Google Play Console **"No data shared / No
-  data collected"** declarations, backed by the iOS
-  `ios/App/App/PrivacyInfo.xcprivacy` required-reason API manifest (`CA92.1`,
-  preventing `ITMS-91053`), Android permissions hygiene, Capacitor WebView
-  navigation lock (`allowNavigation: []`), and an automated Playwright E2E
-  `context.on("request")` zero-external-egress assertion. See
-  [portability.md → App Store & Play Store privacy compliance](portability.md#app-store-play-store-privacy-compliance-data-not-collected)
+  data collected"** declarations, backed by iOS `ITSAppUsesNonExemptEncryption=false`,
+  `native/ios/App/App/PrivacyInfo.xcprivacy` derived from Xcode's Privacy Report
+  (preventing `ITMS-91053`), Android `allowBackup="false"` + `dataExtractionRules`
+  excluding `cloud-backup` and `device-transfer` (OQ-3) + `AD_ID` removal,
+  `native/capacitor.config.ts` WebView hardening (`allowNavigation: []`,
+  `WKAppBoundDomains` pairing), a Store Submission Checklist (privacy policy URL,
+  Guideline 4.2 mitigation, Play Financial features declaration, Data safety form,
+  closed-test check), and an automated Playwright E2E `context.on("request")`
+  zero-external-egress assertion. See
+  [portability.md → App Store & Play Store privacy compliance](portability.md#app-store-play-store-privacy-compliance-data-not-collected),
+  [portability.md → Store Submission Checklist](portability.md#store-submission-checklist-phase-6),
   and [testing.md → mandatory Playwright E2E scenarios](testing.md#4-mandatory-playwright-e2e-security-privacy-viewport-scenarios-e2espects).
-- **Zero production dependencies**: the app (backend *and* frontend) uses only
-  Web-platform APIs (IndexedDB, WebCrypto, `fetch`, `Date`/`Intl`, `crypto.randomUUID`,
-  pure TS logic). `package.json` `dependencies` is empty — see
-  [dependency-strategy.md](dependency-strategy.md).
+- **Zero production dependencies (web bundle) & `native/` package boundary**:
+  the root web bundle package (backend *and* frontend) uses only Web-platform
+  APIs (IndexedDB, WebCrypto, `fetch`, `Date`/`Intl`, `crypto.randomUUID`, pure
+  TS logic), keeps `package.json` `dependencies: {}`, and never imports
+  `@capacitor/*`. Phase 6 Capacitor wrappers and native plugins live in an
+  isolated `native/` workspace package (`native/package.json`), reached from the
+  web bundle solely via runtime `window.Capacitor` detection in
+  `PlatformServices` (`saveBackup`, `shareBackup`, `isNative`) — see
+  [dependency-strategy.md](dependency-strategy.md) and
+  [portability.md → Package boundary & `PlatformServices` seam](portability.md#package-boundary--platformservices-seam).
 - **Cross-platform static bundle (one artifact, no per-platform build)**: the
   build output is a single **static web bundle** (`vite build` → `dist/`) with an
-  **empty `dependencies`**, and the **identical artifact** is served on **all
-  phones** — the PWA (GitHub Pages) now and the iOS (WebKit) + Android (Chromium)
-  Capacitor shells later. There is **no per-platform bundle, build flag, or code
-  path** — cross-platform = the same web artifact on all devices; the only
-  platform-specific surface is the Capacitor shell. See
+  **empty web-package `dependencies`**, and the **identical artifact** is served
+  on **all phones** — the PWA (GitHub Pages) now and the iOS (WebKit) + Android
+  (Chromium) Capacitor shells in `native/` later. There is **no per-platform
+  bundle and no per-platform build flag** — cross-platform = the same web
+  artifact on all devices, with native shell packaging isolated in `native/`. See
   [portability.md → what this buys](portability.md#what-this-buys) and
   [frontend.md → zero production dependencies](frontend.md#zero-production-dependencies-req-1).
 - **Well-maintained dev-dep set & supply-chain hardening (Pillar 3)**: the
@@ -153,13 +165,14 @@ where the boundary matters.
 - **UTC-stored, local-TZ display** (req 7): the backend stores ISO-8601 UTC
   instants; the frontend renders them in the user's local timezone via
   `Intl.DateTimeFormat`. See [frontend.md → time display](frontend.md#time-timezone-display-req-7).
-- **5-Phase MVP execution & build order**: a sequenced 5-phase implementation
-  blueprint (Phase 1: Toolchain, Security/CSP & CI Gate Bootstrap → Phase 2:
-  Pure Core Domain, Validation, Recurring Engine & Insights → Phase 3: IndexedDB
-  Storage Layer & `BudgetApi` → Phase 4: Zero-Prod-Dep Frontend UI, iPhone-Duo
-  Layout & Base-Path PWA Service Worker → Phase 5: Playwright E2E Suite,
-  Zero-Egress Audit Gates & Mode-(a) Pages Deploy) with executable verification
-  gates at every phase. See [build-order.md](build-order.md).
+- **Execution & build order (5-Phase PWA MVP + Phase 6 Native Shell & Store Submission)**:
+  a sequenced implementation blueprint (Phase 1: Toolchain, Security/CSP & CI Gate
+  Bootstrap → Phase 2: Pure Core Domain, Validation, Recurring Engine & Insights →
+  Phase 3: IndexedDB Storage Layer & `BudgetApi` → Phase 4: Zero-Prod-Dep Frontend
+  UI, iPhone-Duo Layout & Base-Path PWA Service Worker → Phase 5: Playwright E2E
+  Suite, Zero-Egress Audit Gates & Mode-(a) Pages Deploy → Phase 6: Native Shell
+  Packaging (`native/` workspace) & App Store / Play Store Submission) with
+  executable verification gates at every phase. See [build-order.md](build-order.md).
 
 ## Per-area docs
 
