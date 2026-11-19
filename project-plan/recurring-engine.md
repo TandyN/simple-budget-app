@@ -297,7 +297,7 @@ record from the activity log and Available Funds immediately reflects the remova
     compute recurring-activity membership from `Activity.period` where
     `source === "recurring"` (falling back to `dateTime` for non-recurring
     activities), preventing timezone-boundary misattribution (see
-    [activity-model.md → Insights / search](activity-model.md#insights-search)).
+    [activity-model.md → Insights / search](activity-model.md#insights--search)).
   - **Accepted residual (UTC+12..+14):** For users in UTC+12 to UTC+14 (e.g.,
     New Zealand, Fiji, Kiribati), `12:00:00Z` renders as `00:00–02:00` of the
     following local day. This is an accepted MVP residual; if exact

@@ -29,14 +29,14 @@ frontend's job is to **collect input, render derived values, and call the
 |---|-------------|-----------------|---------|
 | 1 | Zero production dependencies | zero-prod-dep shell; `dependencies: {}` | [Zero production dependencies](#zero-production-dependencies-req-1) |
 | 2 | Deployable on PWA / iOS / Android | PWA first-class; iOS (primary) + Android via portability model | [Platforms](#platforms-req-2) |
-| 3 | Local-only storage / backup | manual JSON export/import; no server | [Export / backup](#export-backup-req-3) |
-| 4 | Fast 5-year tag analysis / insights | tag-based search + rollup rendered from the backend surface | [Search / insights](#search-insights-reqs-4-9) |
-| 5 | Recurring income/expense (default 1st, configurable) | "set recurring" form; day configurable | [Recurring income/expense](#recurring-income-expense-req-5) |
-| 6 | Add expenses and deposits | entry form (manual income / expense / deposit) | [Add an expense / deposit / income](#add-an-expense-deposit-income-req-6) |
-| 7 | UTC-stored, local-timezone display | render `dateTime` (stored UTC) in the user's local TZ | [Time display](#time-timezone-display-req-7) |
-| 8 | Modify any transaction, tags, backdate | edit form for every field; add/remove tags | [Edit / backdate / tags](#edit-backdate-tags-req-8) |
-| 9 | Search / filter by period + tag | search UI over period + tag + type | [Search / insights](#search-insights-reqs-4-9) |
-| 10 | Store cents as integer | UI renders integer `amountCents` as decimal only at the display boundary | [Money](#money-integer-cents-req-10) |
+| 3 | Local-only storage / backup | manual JSON export/import; no server | [Export / backup](#export--backup-req-3) |
+| 4 | Fast 5-year tag analysis / insights | tag-based search + rollup rendered from the backend surface | [Search / insights](#search--insights-reqs-4--9) |
+| 5 | Recurring income/expense (default 1st, configurable) | "set recurring" form; day configurable | [Recurring income/expense](#recurring-income--expense-req-5) |
+| 6 | Add expenses and deposits | entry form (manual income / expense / deposit) | [Add an expense / deposit / income](#add-an-expense--deposit--income-req-6) |
+| 7 | UTC-stored, local-timezone display | render `dateTime` (stored UTC) in the user's local TZ | [Time display](#time--timezone-display-req-7) |
+| 8 | Modify any transaction, tags, backdate | edit form for every field; add/remove tags | [Edit / backdate / tags](#edit--backdate--tags-req-8) |
+| 9 | Search / filter by period + tag | search UI over period + tag + type | [Search / insights](#search--insights-reqs-4--9) |
+| 10 | Store cents as integer | UI renders integer `amountCents` as decimal only at the display boundary | [Money](#money-integer-cents--req-10) |
 
 ## Platforms (req 2)
 
@@ -82,7 +82,7 @@ constant. This is an **explicit, configurable build decision**:
   same production site. The per-PR preview deploy flow (plain `git` publishing
   to `pr-<PR#>/` on the `gh-pages` branch via `GITHUB_TOKEN`, production root
   untouched, `git rm -rf pr-<PR#>/` on close) lives in
-  [testing.md → CI deploy & preview](testing.md#ci-deploy-preview-github-pages).
+  [testing.md → CI deploy & preview](testing.md#ci-deploy--preview-github-pages).
 - **Asset-path correctness (holds for both paths):** because the base is threaded
   through at build, every consumer resolves under **either** `/simple-budget-app/`
   **or** `/simple-budget-app/pr-<PR#>/`:
@@ -214,7 +214,7 @@ tooling (Vite, Vitest, Biome, tsc, Playwright) lives in `devDependencies` and is
 > **Guardrail (inherited):** a PR that introduces a production dependency —
 > including a frontend framework runtime dep — requires an explicit justification
 > and senior-software-engineer sign-off (see
-> [dependency-strategy.md → guardrails](dependency-strategy.md#guardrails-enforce-in-ci-review)).
+> [dependency-strategy.md → guardrails](dependency-strategy.md#guardrails-enforce-in-ci--review)).
 
 This is why the "no React/Vue in production" reading of the user's "shouldn't need
 any additional packages in production" ask is coherent: the UI is plain TS/HTML
@@ -295,9 +295,9 @@ An **entry form** that creates a manual `Activity` via `budget.addActivity(...)`
   Recurring rules are `income | expense` only; `deposit` is entered here as a
   manual transaction.
 - **Amount:** a decimal-unit input (`$1,234.56`) that the boundary converts to the
-  canonical integer `amountCents` (see [Money](#money-integer-cents-req-10)).
-- **Date/time:** optional; defaults to "now" (see [Time display](#time-timezone-display-req-7)).
-- **Tags / category:** free-form tag input (see [Edit / backdate / tags](#edit-backdate-tags-req-8)).
+  canonical integer `amountCents` (see [Money](#money-integer-cents--req-10)).
+- **Date/time:** optional; defaults to "now" (see [Time display](#time--timezone-display-req-7)).
+- **Tags / category:** free-form tag input (see [Edit / backdate / tags](#edit--backdate--tags-req-8)).
 - **Currency:** ISO-4217, default USD.
 - **Provenance:** `source: "manual"` is set by the API; the form never edits it.
 
@@ -335,7 +335,7 @@ provenance):
 |-------|----------|-------|
 | `type` | yes | e.g. reclassify an auto-posted expense as `deposit` |
 | `amountCents` | yes | decimal-unit input → integer cents |
-| `dateTime` | yes | **backdate** or forward-date (see [Time display](#time-timezone-display-req-7)) |
+| `dateTime` | yes | **backdate** or forward-date (see [Time display](#time--timezone-display-req-7)) |
 | `tags` | yes | **add / remove any** free-form tags / categories |
 | `memo` | yes | free text |
 | `source`, `sourceRuleId`, `period`, `createdAt`, `updatedAt` | **no** | provenance + system fields, not user-set |
@@ -354,7 +354,7 @@ The frontend renders the **backend's insights/search surface** — it does not
 compute or store any aggregate. It calls `budget.searchActivities(filter)` to
 filter and `budget.summarizeByTag(activities)` to roll up, both pure and derived
 from the activity log (integer cents, plain data). The contract lives in
-[activity-model.md → insights / search](activity-model.md#insights-search) and the
+[activity-model.md → insights / search](activity-model.md#insights--search) and the
 `BudgetApi` in [portability.md → the public API](portability.md#the-public-api-what-the-front-end-calls).
 
 The UI offers **search / filter** over the **period + tag + type** predicates
@@ -407,7 +407,7 @@ backend**:
 - **Never** does the UI perform money arithmetic or store a decimal. Available
   Funds, tag rollups, and the engine all operate on integer `amountCents` in the
   backend — see [data-model.md → derived values](data-model.md#derived-values-never-stored)
-  and [activity-model.md → available funds](activity-model.md#available-funds-derived-from-the-activity-log).
+  and [activity-model.md → available funds](activity-model.md#available-funds--derived-from-the-activity-log).
 
 ## Export / backup (req 3)
 
@@ -416,7 +416,7 @@ server**, wired directly to the `BudgetApi` backup methods:
 
 - **Export (`budget.exportBackup()`):** calls `await budget.exportBackup()` to
   produce a versioned `BudgetBackup` envelope (`{ schemaVersion: 1, exportedAt, rules, activities }`,
-  see [data-model.md → Versioned `BudgetBackup` Schema & Hardened Import Validation](data-model.md#versioned-budgetbackup-schema-hardened-import-validation))
+  see [data-model.md → Versioned `BudgetBackup` Schema & Hardened Import Validation](data-model.md#versioned-budgetbackup-schema--hardened-import-validation))
   and serializes it to a downloadable `.json` file (or via the **File System
   Access API**) that the user can save locally (e.g. to Files / iCloud Drive /
   Google Drive) or copy off-device.

@@ -66,7 +66,7 @@ Funds calculation all treat them identically. There is no "recurring table" vs.
   future enhancement that does not change the data shape.
 - Tags power the **insights/search surface** in the MVP: query activities by
   date range + tag + type, and roll up spend/income **by tag**. See
-  [Insights / search](#insights-search).
+  [Insights / search](#insights--search).
 
 ## Timestamps: default to "now", always editable
 
@@ -118,7 +118,7 @@ Consequences that fall out of this design:
   record from IndexedDB; optional `deletedAt?` and `deviceId?` fields are
   reserved on `Activity` and `RecurringRule` so a future E2EE multi-device sync
   layer can switch to soft-delete tombstones without migrating v1 records (see
-  [data-model.md → Post-MVP Extensibility & Growth Seams](data-model.md#post-mvp-extensibility-growth-seams)).
+  [data-model.md → Post-MVP Extensibility & Growth Seams](data-model.md#post-mvp-extensibility--growth-seams)).
   Deleting a recurring-generated `Activity` removes that record from the activity
   log and does *not* re-post it: because
   `rule.lastPostPeriod` already advanced past that period when it was originally
@@ -250,7 +250,7 @@ on the `BudgetApi` public surface
 
 Because `searchActivities` and `summarizeByTag` are pure functions over plain
 `Activity` arrays in integer cents, post-MVP analytics and budgeting extensions
-([data-model.md → Post-MVP Extensibility & Growth Seams](data-model.md#post-mvp-extensibility-growth-seams))
+([data-model.md → Post-MVP Extensibility & Growth Seams](data-model.md#post-mvp-extensibility--growth-seams))
 compose directly with them without changing the MVP contract:
 
 - **Time-series period bucketing (`summarizeByPeriod`):** A post-MVP

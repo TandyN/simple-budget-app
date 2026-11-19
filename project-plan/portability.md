@@ -204,7 +204,7 @@ interface BudgetApi {
 - **`ActivityFilter`** (used by `listActivities`) is the **optional** filter for
   listing activities — the same intersecting `since` / `until` / `tag` / `type`
   predicates as **`ActivitySearchFilter`** (see
-  [activity-model.md → Insights / search](activity-model.md#insights-search)),
+  [activity-model.md → Insights / search](activity-model.md#insights--search)),
   aliased so the two are the same shape. Pass `undefined` to list all activities
   unbounded; the full `searchActivities` surface is the dedicated insights/search
   entry point.
@@ -220,7 +220,7 @@ interface BudgetApi {
   **insights/search surface**: filter activities by intersecting
   date-range + tag + type, and roll up money in / out by tag. Both are pure and
   derived from the log (integer cents, plain data) — see
-  [activity-model.md → Insights / search](activity-model.md#insights-search).
+  [activity-model.md → Insights / search](activity-model.md#insights--search).
 - **`exportBackup()` / `importBackup(json)`** provide local JSON backup export
   and atomic restore. `exportBackup()` returns a versioned `BudgetBackup`
   envelope (`schemaVersion: 1`, `exportedAt`, `rules`, `activities`), while
@@ -284,10 +284,10 @@ the shell, not the logic.
   also the artifact whose **base path** is configurable at build time
   ([frontend.md → base path](frontend.md#base-path-configurable-explicit-build-decision))
   — with the per-PR preview deploy flow in
-  [testing.md → CI deploy & preview](testing.md#ci-deploy-preview-github-pages) —
+  [testing.md → CI deploy & preview](testing.md#ci-deploy--preview-github-pages) —
   and whose **responsive layout** is driven by the **iPhone-Duo foldable
   dual-state** model (folded = the mobile baseline; unfolded = the enhanced
-   one-screen view) — see [frontend.md → responsive viewport](frontend.md#responsive-viewport-iphone-duo-foldable-dual-state-req-2).
+   one-screen view) — see [frontend.md → responsive viewport](frontend.md#responsive-viewport--iphone-duo-foldable-dual-state-req-2).
 
 ## Android-specific considerations
 
