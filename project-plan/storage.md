@@ -212,12 +212,38 @@ Local-first browser and WebView storage is subject to user-agent storage pressur
     and Android Capacitor store builds are unaffected because each native app
     runs in its own isolated WebView origin and OS sandbox (see
     [frontend.md → Shared-Origin Isolation on GitHub Pages](frontend.md#4-shared-origin-isolation-on-github-pages-oq-1-adopted-default)).
-- **Optional hardening: client-side encryption with WebCrypto**, keyed by a
-  user-provided passphrase. This is **deferred** (see
-  [resolved MVP defaults](portability.md#resolved-mvp-defaults)) — on-device + no-network
-  already satisfies "purely locally and securely" for the MVP. WebCrypto is
-  available in WebKit (iOS), Chromium (Android), and the PWA, so this can be
-  added behind the same adapter without a rewrite.
+- **Passphrase-encrypted backup export (post-MVP, required before store release):**
+  - Plaintext JSON exports (`BudgetBackup`) expose full financial history if
+    stored in iCloud Drive, Google Drive, or shared folders. While deferred from
+    the MVP, **passphrase-encrypted backup export is required before the first
+    App Store / Play Store release** (Phase 6 store-release gate).
+  - Uses built-in **WebCrypto (`crypto.subtle`)** — zero production
+    dependencies — with **AES-256-GCM** (`AES-GCM`), **PBKDF2-HMAC-SHA256**
+    (`>= 600,000` iterations, OWASP baseline), fresh per-export random salt and
+    12-byte IV, wrapped in the versioned envelope
+    `{ schemaVersion, enc: { alg, kdf, iter, salt, iv }, ciphertext }` (see
+    [data-model.md → Post-MVP Encrypted Backup Envelope](data-model.md#post-mvp-encrypted-backup-envelope-store-release-gate)).
+- **Optional native biometric app lock (post-MVP, native-only before store release):**
+  - The `native/` Capacitor shells (iOS Face ID / Touch ID and Android
+    `BiometricPrompt`) may add an optional OS-native biometric app lock gate
+    before store release, protecting local financial data against casual
+    physical device access and strengthening native value for Apple App Store
+    Review Guideline 4.2. (Not applicable to the browser PWA.)
+- **Optional at-rest IndexedDB encryption (deferred):**
+  - Field-level / adapter-level WebCrypto encryption of IndexedDB records keyed
+    by a user passphrase remains **deferred** for the MVP (see
+    [resolved MVP defaults](portability.md#resolved-mvp-defaults)) — on-device +
+    zero network egress already satisfies "purely locally and securely" for the
+    MVP. WebCrypto is available in WebKit (iOS), Chromium (Android), and the
+    PWA, so it can be added behind `StorageAdapter` later without a rewrite.
+- **Future E2EE multi-device sync note:**
+  - MVP hard-deletes records; optional `deletedAt?` and `deviceId?` tombstone
+    slots are reserved on `RecurringRule` and `Activity` so a future sync layer
+    requires no v1 data migration. Any future sync MUST use **end-to-end
+    encryption (E2EE) with a user-held key**; the App Store / Play Store privacy
+    label stays unaffected **only if** no developer-readable plaintext (or
+    unencrypted metadata) is collected (see
+    [data-model.md → Privacy-Label Impact and Sync Tradeoffs](data-model.md#privacy-label-impact-and-sync-tradeoffs)).
 
 > **Secure-context requirement:** `crypto.randomUUID()` and `crypto.subtle`
 > (WebCrypto) are only exposed in a **secure context**. The PWA is HTTPS on
@@ -228,12 +254,17 @@ Local-first browser and WebView storage is subject to user-agent storage pressur
 >
 > **Threat model:** local-only storage protects against **remote** exposure. It
 > does not protect against someone with the same device account / physical access
-> reading the raw IndexedDB files. Passphrase encryption (WebCrypto) is the
-> mitigation for that class of threat, and is a **deferred** future option.
+> reading raw IndexedDB files or plaintext backup files in cloud storage.
+> Passphrase-encrypted backup export (AES-256-GCM / PBKDF2-HMAC-SHA256) and
+> optional native biometric app lock address backup and casual physical-access
+> threats before store release; full at-rest IndexedDB encryption remains a
+> deferred future option.
 
 ## Resolved MVP default (carried to the index)
 
-- **Client-side encryption (WebCrypto, user passphrase) is deferred for the MVP** —
-  on-device IndexedDB + zero network egress already satisfies the MVP
+- **At-rest IndexedDB encryption is deferred for the MVP; passphrase-encrypted
+  backup export (WebCrypto AES-256-GCM, PBKDF2-HMAC-SHA256 `>= 600,000`
+  iterations) and optional native biometric app lock are post-MVP store-release
+  gates** — on-device IndexedDB + zero network egress satisfies the MVP
   requirement. Tracked in
   [portability.md → resolved MVP defaults](portability.md#resolved-mvp-defaults).
