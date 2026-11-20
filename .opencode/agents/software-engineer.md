@@ -35,7 +35,7 @@ Board operations follow the `board` skill. Its golden rules are non-negotiable.
 4. Implement exactly the task:
    - Stay strictly within this one task's scope.
    - Follow the project's architecture and conventions:
-     1. **Zero production dependencies (`project-plan/dependency-strategy.md`):** `package.json` `dependencies` must remain empty. Use only built-in Web-platform APIs (`IndexedDB`, `crypto.randomUUID()`, `crypto.subtle`, `Date`, `Intl`) at runtime. Only the approved `devDependencies` (`vite`, `vitest`, `fake-indexeddb`, `@playwright/test`, `@biomejs/biome`, `typescript`) may be used for build/test/lint.
+     1. **Zero production dependencies (`project-plan/dependency-strategy.md`):** `package.json` `dependencies` must remain empty. Use only built-in Web-platform APIs (`IndexedDB`, `crypto.randomUUID()`, `crypto.subtle`, `Date`, `Intl`) at runtime. Only the approved `devDependencies` (`vite`, `vitest`, `@vitest/coverage-v8`, `fake-indexeddb`, `@playwright/test`, `@axe-core/playwright`, `@biomejs/biome`, `typescript` — defer to `project-plan/dependency-strategy.md` as the single source of truth) may be used for build/test/lint.
      2. **Portability boundary (`project-plan/portability.md`):** Code in `src/core/` must be 100% pure TypeScript with zero imports from `src/storage/`, the DOM, or Node globals.
      3. **Adjacent style:** Match the naming, file layout, error-handling, and test conventions (`src/**/*.test.ts` for unit/integration, `e2e/**/*.spec.ts` for E2E) of existing modules. If introducing a new pattern, justify it in the PR's `## Reasoning` section.
    - Reference the task number in commit messages (per the `board` skill).
