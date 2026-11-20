@@ -243,6 +243,16 @@ export function checkDistHtmlSecurityHeaders(rootDir) {
   }
 
   const html = readFileSync(indexHtmlPath, "utf8");
+  // Fail closed on HTML5 comment-end forms this scanner does not model: browsers
+  // also end a comment on `<!-->`, `<!--->` and `--!>`, which would let a fake
+  // <meta> look commented-out to the gate while being live in the browser.
+  for (const form of ["<!-->", "<!--->", "--!>"]) {
+    if (html.includes(form)) {
+      failures.push(
+        `Gate 2 (dist/index.html): forbidden HTML comment form "${form}" (browser comment-end rules differ from scanner)`,
+      );
+    }
+  }
   const htmlWithoutComments = stripHtmlComments(html);
   // Fail closed: if comment markers survive stripping, the markup contains
   // nested/overlapping comment tricks that browsers and this scanner may parse
