@@ -101,7 +101,7 @@ surface is identical:
 | `dateTime` | yes | back-date or forward-date |
 | `tags` | yes | add / remove any |
 | `memo` | yes | free text |
-| `source`, `sourceRuleId`, `period`, `importBatchId`, `externalTxnId`, `sourceAccountId` | no | provenance & dedupe keys are fixed at creation/import; an edit never re-attributes origin |
+| `source`, `sourceRuleId`, `period`, `importBatchId`, `externalTxnId`, `sourceAccountId`, `createdAt`, `updatedAt`, `deletedAt`, `deviceId` | no | system-managed provenance, dedupe keys, audit timestamps, and reserved optional E2EE sync tombstone/origin slots (unused in MVP; MVP hard-deletes); never user-editable |
 
 Consequences that fall out of this design:
 

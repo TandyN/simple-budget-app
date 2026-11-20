@@ -108,9 +108,10 @@ in its own topic doc, not here.
   `<meta http-equiv="Content-Security-Policy">` tag in `index.html` (`default-src 'self'`,
   `connect-src 'none'`, `require-trusted-types-for 'script'`,
   `trusted-types sw-register`, omitting `frame-ancestors`) paired with
-  `<meta name="referrer" content="no-referrer">`, a `top !== self` frame-buster,
-  a Vite-generated `sw.js` same-origin guard, and a strict DOM XSS ban (no
-  `innerHTML` / `outerHTML` / `insertAdjacentHTML` / `eval`).
+  `<meta name="referrer" content="no-referrer">`, a `top !== self` frame-buster
+  in `src/main.ts`, a Vite-generated `sw.js` same-origin guard, and a strict DOM
+  XSS ban (no `innerHTML` / `outerHTML` / `insertAdjacentHTML` / `document.write`
+  / `document.writeln` / `eval` / `new Function`).
   [project-plan/frontend.md](../project-plan/frontend.md#1-strict-content-security-policy-indexhtml)
 - **Trusted Types** — defense-in-depth CSP directives
   (`require-trusted-types-for 'script'; trusted-types sw-register`) in
@@ -129,7 +130,8 @@ in its own topic doc, not here.
 - **Data Not Collected (App Store & Play Store privacy)** — the verified store
   privacy qualification ("Data Not Collected" in Apple App Store Connect and
   "No data shared / No data collected" in Google Play Console) achieved via
-  100% on-device IndexedDB storage, zero analytics/telemetry SDKs, zero remote
+  100% on-device storage (IndexedDB for the MVP PWA + OQ-4 durable native store
+  for store releases), zero analytics/telemetry SDKs, zero remote
   assets, and automated Playwright E2E zero-egress verification.
   [project-plan/portability.md](../project-plan/portability.md#app-store--play-store-privacy-compliance-data-not-collected)
 - **`PrivacyInfo.xcprivacy` (iOS privacy manifest)** — the Apple iOS privacy
@@ -203,8 +205,8 @@ in its own topic doc, not here.
   future periods only. [project-plan/recurring-engine.md](../project-plan/recurring-engine.md)
 - **Available Funds** — derived (income − expense) from the activity log, never
   stored. [project-plan/activity-model.md](../project-plan/activity-model.md#available-funds--derived-from-the-activity-log)
-- **storage adapter** — the thin `open/save/delete/query/replaceAll` seam over
-  IndexedDB; the only platform surface the backend depends on.
+- **storage adapter** — the thin `open/save/delete/query/replaceAll/getMeta/setMeta`
+  seam over IndexedDB; the only platform surface the backend depends on.
   [project-plan/storage.md](../project-plan/storage.md)
 - **portability** — backend as a framework-agnostic TS library shared by the PWA,
   the iOS (Capacitor / WebKit), and the Android (Capacitor / Chromium) shells;
@@ -231,7 +233,7 @@ in its own topic doc, not here.
   `devDependencies` current).
   [project-plan/dependency-strategy.md](../project-plan/dependency-strategy.md#guardrails-enforce-in-ci--review)
 - **zero-prod-deps** — `package.json` `dependencies` is empty; at runtime the app
-  uses only IndexedDB, WebCrypto, `fetch`, `Date`/`Intl`, and pure TS logic.
+  uses only IndexedDB, WebCrypto, `Date`/`Intl`, and pure TS logic.
   [project-plan/dependency-strategy.md](../project-plan/dependency-strategy.md)
 - **testing strategy** — the 3-layer test pyramid (Vitest unit/integration with `>= 95%` `src/core/` coverage, Playwright 3-viewport Chromium + WebKit E2E + zero-egress gate, QA headless live spec check) and GitHub Actions CI gates, conditional on code infrastructure existing. [project-plan/testing.md](../project-plan/testing.md)
 - **integer-cent money** — amounts stored as canonical integer `amountCents` (minor units), integer arithmetic throughout, decimal-unit conversion only at the display boundary. [project-plan/data-model.md](../project-plan/data-model.md#derived-values-never-stored)
@@ -246,7 +248,7 @@ in its own topic doc, not here.
   explicitly re-opens Pillar 2 ("Data Not Collected"), while SimpleFIN Bridge is
   a user-token opt-in seam with a narrow `connect-src` and documented label
   change. [project-plan/data-model.md](../project-plan/data-model.md#privacy-label-impact-and-sync-tradeoffs)
-- **BudgetApi** — the backend's single public API surface (`createBudgetApi(...)`); the only thing a frontend shell imports/calls (rules, activities, the insights/search surface, the recurring-engine run, derived Available Funds, and `exportBackup`/`importBackup`). [project-plan/portability.md](../project-plan/portability.md#the-public-api-what-the-front-end-calls)
+- **BudgetApi** — the backend's single public API surface (`createBudgetApi(...)`); the only thing a frontend shell imports/calls (rules, activities, the insights/search surface, the recurring-engine run, derived Available Funds, and `exportBackup`/`importBackup`/`getLastBackupAt`). [project-plan/portability.md](../project-plan/portability.md#the-public-api-what-the-front-end-calls)
 - **frontend / PWA plan** — the UI surface, a first-class designed area of the plan: zero-prod-dep static bundle, iPhone-Duo foldable viewport (folded/unfolded), configurable base path, rendering all ten requirements over the shared `BudgetApi`. [project-plan/frontend.md](../project-plan/frontend.md)
 - **zero-prod-dep frontend** — the frontend is a zero-prod-dep shell (`dependencies: {}`): plain TS/HTML against the `BudgetApi` + built-in Web-platform APIs, no framework runtime dep in production; the build output is a single static web bundle with an empty `dependencies`. [project-plan/frontend.md](../project-plan/frontend.md#zero-production-dependencies-req-1)
 - **cross-platform static bundle** — the build output is one static web bundle (`vite build` → `dist/`) with an empty root `dependencies` and zero `@capacitor/*` imports; the **identical artifact** is served on all phones (PWA now, iOS/Android Capacitor shells in `native/` via `PlatformServices` later). [project-plan/portability.md](../project-plan/portability.md#what-this-buys)
