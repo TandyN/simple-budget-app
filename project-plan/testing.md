@@ -34,10 +34,10 @@ This document defines the test pyramid, tooling, and CI gates for `simple-budget
    3. `pnpm run test` (`vitest run --coverage`, using `@vitest/coverage-v8` and enforcing `>= 95%` line and branch coverage on `src/core/`)
    4. `pnpm run build` (`vite build`)
    4b. **Post-Build Security & Privacy Artifact Gates** — immediately after `pnpm run build`, run automated Node/shell assertions against `src/` and `dist/` verifying:
-      1. **Zero production dependencies:** `package.json` `dependencies` is `{}` (reinforcing step 0b).
+      1. **Zero production dependencies & zero `@capacitor/*` imports in `src/`:** `package.json` `dependencies` is `{}` (reinforcing step 0b), and no file in `src/` imports `@capacitor/*` (native shell wrappers live strictly in `native/package.json`; see [dependency-strategy.md](dependency-strategy.md#guardrails-enforce-in-ci--review)).
       2. **CSP & Referrer `<meta>` present in `dist/index.html`:** `dist/index.html` contains `<meta http-equiv="Content-Security-Policy"` with `connect-src 'none'`, `form-action 'none'`, `require-trusted-types-for 'script'`, and `trusted-types sw-register`, plus `<meta name="referrer" content="no-referrer">` (see [frontend.md → Strict Content Security Policy](frontend.md#1-strict-content-security-policy-indexhtml)). Also verifies `dist/sw.js` was emitted by the custom Vite plugin with the build hash and precache manifest.
       3. **Zero external `http://` or `https://` URLs in `dist/`:** No file in `dist/` contains external `http://` or `https://` asset, font, CDN, or API URLs (allowing only standard W3C SVG/XML namespace URIs such as `http://www.w3.org/2000/svg` or `http://www.w3.org/1999/xhtml`).
-      4. **Zero banned DOM XSS sinks in `src/`:** No file in `src/` uses banned HTML-parsing or code-evaluation sinks (`innerHTML`, `outerHTML`, `insertAdjacentHTML`, `document.write`, `eval(`).
+      4. **Zero banned DOM XSS sinks in `src/`:** No file in `src/` uses banned HTML-parsing or code-evaluation sinks (`innerHTML`, `outerHTML`, `insertAdjacentHTML`, `document.write`, `document.writeln`, `eval(`, `new Function`).
    5. Once a UI shell / Playwright E2E suite exists (the PWA UI from [frontend.md](frontend.md)): run `pnpm exec playwright install --with-deps chromium webkit` to install the headless browser binaries on the runner, followed by `pnpm run test:e2e` — Playwright headless (**Chromium + WebKit**) exercising the PWA UI end-to-end (add expense, set recurring, edit/backdate, search/insights, export/import, plus the mandatory zero-egress, DOM XSS, and `@axe-core/playwright` a11y gates below). `test:e2e` is **gated on the UI shell existing**: until a UI shell ships, step 5 is a no-op in CI and the backend regression is covered by the Vitest integration test in layer 2.
    6. **Static security analysis (CodeQL):** A companion `codeql` job (or dedicated `.github/workflows/codeql.yml` workflow) runs **`github/codeql-action`** (`javascript-typescript`) on PRs and pushes to `main` with job-level `permissions: { contents: read, security-events: write }`. *(OSV-Scanner is optional.)*
 
@@ -108,7 +108,7 @@ All Playwright E2E scenarios run against the production-built bundle (`vite prev
     });
     ```
 - **DOM XSS immunity E2E test:**
-  - Enters `<img src=x onerror="window.__xss=true">` and `<script>window.__xss=true</script>` in rule labels, activity labels, tags, memos, and imported JSON backup payloads. Asserts that every payload renders literally as visible text via `textContent`, `await page.evaluate(() => (window as any).__xss)` is `undefined`, and zero `pageerror`, `console.error`, or CSP violation events occur.
+  - Enters `<img src=x onerror="window.__xss=true">` and `<script>window.__xss=true</script>` in `RecurringRule.name`, `Activity.tags`, `Activity.memo`, and imported JSON backup payloads. Asserts that every payload renders literally as visible text via `textContent`, `await page.evaluate(() => (window as any).__xss)` is `undefined`, and zero `pageerror`, `console.error`, `console.warn`, or CSP violation events occur.
 - **Atomic backup import rollback & pre-import safety E2E test:**
   - Exports a valid backup from the Settings UI (verifying `lastBackupAt` updates in Settings), attempts to import a corrupt/prototype-polluting `.json` file (and verifies oversized files are rejected via `File.size` before reading), verifies an accessible error alert (`aria-invalid` / error banner) is displayed while existing activities and Available Funds remain 100% intact, and then imports the valid backup — asserting that the confirmation dialog appears and a pre-import safety snapshot download triggers before `replaceAll` restores the backup.
 - **iPhone-Duo dual-state layout & WCAG accessibility verification (including automated `axe` scans):**
@@ -119,7 +119,7 @@ All Playwright E2E scenarios run against the production-built bundle (`vite prev
 - **Service Worker offline, `pr-*` bypass, cache-versioning & update-banner E2E test (Chromium):**
   - Verifies the plugin-emitted `sw.js` registers under `BASE_URL` (and is skipped when `window.Capacitor` is present), populates the versioned `sbapp-<buildhash>` cache with the emitted precache manifest, and serves the app cleanly offline (`context.setOffline(true)` reload via network-first navigation with cache fallback).
   - Verifies that the production SW bypasses/excludes `/simple-budget-app/pr-*` requests instead of serving the cached production `index.html`.
-  - Verifies the update lifecycle: when a newer SW version enters `waiting`, the controller does **not** swap silently; an accessible "Update available" banner is shown, and only after user acceptance (sending `{ type: "SKIP_WAITING" }` → `self.skipWaiting()`) does the new `sbapp-<newbuildhash>` cache activate and prune obsolete `sbapp-*` caches on `activate`.
+  - Verifies the update lifecycle: when a newer SW version enters `waiting`, the controller does **not** swap silently; an accessible "Update available" banner is shown, and only after user acceptance (sending `{ type: "SKIP_WAITING" }` → `self.skipWaiting()`) does the new `sbapp-<newbuildhash>` cache activate and prune obsolete production `sbapp-*` caches on `activate` while explicitly preserving sibling `sbapp-pr-*` PR-preview caches.
 
 ## CI deploy & preview (GitHub Pages)
 
@@ -297,8 +297,10 @@ Play Store); it only produces the signed build artifacts.
   behavior: the pipeline must not be red when native builds are not yet enabled.
 - **The Web / PWA build is always-run.** It is **not** variable- or
   credential-gated and always runs. The native builds are **optional /
-  variable-gated** and coexist with the always-run Web build in the same CI
-  pipeline.
+  variable-gated** and coexist with the always-run Web build in
+  `.github/workflows/ci.yml` (strictly separated from
+  `.github/workflows/deploy-pages.yml`, which handles GitHub Pages
+  deploy/preview/prune exclusively).
 
 ### Credential gates (job-level repo variable + step-level secret env)
 
@@ -361,4 +363,4 @@ CI gates:
 Agents run in a non-interactive CLI environment (`opencode`). When `software-engineer`, `senior-software-engineer`, `staff-software-engineer`, or `qa` runs tests or performs a "live test":
 - **NEVER** run an interactive watch command (`vitest` without `run`) or a foreground dev server (`pnpm run dev` / `vite`) that blocks the terminal indefinitely.
 - For a **pure-backend slice** of a story (a backend-only story, i.e. before the UI shell exists): run `pnpm run build` and execute an automated integration test or one-shot script (`node` / `vitest run`) importing the public API (`createBudgetApi`) from the built bundle to verify end-to-end behavior.
-- For **UI / PWA stories**: use `npx playwright test` (configured with `webServer` in `playwright.config.ts` to auto-start and auto-stop the preview server), or start the preview server in the background, run headless browser/HTTP checks with a timeout, and kill the server PID before finishing the command.
+- For **UI / PWA stories**: use `pnpm exec playwright test` (configured with `webServer` in `playwright.config.ts` to auto-start and auto-stop the preview server), or start the preview server in the background, run headless browser/HTTP checks with a timeout, and kill the server PID before finishing the command.

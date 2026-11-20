@@ -1,6 +1,6 @@
 # Dependency strategy
 
-**Decision (Story #21 / spike #22):** the backend has **zero production
+**Decision (Story #21 / spike #22):** the root web bundle (backend and frontend) has **zero production
 dependencies** and a small set of **well-maintained, industry-standard dev
 dependencies**. This is a hard constraint, not a preference.
 
@@ -121,7 +121,7 @@ time and live in **`devDependencies`**.
 | Area | Tool (dev dep) | Well-maintained criterion — how it satisfies it (as of plan date) |
 | ---- | -------------- | ------------------------------------------------------------------ |
 | Package manager | **pnpm** *(provisioned, not a `devDependency`)* | **Active & current:** actively maintained, frequent releases (10+, using npm's bulk audit endpoint). **First-party / tool-maintainer:** maintained by the pnpm project. **Industry-standard:** de-facto standard for the TS/Node ecosystem; strict/flat `node_modules`, fast, disk-efficient. Provisioned via `packageManager` + `pnpm/action-setup` in CI (no `corepack` assumption) and does **not** live in `devDependencies`. (npm is the zero-config fallback.) |
-| Build / bundler | **Vite** | **Active & current:** very active repo, regular releases. **First-party / tool-maintainer:** maintained by the Vite core team. **Industry-standard:** the current best-practice web build tool; `build.lib` emits the shared bundle; pairs with Vitest. |
+| Build / bundler | **Vite** | **Active & current:** very active repo, regular releases. **First-party / tool-maintainer:** maintained by the Vite core team. **Industry-standard:** the current best-practice web build tool; standard Vite app-mode (`vite build`) emits the static SPA bundle (`dist/index.html` + hashed JS/CSS chunks); pairs with Vitest. |
 | Testing | **Vitest** | **Active & current:** actively maintained, regular releases. **First-party / tool-maintainer:** maintained by the Vite core team (first-party to Vite). **Industry-standard:** the current best-practice TS test framework — fast, ESM/TS-native, zero babel config, Vite-compatible, large community. |
 | Coverage provider | **`@vitest/coverage-v8`** | **Active & current:** actively maintained in the Vitest monorepo, regular releases. **First-party / tool-maintainer:** maintained by the Vitest / Vite core team (first-party to Vitest). **Industry-standard:** the official V8 coverage provider required by `vitest run --coverage` to enforce the `>= 95%` `src/core/` coverage gate. |
 | E2E / browser testing | **Playwright (`@playwright/test`)** | **Active & current:** very active repo, regular releases. **First-party / tool-maintainer:** maintained by Microsoft (the browser-automation vendor). **Industry-standard:** the current standard for fast, reliable headless browser E2E across Chromium and WebKit. |

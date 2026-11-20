@@ -88,8 +88,11 @@ constant. This is an **explicit, configurable build decision**:
   **or** `/simple-budget-app/pr-<PR#>/`:
   - **JS** `import` URLs — rewritten by Vite to the base.
   - **CSS** `url()` references — rewritten by Vite to the base.
-  - **Manifest** — `icons` are base-relative/absolute; `start_url` and `scope` are
-    set to the base so install/offline behave under either path.
+  - **Manifest** — `public/manifest.webmanifest` uses manifest-relative
+    `"start_url": "./"`, `"scope": "./"`, and relative icon `src` paths, which
+    resolve against the manifest file's own URL under any deployed base path
+    (`/simple-budget-app/` or `/simple-budget-app/pr-<PR#>/`) without requiring
+    Vite `BASE_URL` substitution.
   - **Service-worker scope** — `sw.js` is emitted at build time by a custom
     in-repo Vite plugin (not stored as a static file in `public/`) and registered
     in web/PWA contexts only (never in Capacitor native shells) via a minimal
@@ -338,7 +341,7 @@ provenance):
 | `dateTime` | yes | **backdate** or forward-date (see [Time display](#time--timezone-display-req-7)) |
 | `tags` | yes | **add / remove any** free-form tags / categories |
 | `memo` | yes | free text |
-| `source`, `sourceRuleId`, `period`, `createdAt`, `updatedAt` | **no** | provenance + system fields, not user-set |
+| `source`, `sourceRuleId`, `period`, `importBatchId`, `externalTxnId`, `sourceAccountId`, `createdAt`, `updatedAt`, `deletedAt`, `deviceId` | **no** | provenance, import/sync seams, + system fields, not user-set |
 
 - **Tags / categories** are free-form strings on every activity (no schema in the
   MVP); a shared tag list / autocomplete is a future enhancement. See
@@ -367,7 +370,7 @@ The UI offers **search / filter** over the **period + tag + type** predicates
 - **Type (req 4):** `income` | `expense` | `deposit` (e.g. "where did my **spend**
   go by tag").
 
-**Insight** = `budget.summarizeByTag(budget.searchActivities({ since, until, tag, type }))`,
+**Insight** = `await budget.summarizeByTag(await budget.searchActivities({ since, until, tag, type }))`,
 rendered as a per-tag breakdown of **money in** vs. **money out** over the chosen
 period (e.g. *housing expense in Q3 2026*). Because both operations are pure and
 derived from the log, a **5-year history** is just a wider range — the frontend
@@ -557,8 +560,8 @@ prohibited** anywhere in `src/`:
 - **Mandatory safe DOM APIs:** Every view and component MUST construct and update
   DOM nodes exclusively via `document.createElement(...)`,
   `node.textContent = ...`, `element.setAttribute(...)`, and
-  `element.replaceChildren(...)`. All user-controlled strings (`name` / `label`,
-  `tags`, `memo`, `currency`, and any fields originating from imported JSON
+  `element.replaceChildren(...)`. All user-controlled strings (`RecurringRule.name`,
+  `Activity.tags`, `Activity.memo`, `currency`, and any fields originating from imported JSON
   backups) are assigned via `textContent` so arbitrary HTML/script payloads (e.g.
   `<img src=x onerror=alert(1)>`) are rendered strictly as inert literal text.
 

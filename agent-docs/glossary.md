@@ -129,7 +129,8 @@ in its own topic doc, not here.
 - **Data Not Collected (App Store & Play Store privacy)** — the verified store
   privacy qualification ("Data Not Collected" in Apple App Store Connect and
   "No data shared / No data collected" in Google Play Console) achieved via
-  100% on-device IndexedDB storage, zero analytics/telemetry SDKs, zero remote
+  100% on-device storage (IndexedDB for the MVP PWA + OQ-4 durable native store
+  for store releases), zero analytics/telemetry SDKs, zero remote
   assets, and automated Playwright E2E zero-egress verification.
   [project-plan/portability.md](../project-plan/portability.md#app-store--play-store-privacy-compliance-data-not-collected)
 - **`PrivacyInfo.xcprivacy` (iOS privacy manifest)** — the Apple iOS privacy
@@ -231,7 +232,7 @@ in its own topic doc, not here.
   `devDependencies` current).
   [project-plan/dependency-strategy.md](../project-plan/dependency-strategy.md#guardrails-enforce-in-ci--review)
 - **zero-prod-deps** — `package.json` `dependencies` is empty; at runtime the app
-  uses only IndexedDB, WebCrypto, `fetch`, `Date`/`Intl`, and pure TS logic.
+  uses only IndexedDB, WebCrypto, `Date`/`Intl`, and pure TS logic.
   [project-plan/dependency-strategy.md](../project-plan/dependency-strategy.md)
 - **testing strategy** — the 3-layer test pyramid (Vitest unit/integration with `>= 95%` `src/core/` coverage, Playwright 3-viewport Chromium + WebKit E2E + zero-egress gate, QA headless live spec check) and GitHub Actions CI gates, conditional on code infrastructure existing. [project-plan/testing.md](../project-plan/testing.md)
 - **integer-cent money** — amounts stored as canonical integer `amountCents` (minor units), integer arithmetic throughout, decimal-unit conversion only at the display boundary. [project-plan/data-model.md](../project-plan/data-model.md#derived-values-never-stored)
