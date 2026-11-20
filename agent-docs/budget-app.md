@@ -12,7 +12,7 @@ Keep it split by area so a reviewer can read only what they need:
 | **backend** | APIs, business logic, validation, persistence (integer-cent money, short-month `Date.UTC` clamping + `12:00:00Z` due instant, `BudgetBackup` validation + encrypted backup envelope, insights/search, file import & E2EE tombstone seams) | _planned_ — [the app plan](#the-app-plan) |
 | **frontend** | UI, components, state, how it talks to the backend (zero-prod-dep static bundle, strict CSP `connect-src 'none'` + Trusted Types, safe DOM APIs, origin isolation, custom Vite SW plugin, `PlatformServices` seam, iPhone-Duo foldable viewport, configurable base path, **PWA-scoped** offline/installable) | _planned_ — [the app plan](#the-app-plan) |
 | **data** | the budget data model, IndexedDB `DB_VERSION = 1` schema & indexes (base-path `DB_NAME`, no boolean index), atomic `replaceAll` restore, honest storage durability + OQ-4 durable native store gate, post-MVP extension seams | _planned_ — [the app plan](#the-app-plan) |
-| **testing** | test pyramid (Vitest `>= 95%` core coverage via `@vitest/coverage-v8`, `fake-indexeddb`, Playwright 3-viewport E2E + `@axe-core/playwright` WCAG 2.2 AA scans + zero-egress gate), CI pipeline (SHA-pinned actions, `.nvmrc`, Dependabot, CodeQL), headless CLI verification rules, `gh-pages` mode-(a) PR preview, credential-gated native builds | _planned_ — [the app plan](#the-app-plan) |
+| **testing** | test pyramid (Vitest `>= 95%` core coverage via `@vitest/coverage-v8`, `fake-indexeddb`, Playwright 3-viewport E2E + `@axe-core/playwright` WCAG 2.2 AA scans + zero-egress gate), CI pipeline (SHA-pinned actions, `.nvmrc`, Dependabot, CodeQL), headless CLI verification rules, `gh-pages` mode-(a) PR preview, SemVer release automation & rollback/roll-forward, credential-gated native builds | _planned_ — [the app plan](#the-app-plan) |
 
 ## The app plan
 
@@ -33,9 +33,10 @@ strategy (zero production deps in the web bundle + the **well-maintained dev-dep
 & SHA-pinned CI-action set** + `.nvmrc`, `pnpm-workspace.yaml`, Dependabot,
 CodeQL, and strict TypeScript compiler flags), the testing & CI/CD strategy
 (unit/integration/E2E, `@axe-core/playwright` a11y, **mode-(a) `gh-pages` branch
-PR preview** with production-untouched + prune-on-merge, **credential-gated**
-native builds), and the **5-phase PWA MVP + Phase 6 native shell & store
-submission build order**
+PR preview** with production-untouched + prune-on-merge, SemVer release
+automation & rollback/roll-forward, **credential-gated**
+native builds), and the **iterative 5-phase PWA MVP (Phases 1–3, 4A–4D, 5) +
+Phase 6 native shell & store submission build order**
 ([project-plan/build-order.md](../project-plan/build-order.md)).
 
 | Area | Doc |
@@ -48,7 +49,7 @@ submission build order**
 | Frontend / UI (zero-prod-dep static bundle, strict CSP + Trusted Types & safe DOM, origin isolation, custom Vite SW plugin, iPhone-Duo foldable viewport, configurable base path) | [project-plan/frontend.md](../project-plan/frontend.md) |
 | Portability (one bundle / three webview targets, `native/` package boundary + `PlatformServices` seam, App Store & Play Store privacy & Store Submission Checklist) | [project-plan/portability.md](../project-plan/portability.md) |
 | Dependency strategy (zero prod deps in web bundle + isolated `native/` shell + well-maintained dev-dep & SHA-pinned CI-action set + `.nvmrc`, `pnpm-workspace.yaml`, Dependabot, CodeQL, strict `tsconfig.json`) | [project-plan/dependency-strategy.md](../project-plan/dependency-strategy.md) |
-| Testing & CI/CD (test pyramid, `>= 95%` core coverage, `@axe-core/playwright` a11y, zero-egress E2E gate, `gh-pages` mode-(a) PR preview, credential-gated native builds) | [project-plan/testing.md](../project-plan/testing.md) |
+| Testing & CI/CD (test pyramid, `>= 95%` core coverage, `@axe-core/playwright` a11y, zero-egress E2E gate, `gh-pages` mode-(a) PR preview, SemVer release automation & rollback/roll-forward, credential-gated native builds) | [project-plan/testing.md](../project-plan/testing.md) |
 | MVP execution & build order (iterative 5-phase PWA MVP [Phases 1–3, 4A–4D, 5] + Phase 6 native shell & phased store release + release/rollback matrix + 5-pillar matrix + OQ-1..OQ-5 defaults) | [project-plan/build-order.md](../project-plan/build-order.md) |
 
 > The plan is the design-of-record. When an area *ships*, the
@@ -80,7 +81,8 @@ area's detail into this file — keep it a short map.
   - **OQ-2:** Fixed `12:00:00Z` recurring due instant + `Activity.period` rollups.
   - **OQ-3:** Android `allowBackup="false"` + `dataExtractionRules` excluding cloud-backup and device-transfer.
   - **OQ-4:** Durable native store is a required Phase 6 gate before first store submission.
-  - **OQ-5 (flagged to the user for confirmation):** Publish GitHub Pages production + PR previews via plain `git` to the `gh-pages` branch using `GITHUB_TOKEN` (mode-(a) guarantees preserved, zero third-party Pages actions).
+  - **OQ-5 (flagged to the user for confirmation before Phase 4A deploy):** Publish GitHub Pages production + PR previews via plain `git` to the `gh-pages` branch using `GITHUB_TOKEN` (mode-(a) guarantees preserved, zero third-party Pages actions).
+  - **Release tagging default (Story #192 / Spike #199):** Maintain SemVer manually in root `package.json` and push annotated `vX.Y.Z` tags on `main` to trigger `.github/workflows/release.yml` (SHA-pinned first-party actions, zero extra third-party release bots).
 
 ## Conventions
 
