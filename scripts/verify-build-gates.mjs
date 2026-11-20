@@ -200,6 +200,32 @@ function extractMetaTags(html) {
 }
 
 /**
+ * Remove HTML comments with a single linear left-to-right scan (no regex, so no
+ * multi-pass re-assembly of `<!--` fragments is possible). An unterminated
+ * `<!--` treats the rest of the document as a comment.
+ * @param {string} html
+ * @returns {string}
+ */
+export function stripHtmlComments(html) {
+  let out = "";
+  let i = 0;
+  while (i < html.length) {
+    const start = html.indexOf("<!--", i);
+    if (start === -1) {
+      out += html.slice(i);
+      break;
+    }
+    out += html.slice(i, start);
+    const end = html.indexOf("-->", start + 4);
+    if (end === -1) {
+      break;
+    }
+    i = end + 3;
+  }
+  return out;
+}
+
+/**
  * Gate 2: Strict CSP, Trusted Types, Referrer meta, and absence of frame-ancestors in dist/index.html.
  * Note: Phase 4D dist/sw.js manifest verification is intentionally omitted/no-op in Phases 1–4C
  * per project-plan/testing.md step 4b.2.
@@ -217,7 +243,18 @@ export function checkDistHtmlSecurityHeaders(rootDir) {
   }
 
   const html = readFileSync(indexHtmlPath, "utf8");
-  const htmlWithoutComments = html.replace(/<!--[\s\S]*?-->/g, "");
+  const htmlWithoutComments = stripHtmlComments(html);
+  // Fail closed: if comment markers survive stripping, the markup contains
+  // nested/overlapping comment tricks that browsers and this scanner may parse
+  // differently, so a <meta> could be hidden from (or smuggled past) this gate.
+  if (
+    htmlWithoutComments.includes("<!--") ||
+    htmlWithoutComments.includes("-->")
+  ) {
+    failures.push(
+      "Gate 2 (dist/index.html): malformed, nested, or overlapping HTML comment markers detected",
+    );
+  }
   const metas = extractMetaTags(htmlWithoutComments);
 
   const cspMetas = metas.filter(
