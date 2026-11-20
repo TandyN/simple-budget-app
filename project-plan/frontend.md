@@ -691,10 +691,10 @@ requiring a manual page reload:
   `typeof BroadcastChannel !== "undefined"` so environments without it degrade
   gracefully) so preview tabs never trigger refreshes in production tabs.
 - **Publish on commit:** Whenever a local state-mutating `BudgetApi` call commits
-  (`addRule`, `editRule`, `deleteRule`, `addActivity`, `editActivity`,
-  `deleteActivity`, `runRecurringEngine`, or `importBackup`), the active tab
-  posts `{ type: "budget-mutated", timestamp: Date.now() }` on the
-  base-path-scoped channel.
+  (`addRule`, `editRule`, `setRuleActive`, `deleteRule`, `addActivity`,
+  `editActivity`, `deleteActivity`, `runRecurringEngine`, or `importBackup`),
+  the active tab posts `{ type: "budget-mutated", timestamp: Date.now() }` on
+  the base-path-scoped channel.
 - **Subscribe & re-render:** Sibling tabs listening on the base-path-scoped
   channel respond to `"budget-mutated"` messages by re-querying `BudgetApi` (`listRules`,
   `listActivities`, `getAvailableFunds`, and active `searchActivities` /

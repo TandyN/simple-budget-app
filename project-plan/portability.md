@@ -28,25 +28,30 @@ tiny runtime `PlatformServices` seam.
 ## The boundary
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  FRONT-END (UI) — identical static web bundle (dist/) across all 3 targets  │
-│  ┌─────────────────────────┐ ┌─────────────────────────┐ ┌─────────────────────────┐
-│  │ PWA (zero-prod-dep      │ │ iOS shell (native/      │ │ Android shell (native/  │
-│  │ vanilla TS, GH Pages)   │ │ Capacitor / WKWebView)  │ │ Capacitor / Chromium)   │
-│  └────────────┬────────────┘ └────────────┬────────────┘ └────────────┬────────────┘
-│               │ all three run the SAME dist/ bundle & call BudgetApi  │
-│               ▼                           ▼                           ▼
-│  ┌─────────────────────────────────────────────────────────────────────────────┐
-│  │  BACKEND LIBRARY (framework-agnostic TS)  ◄── THIS PLAN                      │
-│  │  • data model (RecurringRule, Activity)                                       │
-│  │  • recurring engine (pure logic)                                              │
-│  │  • derived Available Funds (pure logic)                                       │
-│  │  • CRUD / validation                                                          │
-│  │  • StorageAdapter interface (MVP PWA: IndexedDB; store release: durable native)│
-│  │  • PlatformServices seam (saveBackup / shareBackup / isNative via runtime     │
-│  │    window.Capacitor detection — zero @capacitor/* imports in web bundle)      │
-│  └─────────────────────────────────────────────────────────────────────────────┘
-└─────────────────────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────────────────┐
+│  FRONT-END (UI) — identical static web bundle (dist/) across all 3 targets        │
+│  ┌───────────────────────┐ ┌─────────────────────────┐ ┌───────────────────────┐  │
+│  │ PWA (zero-prod-dep    │ │ iOS shell (native/      │ │ Android shell (native/│  │
+│  │ vanilla TS, GH Pages) │ │ Capacitor / WKWebView)  │ │ Capacitor / Chromium) │  │
+│  └───────────┬───────────┘ └────────────┬────────────┘ └───────────┬───────────┘  │
+│              │                          │                          │              │
+│  ┌───────────┴──────────────────────────┴──────────────────────────┴───────────┐  │
+│  │  PlatformServices seam (src/platform/services.ts — thin UI/platform seam)   │  │
+│  │  • saveBackup / shareBackup / isNative via runtime window.Capacitor detect  │  │
+│  │  • zero @capacitor/* imports in dist/ (browser Blob/share vs native bridge) │  │
+│  └─────────────────────────────────────────────────────────────────────────────┘  │
+└──────────────┬──────────────────────────┬──────────────────────────┬──────────────┘
+               │   all three run the SAME dist/ bundle & call        │
+               │                    BudgetApi                        │
+               ▼                          ▼                          ▼
+┌───────────────────────────────────────────────────────────────────────────────────┐
+│  BACKEND LIBRARY (framework-agnostic TS — DOM-free)  ◄── THIS PLAN                │
+│  • data model (RecurringRule, Activity)                                           │
+│  • recurring engine (pure logic)                                                  │
+│  • derived Available Funds (pure logic)                                           │
+│  • CRUD / validation                                                              │
+│  • StorageAdapter interface (MVP PWA: IndexedDB; store release: durable native)   │
+└───────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 - **Backend = data + logic + the storage-adapter *interface*.** It knows nothing
@@ -124,7 +129,7 @@ src/
     insights.ts         #   searchActivities, summarizeByTag
     validate.ts         #   field validation / invariants, validateBackupPayload
   storage/
-    adapter.ts          #   the StorageAdapter interface (open/save/delete/query/replaceAll)
+    adapter.ts          #   the StorageAdapter interface (open/save/delete/query/replaceAll/getMeta/setMeta)
     indexeddb.ts        #   IndexedDB implementation of StorageAdapter (DB_VERSION = 1)
                         #   (shared by iOS WebKit + Android Chromium + PWA browsers)
     memory.ts           #   in-memory implementation (for tests)

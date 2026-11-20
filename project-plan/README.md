@@ -27,9 +27,9 @@ refined in **Story #192** (spike #199) to re-slice Phase 4 into iterative
 story-sized vertical slices (**Phases 4A–4D** with co-shipped Playwright E2E),
 refocus **Phase 5** on MVP release hardening, SemVer versioning/tagging/changelog
 automation, and rollback/roll-forward readiness, and add a story-sizing map
-([build-order.md](build-order.md)). **No code in this story** —
-the deliverable is this plan. A software-engineer should be able to decompose
-it into task tickets and start implementing.
+([build-order.md](build-order.md)). `project-plan/` is the pre-implementation
+design-of-record from which `product-manager` and `project-manager` derive MVP
+stories and task tickets for `software-engineer` implementation.
 
 ## How to navigate
 
