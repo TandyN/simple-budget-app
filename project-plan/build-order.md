@@ -250,7 +250,7 @@ Our multi-agent orchestration workflow runs **serially with one feature branch p
   - SW registration uses Trusted Types (`sw-register` policy) and `{ updateViaCache: "none" }`, and is skipped when `window.Capacitor` is present
   - Production SW never intercepts `/simple-budget-app/pr-*` sub-paths and never deletes sibling `sbapp-pr-*` caches
 - **Executable Verification Gates:**
-  - `pnpm run build` emitting `dist/sw.js` with embedded build hash & precache manifest, passing all post-build CI checks
+  - `pnpm run build` emitting `dist/sw.js` with embedded build hash & precache manifest, enabling the Phase 4D `dist/sw.js` post-build CI assertion in `.github/workflows/ci.yml` (per [testing.md](testing.md#conventions)) and passing all post-build CI checks
   - `pnpm exec playwright test` passing offline reload, preview DB-name isolation, `pr-*` SW bypass, and update-banner E2E specs alongside the full suite.
 
 ---
@@ -266,7 +266,7 @@ Our multi-agent orchestration workflow runs **serially with one feature branch p
 - **Dependencies:** Phase 4D.
 - **Why This Order (Pillars 1–5 Alignment):** Closes the MVP release loop with repeatable SemVer tagging/changelog automation, tested rollback/roll-forward recovery procedures, full cross-viewport/cross-engine E2E sign-off, and ready-to-enable native CI scaffolding for Phase 6.
 - **Enforced Security, Privacy & Test Invariants:**
-  - Mathematical E2E proof of zero external network requests (`new URL(req.url()).origin === previewOrigin`), directly substantiating Apple App Store Connect "Data Not Collected" and Google Play Console "No data shared / No data collected" declarations
+  - Mathematical E2E proof of zero external network requests (`new URL(req.url()).origin === previewOrigin` or local non-network `data:` / `blob:` URLs, so WebKit `blob:` JSON backup exports and `img-src 'self' data:` do not false-fail E2E, matching [testing.md](testing.md#4-mandatory-playwright-e2e-security-privacy--viewport-scenarios-e2espects)), directly substantiating Apple App Store Connect "Data Not Collected" and Google Play Console "No data shared / No data collected" declarations
   - All actions in `release.yml`, `deploy-pages.yml`, and `ci.yml` full-40-char SHA-pinned with least-privilege `permissions:`
   - Same-schema rollback re-deploys preserve `pr-*/` on `gh-pages` and never touch user IndexedDB data; `Clear-Site-Data` is never used
   - Native mobile jobs live in `.github/workflows/ci.yml` (separate from `deploy-pages.yml`) and are gated at job level by `if: ${{ vars.NATIVE_BUILDS_ENABLED == 'true' }}` (no `secrets` or `env` in job-level `if:`; signing secrets mapped to step `env:` inside the job — skip-not-fail when disabled, build-only when enabled, matching [testing.md](testing.md#android--ios-test-build-pipeline-credential-skip-build-only) identically)

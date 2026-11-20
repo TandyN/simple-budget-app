@@ -15,7 +15,7 @@ This document defines the test pyramid, tooling, and CI gates for `simple-budget
 - **Test location:** Colocated with source (`src/**/*.test.ts`) for unit/integration tests; `e2e/**/*.spec.ts` for Playwright E2E tests.
 - **First-in-project bootstrap rule:** When the first code implementation story is decomposed (and `package.json` / `vitest` / `.github/workflows/ci.yml` do not yet exist), the `project-manager` creates an initial foundational `Task:` ticket to scaffold `package.json`, TypeScript, Biome, Vitest, and `.github/workflows/ci.yml` per `project-plan/dependency-strategy.md` before feature tasks that depend on it.
 - **E2E authoring rule:** Because `staff-software-engineer` and `qa` do not write code, for any code story that delivers user-facing UI or a complete backend API slice, the `project-manager` includes writing/updating the automated E2E/regression test in the story's final integration `Task:` ticket for the `software-engineer`.
-- **Expectation per code task:** Every code change in `src/` must include unit/integration tests covering its happy path and edge cases (e.g., idempotency, IEEE-754 integer-cent rounding, date boundaries, storage/backup validation errors), and must not break existing tests.
+- **Expectation per code task:** Every code change in `src/` must include unit/integration tests covering its happy path and edge cases (e.g., idempotency, integer-cent safe-integer bounds and `toCents` boundary parsing, date boundaries, storage/backup validation errors), and must not break existing tests.
 - **CI shape (`.github/workflows/ci.yml`):** Configure top-level least-privilege `permissions: { contents: read }` and triggers so CI runs once per PR update (targeting `main` or `feature/**`) and once on merges to `main`, avoiding duplicate runs on task-branch pushes:
   ```yaml
   permissions:
@@ -35,7 +35,7 @@ This document defines the test pyramid, tooling, and CI gates for `simple-budget
    4. `pnpm run build` (`vite build`)
    4b. **Post-Build Security & Privacy Artifact Gates** — immediately after `pnpm run build`, run automated Node/shell assertions against `src/` and `dist/` verifying:
       1. **Zero production dependencies & zero `@capacitor/*` imports in `src/`:** `package.json` `dependencies` is `{}` (reinforcing step 0b), and no file in `src/` imports `@capacitor/*` (native shell wrappers live strictly in `native/package.json`; see [dependency-strategy.md](dependency-strategy.md#guardrails-enforce-in-ci--review)).
-      2. **CSP & Referrer `<meta>` present in `dist/index.html`:** `dist/index.html` contains `<meta http-equiv="Content-Security-Policy"` with `connect-src 'none'`, `form-action 'none'`, `require-trusted-types-for 'script'`, and `trusted-types sw-register`, plus `<meta name="referrer" content="no-referrer">` (see [frontend.md → Strict Content Security Policy](frontend.md#1-strict-content-security-policy-indexhtml)). Also verifies `dist/sw.js` was emitted by the custom Vite plugin with the build hash and precache manifest.
+      2. **CSP & Referrer `<meta>` present in `dist/index.html` (and Phase 4D `dist/sw.js` manifest check):** `dist/index.html` contains `<meta http-equiv="Content-Security-Policy"` with `connect-src 'none'`, `form-action 'none'`, `require-trusted-types-for 'script'`, and `trusted-types sw-register`, plus `<meta name="referrer" content="no-referrer">` (see [frontend.md → Strict Content Security Policy](frontend.md#1-strict-content-security-policy-indexhtml)). **Gated on Phase 4D (once the custom Vite SW plugin ships):** also verifies `dist/sw.js` was emitted by the custom Vite plugin with the build hash and precache manifest (in Phases 1–4C, before the SW plugin exists, this `dist/sw.js` check is omitted/no-op so CI does not fail).
       3. **Zero external `http://` or `https://` URLs in `dist/`:** No file in `dist/` contains external `http://` or `https://` asset, font, CDN, or API URLs (allowing only standard W3C SVG/XML namespace URIs such as `http://www.w3.org/2000/svg` or `http://www.w3.org/1999/xhtml`).
       4. **Zero banned DOM XSS sinks in `src/`:** No file in `src/` uses banned HTML-parsing or code-evaluation sinks (`innerHTML`, `outerHTML`, `insertAdjacentHTML`, `document.write`, `document.writeln`, `eval(`, `new Function`).
    5. Once a UI shell / Playwright E2E suite exists (the PWA UI from [frontend.md](frontend.md)): run `pnpm exec playwright install --with-deps chromium webkit` to install the headless browser binaries on the runner, followed by `pnpm run test:e2e` — Playwright headless (**Chromium + WebKit**) exercising the PWA UI end-to-end (add expense, set recurring, edit/backdate, search/insights, export/import, plus the mandatory zero-egress, DOM XSS, and `@axe-core/playwright` a11y gates below). `test:e2e` is **gated on the UI shell existing**: until a UI shell ships, step 5 is a no-op in CI and the backend regression is covered by the Vitest integration test in layer 2.
@@ -250,27 +250,29 @@ branch" → `gh-pages` (`/`)**.
     unchanged and `pr-<PR#>/` is now removed, the sub-path is **pruned**
     (guarantee 2) while the production root remains **untouched**.
 
-**3. Production deploy (on `push` to `main`).**
+**3. Production deploy (on `push` to `main` or manual `workflow_dispatch` same-schema tag re-deploy).**
 
-- **Trigger:** `on: push: branches: [main]`.
+- **Trigger:** `on: push: branches: [main]` (normal releases) or manual `on: workflow_dispatch` with `ref: vX.Y.Z` (same-schema tag re-deploy; see [Web / PWA Rollback vs. Roll-Forward](#2-web--pwa-rollback-vs-roll-forward-github-pages)).
 - **Build with the production base path:** `VITE_BASE_PATH=/simple-budget-app/ pnpm run build`.
 - **Publish only the root files excluding `pr-*/` to `gh-pages`:**
   - Check out `gh-pages` (orphan-initializing on first run if absent).
   - Remove stale production root files/directories **excluding `.git` and
     `pr-*/`**, then copy `dist/.` into the `gh-pages` root.
   - Commit and `git push origin gh-pages` using `GITHUB_TOKEN`.
-  - A `main` push is the only thing that writes the production root, and all
-    open `pr-*/` preview directories remain preserved.
+  - The production root is written only by a `push` to `main` or a manual
+    `workflow_dispatch` same-schema tag re-deploy (`ref: vX.Y.Z`) — never by PR
+    preview deploys — and all open `pr-*/` preview directories remain preserved.
 
 **In summary:** a PR preview is a **pure additive** `pr-<PR#>/` directory on
 `gh-pages`; it is **pruned** via `git rm -rf pr-<PR#>/` on merge/close; the
-production root is **only ever** written by a `main` push (excluding `pr-*/`).
-These three mechanics, taken together, implement the two hard mode-(a)
-guarantees above.
+production root (excluding `pr-*/`) is **only ever** written by a `push` to
+`main` or a manual `workflow_dispatch` same-schema tag re-deploy
+(`ref: vX.Y.Z`) — never by PR preview deploys. These three mechanics, taken
+together, implement the two hard mode-(a) guarantees above.
 
 ### GitHub Pages Mode-(a) Concurrency & Site-Tree Preservation (`.github/workflows/deploy-pages.yml`)
 
-Because concurrent pushes to the `gh-pages` branch (PR preview publishes, PR-close prune jobs, and `main` production deploys) would otherwise race on non-fast-forward pushes or overwrite each other's changes, all publishes must serialize cleanly:
+Because concurrent pushes to the `gh-pages` branch (PR preview publishes, PR-close prune jobs, and `main` / `workflow_dispatch` production deploys) would otherwise race on non-fast-forward pushes or overwrite each other's changes, all publishes must serialize cleanly:
 
 - **Serialized FIFO workflow concurrency:** `.github/workflows/deploy-pages.yml` MUST declare workflow-level concurrency:
   ```yaml
@@ -278,9 +280,9 @@ Because concurrent pushes to the `gh-pages` branch (PR preview publishes, PR-clo
     group: "pages-deploy"
     cancel-in-progress: false
   ```
-  Setting `cancel-in-progress: false` guarantees that every queued PR preview publish, PR-close prune, and `main` deploy runs to completion sequentially in FIFO order against the latest `gh-pages` tip rather than aborting an in-flight publish or losing a prune event.
+  Setting `cancel-in-progress: false` guarantees that every queued PR preview publish, PR-close prune, and `main` / `workflow_dispatch` production deploy runs to completion sequentially in FIFO order against the latest `gh-pages` tip rather than aborting an in-flight publish or losing a prune event.
 - **Least-privilege permissions:** Top-level workflow permissions default to `permissions: { contents: read }`, elevating to `permissions: { contents: write }` **only on the `gh-pages` publish job** (see [dependency-strategy.md](dependency-strategy.md)).
-- **Deterministic site-tree preservation:** The `gh-pages` branch itself is the canonical source of truth for the existing site tree. During each serialized run, the publish job mutates only the target `pr-<PR#>/` directory (writing `pr-<PR#>/` on `pull_request` open/synchronize/reopen or running `git rm -rf pr-<PR#>/` on `closed`) or updates only the root files excluding `pr-*/` (on `push` to `main`).
+- **Deterministic site-tree preservation:** The `gh-pages` branch itself is the canonical source of truth for the existing site tree. During each serialized run, the publish job mutates only the target `pr-<PR#>/` directory (writing `pr-<PR#>/` on `pull_request` open/synchronize/reopen or running `git rm -rf pr-<PR#>/` on `closed`) or updates only the root files excluding `pr-*/` (on `push` to `main` or a manual `workflow_dispatch` same-schema tag re-deploy with `ref: vX.Y.Z` — never on PR preview deploys).
 
 ## Release, Versioning & Rollback / Roll-Forward Pipeline
 
