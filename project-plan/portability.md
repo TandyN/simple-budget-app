@@ -451,6 +451,39 @@ const config: CapacitorConfig = {
 export default config;
 ```
 
+## Native Versioning, Phased/Staged Rollouts & Roll-Forward Hotfix Strategy
+
+True binary rollback does **not** exist on Apple App Store or Google Play once devices install an update (both iOS and Android refuse downgrading an installed app to a lower version/build number). Native Phase 6 releases therefore use **monotonic versioning + Phased/Staged Rollouts + Pause/Halt + Roll-Forward Hotfixes**, monitored strictly via zero-SDK OS-level crash/vitals telemetry:
+
+### 1. Monotonic Native Versioning (Mapped from Root SemVer)
+
+Root `package.json` SemVer (`X.Y.Z`, tagged `vX.Y.Z` on `main` via `.github/workflows/release.yml`; see [testing.md → Release, Versioning & Rollback / Roll-Forward Pipeline](testing.md#release-versioning--rollback--roll-forward-pipeline)) is the single source of truth for user-facing version numbers across all targets:
+
+| Platform | User-facing version | Internal build number (strictly monotonic) |
+| -------- | ------------------- | ------------------------------------------ |
+| **iOS (App Store)** | `CFBundleShortVersionString` = `X.Y.Z` | `CFBundleVersion` = monotonically increasing integer (must increase on every App Store Connect / TestFlight upload) |
+| **Android (Google Play)** | `versionName` = `X.Y.Z` | `versionCode` = strictly monotonically increasing integer (Play Console rejects any upload whose `versionCode` is `<=` any previously uploaded APK/AAB) |
+
+### 2. Apple App Store — 7-Day Phased Release & Expedited Roll-Forward
+
+- **7-day Phased Release for Automatic Updates:** Ship every production iOS update with **Phased Release** enabled, which ramps automatic updates gradually over 7 days (`1% → 2% → 5% → 10% → 20% → 50% → 100%`) while manual App Store updates remain available.
+- **Pause & roll-forward hotfix cadence:** If a regression is detected during rollout:
+  1. **Pause** the Phased Release immediately in App Store Connect (supports up to **30 cumulative pause days** with unlimited pause/resume events) to contain blast radius while keeping the prior release live for un-updated users.
+  2. Fix the defect on a hotfix branch off the release tag / `main`, bump SemVer (`X.Y.(Z+1)`) and increment `CFBundleVersion`, and submit a **roll-forward hotfix** build.
+  3. Request **Expedited App Review** for critical/data-affecting hotfixes.
+
+### 3. Google Play Store — Staged Rollout, Halt Rollout & Monotonic Roll-Forward
+
+- **Staged Rollout:** Ship every production Android update via **Staged Rollout** (e.g. `5% → 20% → 50% → 100%`), validating crash and ANR stability before advancing each stage.
+- **Halt Rollout & roll-forward hotfix cadence:** If a regression is detected:
+  1. **Halt Rollout** immediately in Google Play Console. Halting blocks additional devices from receiving the faulty update (and if already at 100%, serves the prior live release only to users who have not yet updated, while already-updated devices remain on the higher `versionCode`).
+  2. Fix the defect on a hotfix branch, increment `versionCode` (strictly higher integer) and `versionName` (`X.Y.(Z+1)`), and publish a **roll-forward hotfix** release.
+
+### 4. Zero-SDK Release Health Monitoring (Pillar 2 Preservation)
+
+- Monitor native rollout health exclusively through OS-level **App Store Connect Crashes / Metrics** (iOS) and **Google Play Console Android Vitals** (crash rate, ANR rate), supplemented by GitHub Issues and store reviews.
+- **Zero third-party telemetry/crash SDKs** (no Sentry, Crashlytics, Bugsnag, or analytics SDKs) are ever bundled into `dist/` or `native/`, preserving Pillar 2's **"Data Not Collected"** / **"No data collected"** privacy declarations end-to-end.
+
 ## Store Submission Checklist (Phase 6)
 
 Before submitting the iOS or Android native shell to Apple App Store Connect or Google Play Console, **every** item below MUST be satisfied:
@@ -461,6 +494,7 @@ Before submitting the iOS or Android native shell to Apple App Store Connect or 
 - [ ] **Package boundary verified:** Root `package.json` `dependencies` is `{}` and `src/` has zero `@capacitor/*` imports; all native plugins live in `native/package.json` with exact pinning and clean `pnpm audit --audit-level=high`.
 - [ ] **Native backup & security polish:** `PlatformServices` native `saveBackup` / `shareBackup` verified on device (especially iOS `WKWebView` where `<a download>` does not work); passphrase-encrypted backup export and optional native biometric app lock implemented prior to store launch (see [storage.md](storage.md)).
 - [ ] **Privacy policy URL published:** Host a clear, public **privacy policy** URL (e.g., a static page on GitHub Pages) stating that the app stores all data locally on-device and collects or transmits zero data off-device. Required by **both** Apple App Store Connect and Google Play Console even when declaring "Data Not Collected".
+- [ ] **Monotonic versioning & zero-SDK monitoring readiness:** Confirm native version metadata matches the root `vX.Y.Z` SemVer release with strictly incremented build numbers (`CFBundleVersion` / `versionCode`), zero third-party crash/analytics SDKs are present, and App Store Connect Crashes / Android Vitals alerts are monitored during phased/staged rollout.
 
 ### Apple App Store checklist
 
@@ -469,6 +503,7 @@ Before submitting the iOS or Android native shell to Apple App Store Connect or 
 - [ ] **App Store Review Guideline 4.2 (Minimum Functionality) mitigation & reviewer notes:** Thin WebView wrappers risk Guideline 4.2 rejection. Mitigate by shipping genuine native value (native file save/share via `PlatformServices`, durable native storage, optional Face ID / Touch ID biometric app lock) and supplying concise **App Review Notes** explaining the local-first, zero-network architecture, native capabilities, and step-by-step instructions to test recurring rules, Insights, and backup export/import offline without an account.
 - [ ] **`Info.plist` flags:** `ITSAppUsesNonExemptEncryption` set to `false`; `WKAppBoundDomains` declared if `limitsNavigationsToAppBoundDomains: true` is enabled in `native/capacitor.config.ts` (otherwise drop the flag).
 - [ ] **`PrivacyInfo.xcprivacy` verified via Xcode Privacy Report:** Generate the Privacy Report on the release `.xcarchive` (`Product → Archive → Generate Privacy Report`) and confirm every Required-Reason API used by Capacitor core and installed plugins is declared.
+- [ ] **Phased Release configured:** Enable **7-day Phased Release for Automatic Updates** (`1% → 2% → 5% → 10% → 20% → 50% → 100%`) for production updates and verify the pause + roll-forward hotfix / Expedited Review runbook is ready.
 
 ### Google Play Store checklist
 
@@ -477,6 +512,7 @@ Before submitting the iOS or Android native shell to Apple App Store Connect or 
 - [ ] **Data safety form (including backups):** Declare **"No data shared with third parties"** and **"No data collected"**, accurately reflecting the backup posture (`allowBackup="false"` + `dataExtractionRules` excluding `cloud-backup` and `device-transfer`, so no hidden Google Drive upload occurs).
 - [ ] **Android manifest verified:** `android:allowBackup="false"`, `android:fullBackupContent="false"`, `android:dataExtractionRules="@xml/data_extraction_rules"`, `AD_ID` omitted/removed, and no unnecessary permissions.
 - [ ] **Closed testing requirement (verify at submission):** Personal Google Play developer accounts created after November 13, 2023 require a **12-tester / 14-day closed test** before production access is granted — **verify current Google Play Console policy at submission time**.
+- [ ] **Staged Rollout configured:** Configure **Staged Rollout** (e.g. `5% → 20% → 50% → 100%`) with monotonic `versionCode` increment and confirm Halt Rollout + roll-forward hotfix readiness alongside Android Vitals monitoring.
 
 ## Resolved MVP defaults
 
