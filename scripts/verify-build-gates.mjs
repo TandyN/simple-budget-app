@@ -5,21 +5,21 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const EXACT_SEMVER_RE =
   /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 
-const REQUIRED_CSP_DIRECTIVES = [
-  "default-src 'self'",
-  "script-src 'self'",
-  "style-src 'self'",
-  "img-src 'self' data:",
-  "font-src 'self'",
-  "connect-src 'none'",
-  "object-src 'none'",
-  "base-uri 'self'",
-  "form-action 'none'",
-  "worker-src 'self'",
-  "manifest-src 'self'",
-  "require-trusted-types-for 'script'",
-  "trusted-types sw-register",
-];
+const REQUIRED_CSP_DIRECTIVES = new Map([
+  ["default-src", "'self'"],
+  ["script-src", "'self'"],
+  ["style-src", "'self'"],
+  ["img-src", "'self' data:"],
+  ["font-src", "'self'"],
+  ["connect-src", "'none'"],
+  ["object-src", "'none'"],
+  ["base-uri", "'self'"],
+  ["form-action", "'none'"],
+  ["worker-src", "'self'"],
+  ["manifest-src", "'self'"],
+  ["require-trusted-types-for", "'script'"],
+  ["trusted-types", "sw-register"],
+]);
 
 const ALLOWED_EXTERNAL_URLS = new Set([
   "http://www.w3.org/2000/svg",
@@ -55,16 +55,24 @@ const BANNED_XSS_PATTERNS = [
   },
   {
     name: "eval() sink",
-    regex: /\beval\s*\(/g,
+    regex: /\beval\s*(?:\?\.\s*)?\(/g,
+  },
+  {
+    name: "indirect eval sink",
+    regex: /,\s*eval\s*\)\s*(?:\?\.\s*)?\(/g,
   },
   {
     name: "new Function sink",
     regex: /\bnew\s+Function\b/g,
   },
+  {
+    name: "Function() sink",
+    regex: /\bFunction\s*(?:\?\.\s*)?\(/g,
+  },
 ];
 
 const TEST_FILE_RE = /\.test\.[cm]?[jt]sx?$/;
-const URL_RE = /https?:\/\/[^\s"'`<>\\)]+/g;
+const URL_RE = /https?:\/\/[^\s"'`<>\\)]+/gi;
 
 /**
  * Recursively collects all file paths under `dir`.
@@ -111,7 +119,7 @@ function relPath(rootDir, filePath) {
 }
 
 /**
- * Gate 1: Zero production dependencies, exact devDependencies, and zero @capacitor/* imports in src/.
+ * Gate 1: Zero production/optional dependencies, exact devDependencies, and zero @capacitor/* imports in src/.
  * @param {string} rootDir
  * @returns {string[]}
  */
@@ -128,6 +136,13 @@ export function checkDependenciesAndCapacitor(rootDir) {
   if (prodDeps.length > 0) {
     failures.push(
       `Gate 1 (package.json): dependencies must be empty (zero-prod-dep), found: ${prodDeps.join(", ")}`,
+    );
+  }
+
+  const optionalDeps = Object.keys(pkg.optionalDependencies ?? {});
+  if (optionalDeps.length > 0) {
+    failures.push(
+      `Gate 1 (package.json): optionalDependencies must be empty (zero-prod-dep), found: ${optionalDeps.join(", ")}`,
     );
   }
 
@@ -161,6 +176,7 @@ export function checkDependenciesAndCapacitor(rootDir) {
 
 /**
  * Extracts all <meta ...> tags and parses their attributes into lowercase key/value maps.
+ * Expects HTML comments to have already been stripped by the caller.
  * @param {string} html
  * @returns {Array<Record<string, string>>}
  */
@@ -201,28 +217,62 @@ export function checkDistHtmlSecurityHeaders(rootDir) {
   }
 
   const html = readFileSync(indexHtmlPath, "utf8");
-  const metas = extractMetaTags(html);
+  const htmlWithoutComments = html.replace(/<!--[\s\S]*?-->/g, "");
+  const metas = extractMetaTags(htmlWithoutComments);
 
-  const cspMeta = metas.find(
+  const cspMetas = metas.filter(
     (m) => (m["http-equiv"] ?? "").toLowerCase() === "content-security-policy",
   );
 
-  if (!cspMeta?.content) {
+  if (cspMetas.length === 0 || !cspMetas[0]?.content) {
     failures.push(
       'Gate 2 (dist/index.html): missing <meta http-equiv="Content-Security-Policy" content="...">',
     );
   } else {
-    const directives = new Set(
-      cspMeta.content
-        .split(";")
-        .map((d) => d.trim().replace(/\s+/g, " "))
-        .filter(Boolean),
-    );
+    if (cspMetas.length > 1) {
+      failures.push(
+        `Gate 2 (dist/index.html): expected exactly 1 Content-Security-Policy <meta> tag, found ${cspMetas.length}`,
+      );
+    }
 
-    for (const required of REQUIRED_CSP_DIRECTIVES) {
-      if (!directives.has(required)) {
+    const seenDirectives = new Map();
+    const rawDirectives = cspMetas[0].content
+      .split(";")
+      .map((d) => d.trim().replace(/\s+/g, " "))
+      .filter(Boolean);
+
+    for (const directive of rawDirectives) {
+      const spaceIdx = directive.indexOf(" ");
+      const name = (
+        spaceIdx === -1 ? directive : directive.slice(0, spaceIdx)
+      ).toLowerCase();
+      const value = spaceIdx === -1 ? "" : directive.slice(spaceIdx + 1);
+
+      if (seenDirectives.has(name)) {
         failures.push(
-          `Gate 2 (dist/index.html): CSP <meta> missing required directive "${required}"`,
+          `Gate 2 (dist/index.html): duplicate CSP directive "${name}"`,
+        );
+        continue;
+      }
+
+      seenDirectives.set(name, value);
+
+      if (!REQUIRED_CSP_DIRECTIVES.has(name)) {
+        failures.push(
+          `Gate 2 (dist/index.html): unexpected CSP directive "${directive}"`,
+        );
+      }
+    }
+
+    for (const [name, expectedValue] of REQUIRED_CSP_DIRECTIVES) {
+      const actualValue = seenDirectives.get(name);
+      if (actualValue === undefined) {
+        failures.push(
+          `Gate 2 (dist/index.html): CSP <meta> missing required directive "${name} ${expectedValue}"`,
+        );
+      } else if (actualValue !== expectedValue) {
+        failures.push(
+          `Gate 2 (dist/index.html): CSP directive "${name}" must be "${expectedValue}", found "${actualValue}"`,
         );
       }
     }
@@ -234,15 +284,25 @@ export function checkDistHtmlSecurityHeaders(rootDir) {
     );
   }
 
-  const referrerMeta = metas.find(
-    (m) =>
-      (m.name ?? "").toLowerCase() === "referrer" &&
-      (m.content ?? "").trim().toLowerCase() === "no-referrer",
+  const referrerMetas = metas.filter(
+    (m) => (m.name ?? "").toLowerCase() === "referrer",
   );
-  if (!referrerMeta) {
+  if (referrerMetas.length === 0) {
     failures.push(
       'Gate 2 (dist/index.html): missing <meta name="referrer" content="no-referrer">',
     );
+  } else {
+    if (referrerMetas.length > 1) {
+      failures.push(
+        `Gate 2 (dist/index.html): expected exactly 1 referrer <meta> tag, found ${referrerMetas.length}`,
+      );
+    }
+    const content = (referrerMetas[0]?.content ?? "").trim().toLowerCase();
+    if (content !== "no-referrer") {
+      failures.push(
+        `Gate 2 (dist/index.html): referrer <meta> content must be "no-referrer", found "${content}"`,
+      );
+    }
   }
 
   return failures;
@@ -329,7 +389,7 @@ export function checkSourceXssSinks(rootDir) {
 export function runAllGates(rootDir) {
   const results = [
     {
-      name: "Gate 1: Zero prod deps, exact devDependencies & zero @capacitor/* in src/",
+      name: "Gate 1: Zero prod/optional deps, exact devDependencies & zero @capacitor/* in src/",
       failures: checkDependenciesAndCapacitor(rootDir),
     },
     {

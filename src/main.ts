@@ -13,7 +13,13 @@ export function assertNotFramed(
   win: FrameGuardWindow,
   doc: FrameGuardDocument,
 ): void {
-  if (win.top !== win.self) {
+  let isFramed: boolean;
+  try {
+    isFramed = win.top !== win.self;
+  } catch {
+    isFramed = true;
+  }
+  if (isFramed) {
     doc.documentElement.replaceChildren();
     throw new Error("Framing is not permitted");
   }
