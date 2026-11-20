@@ -129,10 +129,11 @@ time and live in **`devDependencies`**.
 | IndexedDB test polyfill | **`fake-indexeddb`** | **Active & current:** maintained with releases; **First-party / tool-maintainer:** maintained by its dedicated author (a stable, single-maintainer project, not a fork); **Industry-standard:** the de-facto in-memory IndexedDB implementation so `src/storage/indexeddb.ts` can be unit-tested in Vitest (Node). *(Category: test-support, not a runtime framework.)* |
 | Lint + format | **Biome** | **Active & current:** actively maintained, regular releases. **First-party / tool-maintainer:** maintained by the Biome project (Rust-based, first-party). **Industry-standard:** the current best-practice single lint + format tool (sub-ms, no plugin config). (ESLint 9 + Prettier is the fallback if a plugin ecosystem is later needed.) |
 | Type check | **tsc** (TypeScript) | **Active & current:** the TypeScript compiler itself — the most actively maintained project in the JS/TS ecosystem, regular releases. **First-party / tool-maintainer:** maintained by Microsoft (the language owner). **Industry-standard:** `tsc --noEmit` runs in CI. |
+| Node.js type definitions | **`@types/node`** | **Active & current:** continuously updated in lockstep with Active-LTS Node.js releases. **First-party / tool-maintainer:** maintained by DefinitelyTyped / the Microsoft TypeScript team, and declared as a peer dependency by Vite and Vitest (also referenced by `playwright-core` `.d.ts` files). **Industry-standard:** the sole canonical Node.js type definitions package; strictly `devDependencies` (zero bytes in `dist/`) and isolated to `tsconfig.node.json` so `src/` never sees Node globals. |
 
 **The full `devDependencies` set:** `vite`, `vitest`, `@vitest/coverage-v8`,
 `fake-indexeddb`, `@playwright/test`, `@axe-core/playwright`, `@biomejs/biome`,
-`typescript`. **No framework runtime deps** — `dependencies` (production) MUST
+`typescript`, `@types/node`. **No framework runtime deps** — `dependencies` (production) MUST
 remain completely empty. **pnpm** is the *package manager* that installs these —
 it is **provisioned** (via the `packageManager` field and `pnpm/action-setup` in
 CI, with no `corepack` assumption), **not** a `devDependency`; the **CI
@@ -142,10 +143,10 @@ actions** below are likewise provisioned, not installed as packages.
 hardcoding potentially stale tool version numbers. The Phase 1 bootstrap task
 MUST verify and install the current stable major versions of every allowed
 `devDependencies` package (Vite, Vitest, `@vitest/coverage-v8`, `fake-indexeddb`,
-`@playwright/test`, `@axe-core/playwright`, Biome, TypeScript) along with the
+`@playwright/test`, `@axe-core/playwright`, Biome, TypeScript, `@types/node`) along with the
 current Active-LTS even Node.js release (from `nodejs.org`) and a modern pnpm
-release (10+, supporting npm's bulk audit endpoint), pinned via `.npmrc`
-`save-exact=true`. Dependabot (`.github/dependabot.yml`) keeps both `npm`
+release (10+, supporting npm's bulk audit endpoint), pinned via `pnpm-workspace.yaml`
+`saveExact: true` (and `.npmrc` `save-exact=true` for npm fallback). Dependabot (`.github/dependabot.yml`) keeps both `npm`
 devDependencies and SHA-pinned GitHub Actions current thereafter.
 
 ## CI actions (the allowed set)
@@ -219,8 +220,9 @@ full-SHA pinned before it is allowed.
   This keeps the **zero-prod-dep** hard constraint intact and the two rules
   consistent with each other.
 - **Supply-Chain & Lockfile Hardening (mandatory):**
-  - **Exact dependency pinning (`.npmrc`) & versions decided at bootstrap:** The
-    repository root MUST include an `.npmrc` file setting `save-exact=true` so
+  - **Exact dependency pinning (`pnpm-workspace.yaml` + `.npmrc`) & versions decided at bootstrap:** The
+    repository root MUST configure `saveExact: true` in `pnpm-workspace.yaml` (enforced by pnpm 11/12)
+    and retain an `.npmrc` file setting `save-exact=true` (for the `npm` zero-config fallback) so
     every `devDependencies` entry in `package.json` uses an exact version string
     (e.g. `"5.4.0"`, never `^` or `~` floating ranges). Exact current tool
     majors are verified and selected at Phase 1 bootstrap rather than hardcoded
@@ -231,17 +233,20 @@ full-SHA pinned before it is allowed.
     from `nodejs.org`), mirrored in `package.json` `"engines": { "node": "..." }`.
     CI workflows MUST configure `actions/setup-node` with
     `node-version-file: '.nvmrc'` so local and CI runtimes match.
-  - **pnpm workspace hardening (`pnpm-workspace.yaml`):** Because pnpm 10+
-    blocks dependency lifecycle/build scripts by default, the repository MUST
-    configure `pnpm-workspace.yaml` with:
-    - `onlyBuiltDependencies` explicitly allow-listing only required build-script
-      packages (e.g. `esbuild` for Vite/Vitest), and
-    - `minimumReleaseAge` (release-age cooldown) to mitigate newly-published
-      malicious package versions.
-    Require a minimum pnpm version (10+) that uses npm's **bulk advisory audit
-    endpoint** (legacy audit endpoints were retired and return HTTP 410).
-    Provision pnpm via `packageManager` + `pnpm/action-setup` in CI — do **not**
-    assume local `corepack`.
+  - **pnpm workspace hardening (`pnpm-workspace.yaml`):** Because pnpm 11/12
+    blocks dependency lifecycle/build scripts by default (replacing pnpm 10's
+    removed `onlyBuiltDependencies` with `allowBuilds` and rejecting unknown
+    keys), the repository MUST configure `pnpm-workspace.yaml` with:
+    - `saveExact: true` to enforce exact dependency pinning in pnpm 12 (retaining
+      `.npmrc` `save-exact=true` for npm fallback),
+    - `allowBuilds: {}` (explicitly allow-listing only strictly required
+      build-script packages if any are ever needed), and
+    - `minimumReleaseAge: 4320` (72-hour / 3-day release-age cooldown) to
+      mitigate newly-published malicious package versions.
+    Require a minimum pnpm version (10+, using pnpm 12 in Phase 1) that uses
+    npm's **bulk advisory audit endpoint** (legacy audit endpoints were retired
+    and return HTTP 410). Provision pnpm via `packageManager` +
+    `pnpm/action-setup` in CI — do **not** assume local `corepack`.
   - **Immutable lockfile in CI (`--frozen-lockfile`):** Every CI job MUST install
     dependencies via `pnpm install --frozen-lockfile` so `pnpm-lock.yaml` is the
     single deterministic source of truth and lockfile drift fails immediately.
@@ -293,6 +298,7 @@ To maximize compile-time safety across pure financial calculations (`src/core/`)
     "module": "ESNext",
     "moduleResolution": "bundler",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["vite/client"],
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
@@ -304,6 +310,8 @@ To maximize compile-time safety across pure financial calculations (`src/core/`)
     "noEmit": true,
     "skipLibCheck": false
   },
-  "include": ["src", "e2e"]
+  "include": ["src"]
 }
 ```
+
+Node tooling configs (`vite.config.ts`, `vitest.config.ts`, `playwright.config.ts`) and Playwright `e2e/` tests are type-checked via `tsconfig.node.json` (`"extends": "./tsconfig.json"`, `"types": ["node"]`) so `@types/node` globals are isolated from browser code under `src/`.

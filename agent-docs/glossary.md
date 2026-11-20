@@ -221,7 +221,7 @@ in its own topic doc, not here.
   isolated in `native/` for Phase 6) plus a curated set of well-maintained dev
   dependencies; **pnpm is the package manager (provisioned via `packageManager`
   + `pnpm/action-setup` without assuming local `corepack`)**, paired with
-  `.nvmrc`, `pnpm-workspace.yaml` (`onlyBuiltDependencies`, `minimumReleaseAge`),
+  `.nvmrc`, `pnpm-workspace.yaml` (`saveExact: true`, `allowBuilds: {}`, `minimumReleaseAge: 4320`),
   full-SHA-pinned CI actions, and Dependabot.
   [project-plan/dependency-strategy.md](../project-plan/dependency-strategy.md)
 - **SHA pinning** — pinning every `uses:` GitHub Action in `.github/workflows/`
