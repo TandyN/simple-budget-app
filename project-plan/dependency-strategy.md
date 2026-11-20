@@ -263,8 +263,9 @@ full-SHA pinned before it is allowed.
     `.github/workflows/` MUST declare top-level least-privilege
     `permissions: { contents: read }` by default, elevating permissions only at
     the specific job level where required (e.g. `security-events: write` on the
-    CodeQL analysis job, or `contents: write` on the `gh-pages` publish job
-    only; see [testing.md](testing.md)).
+    CodeQL analysis job, or `contents: write` only on the `gh-pages` publish job
+    in `deploy-pages.yml` and the release-publish job in `release.yml`; see
+    [testing.md](testing.md)).
   - **Skipped — Subresource Integrity (SRI):** Deliberately skipped. Every
     runtime asset is same-origin and self-hosted with Vite content-hashed
     filenames under `default-src 'self'` CSP; SRI only protects
