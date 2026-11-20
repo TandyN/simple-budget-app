@@ -66,10 +66,10 @@ where the boundary matters.
 - **Local and secure (Pillar 1 — defense-in-depth)**: data lives purely on the
   device with zero network egress, enforced by a strict W3C CSP3
   `<meta http-equiv="Content-Security-Policy">` (`connect-src 'none'`,
-  `default-src 'self'`, Trusted Types `require-trusted-types-for 'script'`),
+  `default-src 'self'`, Trusted Types `require-trusted-types-for 'script'; trusted-types sw-register`),
   `<meta name="referrer" content="no-referrer">`, a 3-line `top !== self`
-  frame-buster in `index.html`, base-path origin-isolated IndexedDB and
-  CacheStorage naming (OQ-1), a custom in-repo Vite plugin emitting `sw.js`
+  frame-buster in `src/main.ts` (since `script-src 'self'` blocks inline `<script>` in `index.html`), base-path origin-isolated IndexedDB,
+  CacheStorage, and `BroadcastChannel` naming (OQ-1), a custom in-repo Vite plugin emitting `sw.js`
   with a same-origin guard, `pr-*` bypass, and user-accepted update banner, a
   strict ban on `innerHTML` / `outerHTML` / `insertAdjacentHTML` / `eval`
   across `src/` (safe DOM APIs only), a 10 MB-bounded and
@@ -101,7 +101,7 @@ where the boundary matters.
   and [testing.md → mandatory Playwright E2E scenarios](testing.md#4-mandatory-playwright-e2e-security-privacy--viewport-scenarios-e2espects).
 - **Zero production dependencies (web bundle) & `native/` package boundary**:
   the root web bundle package (backend *and* frontend) uses only Web-platform
-  APIs (IndexedDB, WebCrypto, `fetch`, `Date`/`Intl`, `crypto.randomUUID`, pure
+  APIs (IndexedDB, WebCrypto, `Date`/`Intl`, `crypto.randomUUID`, pure
   TS logic), keeps `package.json` `dependencies: {}`, and never imports
   `@capacitor/*`. Phase 6 Capacitor wrappers and native plugins live in an
   isolated `native/` workspace package (`native/package.json`), reached from the
@@ -156,7 +156,7 @@ where the boundary matters.
   verification set — the layout is **state-aware (folded/unfolded)**, built on
   logical units + safe-area insets, WCAG 2.2 AA semantics (`<dialog>`,
   `role="tablist"`, `aria-live="polite"`, `44×44 CSS px` touch targets), and
-  `BroadcastChannel("simple-budget-sync")` multi-tab sync. See
+  base-path-scoped `BroadcastChannel` (`"simple-budget-sync"` vs. `"simple-budget-sync-pr-<N>"`, OQ-1) multi-tab sync. See
   [frontend.md → responsive viewport](frontend.md#responsive-viewport--iphone-duo-foldable-dual-state-req-2).
 - **Insights / search surface** (reqs 4 & 9): search & filter by period + tag +
   type, and tag-based rollup (`searchActivities` / `summarizeByTag`) rendered
