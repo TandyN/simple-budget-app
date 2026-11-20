@@ -196,6 +196,7 @@ interface BudgetApi {
   // Local backup export / atomic import
   exportBackup(): Promise<BudgetBackup>;
   importBackup(json: string): Promise<{ rulesCount: number; activitiesCount: number }>;
+  getLastBackupAt(): Promise<string | null>; // ISO-8601 UTC timestamp from "meta", or null if never backed up
 }
 ```
 
@@ -221,12 +222,16 @@ interface BudgetApi {
   date-range + tag + type, and roll up money in / out by tag. Both are pure and
   derived from the log (integer cents, plain data) — see
   [activity-model.md → Insights / search](activity-model.md#insights--search).
-- **`exportBackup()` / `importBackup(json)`** provide local JSON backup export
-  and atomic restore. `exportBackup()` returns a versioned `BudgetBackup`
-  envelope (`schemaVersion: 1`, `exportedAt`, `rules`, `activities`), while
-  `importBackup(json)` validates the untrusted JSON string in `src/core/validate.ts`
-  (10 MB ceiling, prototype-pollution key rejection, full schema/invariant checks;
-  see [data-model.md](data-model.md#hardened-import-validation-validatebackuppayloadrawjson-string-budgetbackup))
+- **`exportBackup()` / `importBackup(json)` / `getLastBackupAt()`** provide local
+  JSON backup export, atomic restore, and backup-age inspection. `exportBackup()`
+  returns a versioned `BudgetBackup` envelope (`schemaVersion: 1`, `exportedAt`,
+  `rules`, `activities`) and records `{ key: "lastBackupAt", timestamp }` via
+  `StorageAdapter.setMeta`, while `getLastBackupAt()` reads that timestamp back
+  via `StorageAdapter.getMeta` (returning `null` if never backed up) so the
+  Settings UI never touches IndexedDB directly. `importBackup(json)` validates
+  the untrusted JSON string in `src/core/validate.ts` (10 MB ceiling,
+  prototype-pollution key rejection, full schema/invariant checks; see
+  [data-model.md](data-model.md#hardened-import-validation-validatebackuppayloadrawjson-string-budgetbackup))
   before atomically replacing all records in a single IndexedDB `readwrite`
   transaction via `StorageAdapter.replaceAll` (see
   [storage.md → Atomic Backup Restoration (`replaceAll`)](storage.md#atomic-backup-restoration-replaceall)).
@@ -489,8 +494,8 @@ These three design questions have locked-in **MVP defaults** so engineering task
   - **Pre-store-release gate (post-MVP, Phase 6):** Plaintext JSON exports
     stored in iCloud Drive / Google Drive expose full financial history. Before
     store submission, add **passphrase-encrypted backup export** using WebCrypto
-    **AES-256-GCM** (`AES-GCM`) + **PBKDF2-HMAC-SHA256** (`>= 600,000`
-    iterations) in the versioned envelope
+    **AES-256-GCM** (`AES-GCM`) + **PBKDF2-HMAC-SHA256** (`600_000..5_000_000`
+    iterations — OWASP floor + CWE-400 upper bound) in the versioned envelope
     `{ schemaVersion, enc: { alg, kdf, iter, salt, iv }, ciphertext }` (see
     [data-model.md → Post-MVP Encrypted Backup Envelope](data-model.md#post-mvp-encrypted-backup-envelope-store-release-gate)),
     paired with an **optional native biometric app lock** (iOS Face ID / Touch ID

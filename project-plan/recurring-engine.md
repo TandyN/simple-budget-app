@@ -36,8 +36,9 @@ periodOf(d, rule)  = "YYYY-MM" of the period containing the
 runRecurringEngine(now):
   for each rule in rules where rule.active == true:
     start = rule.lastPostPeriod ?? periodBefore(period(now))
-    // enumerate every period in (start, period(now)] that is due
-    for each period P in missingPeriods(rule, start, period(now)):
+    // enumerate every period in (start, period(now)] whose due instant has passed (dueAt <= now)
+    duePeriods = missingPeriods(rule, start, period(now), now)
+    for each period P in duePeriods:
       if alreadyPosted(rule.id, P):
         continue                                  // idempotency guard
       create Activity {
@@ -51,12 +52,14 @@ runRecurringEngine(now):
         period: P,
         memo:   (optional) "Auto-posted: {rule.name}",
       }
-    // after posting all missing periods, advance the high-water mark
-    rule.lastPostPeriod = period(now)
-    save(rule)
+    // advance the high-water mark only to the last period actually due/returned
+    // (never unconditionally to period(now), or an early-month run would skip the current period)
+    if duePeriods.length > 0:
+      rule.lastPostPeriod = duePeriods[duePeriods.length - 1]
+      save(rule)
 ```
 
-### `missingPeriods(rule, startExclusive, endInclusive)` & `dueDateTime(rule, period)`
+### `missingPeriods(rule, startExclusive, endInclusive, now)` & `dueDateTime(rule, period)`
 
 MVP returns the list of month strings strictly after `startExclusive` up to and
 including `endInclusive`, but **only those whose clamped due date (`dayOfMonth`)

@@ -242,7 +242,7 @@ Because a user-selected backup file is untrusted external input, `validateBackup
     - **Money invariants:** `Number.isSafeInteger(amountCents) && amountCents > 0` (strictly positive safe integers in minor units).
     - **Enum & schedule invariants:** Valid `RuleType` (`"income" | "expense"`), `ActivityType` (`"income" | "expense" | "deposit"`), `ActivitySource` (`"manual" | "recurring" | "file-import" | "bank-sync"`), `schedule.cadence === "monthly"`, and integer `schedule.dayOfMonth` in `1..31`.
     - **Date & period invariants:** Valid `YYYY-MM` format (`1 <= month <= 12`) for `lastPostPeriod` (when non-null) and `Activity.period` (when `source === "recurring"`), and valid ISO-8601 UTC instants (`YYYY-MM-DDTHH:mm:ss(.sss)Z`) for `dateTime`, `createdAt`, `updatedAt`, and optional `deletedAt` (when present).
-    - **Bounded string & array lengths:** Non-empty `id` (`<= 64` chars), optional `deviceId` (`<= 64` chars when present), optional `importBatchId` / `externalTxnId` / `sourceAccountId` (`<= 128` chars when present), rule `name` / `label` and each `tag` bounded to `<= 120` chars, optional `memo` bounded to `<= 1000` chars, and `tags.length <= 20`.
+    - **Bounded string & array lengths:** Non-empty `id` (`<= 64` chars), optional `deviceId` (`<= 64` chars when present), optional `importBatchId` / `externalTxnId` / `sourceAccountId` (`<= 128` chars when present), `RecurringRule.name` and each entry in `Activity.tags` bounded to `<= 120` chars, optional `Activity.memo` bounded to `<= 1000` chars, and `Activity.tags.length <= 20`.
     - **Referential & uniqueness invariants:** Reject duplicate `id`s within `rules` or within `activities`; require `sourceRuleId` and `period` when `source === "recurring"`.
     - **Single-currency consistency:** Enforce a valid 3-letter uppercase ISO-4217 `currency` code (e.g. `"USD"`) and verify single-currency consistency across all rules and activities in the imported budget so `computeAvailableFunds` and `summarizeByTag` never sum mixed currencies.
 
@@ -291,7 +291,7 @@ The v1 data model (`RecurringRule`, `Activity`), `BudgetBackup` (`schemaVersion:
    - Add a pure `summarizeByPeriod(activities: Activity[], granularity: "month" | "quarter" | "year")` function in `src/core/insights.ts` operating over activities queried via the `by_dateTime` index.
    - Renders as zero-dependency inline SVG bar/area charts in the unfolded right-hand companion pane (`>= 700px`, see [frontend.md](frontend.md)).
 3. **Flexible Recurring Cadences (`weekly`, `bi-weekly`, `semi-monthly`, `quarterly`, `yearly`):**
-   - Extend `Schedule.cadence` and populate the already-reserved `anchorDate: string` field inside `missingPeriods(rule, now)` (see [recurring-engine.md](recurring-engine.md)).
+   - Extend `Schedule.cadence` and populate the already-reserved `anchorDate: string` field inside `missingPeriods(rule, startExclusive, endInclusive, now)` (see [recurring-engine.md](recurring-engine.md)).
    - The `(sourceRuleId, period)` idempotency key and the compound `by_rule_period` index remain completely unchanged—`period` simply generalizes from `"2026-11"` to ISO week `"2026-W14"`, date `"2026-03-15"`, quarter `"2026-Q1"`, or year `"2026"`.
 4. **Split Transactions:**
    - Add an optional `splits?: Array<{ amountCents: number; tags: string[]; memo?: string }>` field on `Activity` with the invariant `sum(splits.amountCents) === activity.amountCents`.
