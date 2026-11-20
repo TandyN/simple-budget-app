@@ -99,10 +99,11 @@ constant. This is an **explicit, configurable build decision**:
     feature-detected Trusted Types `createScriptURL`-only policy (`sw-register`,
     allowing only `import.meta.env.BASE_URL + "sw.js"`, falling back to the plain
     string where `window.trustedTypes` is absent):
-    `navigator.serviceWorker.register(swScriptUrl, { scope: import.meta.env.BASE_URL })`,
-    so the SW control scope matches the deployed path while remaining compliant
-    with `require-trusted-types-for 'script'`. The production SW explicitly
-    bypasses `pr-*` sub-paths (see
+    `navigator.serviceWorker.register(swScriptUrl, { scope: import.meta.env.BASE_URL, updateViaCache: "none" })`,
+    so the SW control scope matches the deployed path, bypasses GitHub Pages'
+    default 10-minute `Cache-Control` header for immediate update/rollback
+    detection, and remains compliant with `require-trusted-types-for 'script'`.
+    The production SW explicitly bypasses `pr-*` sub-paths (see
     [Service Worker Design](#service-worker-design-pwa-offline-scoping--update-lifecycle)).
   - **Storage, cache & channel namespacing** — IndexedDB database names
     (`simple-budget-app` vs `simple-budget-app-pr-<N>`), CacheStorage names
@@ -174,6 +175,39 @@ service worker generated at build time:
      `sw.js` (`new URL(event.request.url).origin === self.location.origin`,
      rejecting any cross-origin request immediately) is the **compensating
      control** enforcing zero egress inside the worker scope.
+6. **SW update detection (`updateViaCache: "none"`), tag-rollback swap & Emergency No-Op / Kill-Switch SW Roll-Forward:**
+   - **Mandatory `{ updateViaCache: "none" }` on registration:** Registration
+     MUST pass `{ scope: import.meta.env.BASE_URL, updateViaCache: "none" }` to
+     `navigator.serviceWorker.register(...)`. GitHub Pages serves static assets
+     with a default 10-minute `Cache-Control: max-age=600` header; setting
+     `updateViaCache: "none"` forces the browser to bypass the HTTP cache when
+     checking `sw.js` for updates so production releases and rollbacks are
+     detected immediately on the next navigation.
+   - **Automatic byte-different `sw.js` swap on same-schema tag rollback:**
+     Because the custom Vite plugin embeds `<buildhash>` (and the precache
+     manifest) directly inside `dist/sw.js`, re-deploying a last known-good
+     SemVer tag (`vX.Y.Z`) to `gh-pages` via `workflow_dispatch` (see
+     [testing.md → Release, Versioning & Rollback / Roll-Forward Pipeline](testing.md#release-versioning--rollback--roll-forward-pipeline))
+     produces a `sw.js` that is byte-different from the faulty release. With
+     `updateViaCache: "none"`, browsers immediately detect the rolled-back
+     `sw.js` as a new worker; once activated, it populates `sbapp-<goodhash>`
+     and prunes the faulty `sbapp-<badhash>` cache while leaving sibling
+     `sbapp-pr-*` preview caches untouched.
+   - **Emergency No-Op / Kill-Switch SW Roll-Forward (broken-SW recovery):** If a
+     defective `sw.js` ever ships that breaks `fetch` handling or blocks normal
+     update flows, **roll forward** a minimal **Emergency No-Op / Kill-Switch**
+     `sw.js` at the exact same URL (`import.meta.env.BASE_URL + "sw.js"`):
+     - In `install`: call `self.skipWaiting()` immediately so the kill-switch
+       takes control without waiting for user banner interaction.
+     - In `activate`: delete all production `sbapp-*` caches **excluding**
+       `sbapp-pr-*` (`key.startsWith("sbapp-") && !key.startsWith("sbapp-pr-")`),
+       unregister itself (`await self.registration.unregister()`), and reload
+       controlled window clients (`clients.matchAll({ type: "window" })`) so
+       browsers return cleanly to network-served assets.
+   - **`Clear-Site-Data` is explicitly forbidden:** Never attempt broken-SW
+     recovery via the `Clear-Site-Data` HTTP header — GitHub Pages does not
+     support custom response headers, and `Clear-Site-Data: "storage"` would
+     permanently wipe users' local-first IndexedDB financial data.
 
 ## Zero production dependencies (req 1)
 
@@ -503,7 +537,10 @@ Content Security Policy and Referrer Policy `<meta>` tags in `<head>`:
       },
     });
     const swScriptUrl = swPolicy ? swPolicy.createScriptURL(expectedSwUrl) : expectedSwUrl;
-    navigator.serviceWorker.register(swScriptUrl as string, { scope: import.meta.env.BASE_URL });
+    navigator.serviceWorker.register(swScriptUrl as string, {
+      scope: import.meta.env.BASE_URL,
+      updateViaCache: "none",
+    });
     ```
   - Because `sw-register` exposes no `createHTML` or `createScript` methods and
     no other policy is permitted, every HTML/script sink (`innerHTML`,

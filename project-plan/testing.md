@@ -89,6 +89,8 @@ To guarantee mathematical accuracy, storage durability, and security/privacy com
 - **Storage durability persistence (`persist()` / `persisted()`) & backup metadata:**
   - Verifies `budget.init()` does **not** invoke `navigator.storage?.persist?.()` prematurely; verifies `navigator.storage?.persist?.()` is invoked best-effort after the first user write/action and returns cleanly without throwing when `navigator.storage` is absent or returns `false`.
   - Verifies `navigator.storage?.persisted?.()` status is surfaced cleanly and `budget.exportBackup()` records `{ key: "lastBackupAt", timestamp }` in `"meta"` to drive the Settings backup-age display and N-day backup nag.
+- **Defensive non-destructive `VersionError` handling:**
+  - Simulates an on-disk database with a higher version than `DB_VERSION` and verifies `IndexedDbAdapter.open()` rejects with a typed, non-destructive `VersionError` without calling `indexedDB.deleteDatabase()` or modifying existing records (see [storage.md → IndexedDB Schema Rollback Safety](storage.md#indexeddb-schema-rollback-safety-versionerror--expand-and-contract)).
 
 ### 4. Mandatory Playwright E2E Security, Privacy & Viewport Scenarios (`e2e/**/*.spec.ts`)
 
@@ -117,7 +119,7 @@ All Playwright E2E scenarios run against the production-built bundle (`vite prev
 - **Preview build DB-name isolation E2E test (OQ-1 origin isolation):**
   - Builds and serves the app with a PR-preview base path (e.g. `VITE_BASE_PATH=/simple-budget-app/pr-999/`), initializes the app, and asserts that the opened IndexedDB database is named `simple-budget-app-pr-999` (distinct from production's `simple-budget-app`), proving PR previews never share, mutate, or upgrade the production database on the shared `tandyn.github.io` origin (see [storage.md → IndexedDB Schema Versioning](storage.md#indexeddb-schema-versioning-indexes--migration-strategy)).
 - **Service Worker offline, `pr-*` bypass, cache-versioning & update-banner E2E test (Chromium):**
-  - Verifies the plugin-emitted `sw.js` registers under `BASE_URL` (and is skipped when `window.Capacitor` is present), populates the versioned `sbapp-<buildhash>` cache with the emitted precache manifest, and serves the app cleanly offline (`context.setOffline(true)` reload via network-first navigation with cache fallback).
+  - Verifies the plugin-emitted `sw.js` registers under `BASE_URL` with `{ updateViaCache: "none" }` (and is skipped when `window.Capacitor` is present), populates the versioned `sbapp-<buildhash>` cache with the emitted precache manifest, and serves the app cleanly offline (`context.setOffline(true)` reload via network-first navigation with cache fallback).
   - Verifies that the production SW bypasses/excludes `/simple-budget-app/pr-*` requests instead of serving the cached production `index.html`.
   - Verifies the update lifecycle: when a newer SW version enters `waiting`, the controller does **not** swap silently; an accessible "Update available" banner is shown, and only after user acceptance (sending `{ type: "SKIP_WAITING" }` → `self.skipWaiting()`) does the new `sbapp-<newbuildhash>` cache activate and prune obsolete production `sbapp-*` caches on `activate` while explicitly preserving sibling `sbapp-pr-*` PR-preview caches.
 
@@ -279,6 +281,36 @@ Because concurrent pushes to the `gh-pages` branch (PR preview publishes, PR-clo
   Setting `cancel-in-progress: false` guarantees that every queued PR preview publish, PR-close prune, and `main` deploy runs to completion sequentially in FIFO order against the latest `gh-pages` tip rather than aborting an in-flight publish or losing a prune event.
 - **Least-privilege permissions:** Top-level workflow permissions default to `permissions: { contents: read }`, elevating to `permissions: { contents: write }` **only on the `gh-pages` publish job** (see [dependency-strategy.md](dependency-strategy.md)).
 - **Deterministic site-tree preservation:** The `gh-pages` branch itself is the canonical source of truth for the existing site tree. During each serialized run, the publish job mutates only the target `pr-<PR#>/` directory (writing `pr-<PR#>/` on `pull_request` open/synchronize/reopen or running `git rm -rf pr-<PR#>/` on `closed`) or updates only the root files excluding `pr-*/` (on `push` to `main`).
+
+## Release, Versioning & Rollback / Roll-Forward Pipeline
+
+Because `simple-budget-app` ships both a local-first GitHub Pages PWA (Phases 1–5) and later native iOS/Android binaries (Phase 6), release automation, versioning, and incident recovery are codified as first-class CI/CD workflows (adopted default from Spike #199):
+
+### 1. Versioning & Release Automation (`.github/workflows/release.yml`)
+
+- **Single source of truth (manual SemVer + annotated tags):** Maintain Semantic Versioning (`X.Y.Z`, starting at `0.1.0` in Phase 1) manually in root `package.json`. When cutting a release on `main`, create and push an annotated git tag `vX.Y.Z` matching `package.json` `version`.
+- **Zero extra third-party release bots:** Pushing `vX.Y.Z` triggers `.github/workflows/release.yml` automatically using only full-40-char SHA-pinned first-party actions (`actions/checkout`, `pnpm/action-setup`, `actions/setup-node`) and built-in `git` / `gh` CLI (`GITHUB_TOKEN` with `contents: write` scoped strictly to the release-publish job). No third-party release bot or action is added, preserving Pillar 1's minimal-action supply-chain posture.
+- **Release workflow outputs:**
+  1. Verifies the pushed tag `vX.Y.Z` matches `package.json` `version` and runs the full CI verification gate (lint, typecheck, unit/integration tests with `>= 95%` `src/core/` coverage, production `vite build`, post-build security/artifact checks, and Playwright E2E).
+  2. Packages an immutable `dist/` release archive (e.g. `simple-budget-app-vX.Y.Z-dist.tar.gz` + SHA-256 checksum) and attaches it to the GitHub Release.
+  3. Generates release notes / changelog automatically from Conventional Commits since the previous `v*` tag and publishes the **GitHub Release**.
+
+### 2. Web / PWA Rollback vs. Roll-Forward (GitHub Pages)
+
+- **Same-schema PWA rollback via `workflow_dispatch` tag re-deploy (or `git revert` on `main`):**
+  - When `DB_VERSION` has **not** increased (all v1.x MVP releases at `DB_VERSION = 1`), `.github/workflows/deploy-pages.yml` exposes a manual **`workflow_dispatch`** trigger accepting a `ref` input (e.g. `vX.Y.Z`, the last known-good SemVer tag).
+  - Running `workflow_dispatch` checks out the specified tag, builds with `VITE_BASE_PATH=/simple-budget-app/`, and publishes **only** the root files to `gh-pages` while **preserving all open `pr-*/` preview directories** under the same serialized `concurrency: { group: "pages-deploy", cancel-in-progress: false }` lock.
+  - As an alternative (or immediately after an emergency `workflow_dispatch` rollback to keep `main` in sync), run `git revert <bad-commit>` on `main` to trigger a clean production deploy from `main`.
+  - Because `dist/sw.js` embeds `<buildhash>` and is registered with `{ updateViaCache: "none" }`, the rolled-back `sw.js` is byte-different and triggers an automatic SW update/cache swap on next navigation (see [frontend.md → Service Worker Design](frontend.md#service-worker-design-pwa-offline-scoping--update-lifecycle)).
+- **Broken Service Worker emergency (No-Op / Kill-Switch SW roll-forward):**
+  - If a faulty `sw.js` blocks normal updates or breaks fetch handling, roll forward a minimal **Emergency No-Op / Kill-Switch** `sw.js` (`self.skipWaiting()` in `install`, prune production `sbapp-*` caches excluding `sbapp-pr-*` and unregister/reload clients in `activate`). Never use `Clear-Site-Data` (see [frontend.md → Service Worker Design](frontend.md#service-worker-design-pwa-offline-scoping--update-lifecycle)).
+- **Post-schema-bump recovery (roll-forward only):**
+  - Once `DB_VERSION` bumps (e.g. `1 → 2` in post-MVP), never roll back to code with a lower `DB_VERSION` (IndexedDB throws `VersionError`). Ship a strictly forward-only hotfix at `DB_VERSION = N + 1` using non-destructive expand-and-contract migrations, and never call `indexedDB.deleteDatabase()` (see [storage.md → IndexedDB Schema Rollback Safety](storage.md#indexeddb-schema-rollback-safety-versionerror--expand-and-contract)).
+
+### 3. Native Phased/Staged Rollout & Monotonic Roll-Forward Hotfix Cadence (Phase 6)
+
+- Mobile app stores (Apple App Store and Google Play) do **not** support binary downgrade once devices install an update. Native releases map root SemVer `X.Y.Z` to monotonically increasing platform build numbers (iOS `CFBundleShortVersionString` / `CFBundleVersion`; Android `versionName` / `versionCode`) and ship exclusively via **Apple 7-day Phased Release** and **Google Play Staged Rollout**.
+- On regression, pause (Apple, up to 30 cumulative days) or halt (Google Play) the rollout immediately, cut a fix on a hotfix branch with incremented SemVer + monotonic build number, and ship a **roll-forward hotfix** (using Apple Expedited Review when critical), monitored strictly via zero-SDK OS-level App Store Connect Crashes and Android Vitals (see [portability.md → Native Versioning, Phased/Staged Rollouts & Roll-Forward Hotfix Strategy](portability.md#native-versioning-phasedstaged-rollouts--roll-forward-hotfix-strategy)).
 
 ## Android + iOS test-build pipeline (credential-skip, build-only)
 

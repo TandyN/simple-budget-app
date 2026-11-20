@@ -163,6 +163,18 @@ function handleUpgrade(db: IDBDatabase, tx: IDBTransaction, oldVersion: number):
 }
 ```
 
+### IndexedDB Schema Rollback Safety (`VersionError` & Expand-and-Contract)
+
+Because IndexedDB enforces strictly monotonic database versions per browser origin and this app is **local-first with zero server copy**, release rollback and schema evolution follow strict safety rules:
+
+- **Same-schema rollback is safe (`DB_VERSION` unchanged):** Across all releases that share the same `DB_VERSION` (for example, all v1.x MVP releases at `DB_VERSION = 1`), rolling back the GitHub Pages PWA to a prior known-good SemVer tag `vX.Y.Z` (see [testing.md → Release, Versioning & Rollback / Roll-Forward Pipeline](testing.md#release-versioning--rollback--roll-forward-pipeline)) opens the existing database cleanly without triggering `onupgradeneeded` or data loss.
+- **Post-schema-bump recovery MUST be strictly roll-forward (`DB_VERSION = N + 1`):** Per the W3C IndexedDB specification, calling `indexedDB.open(DB_NAME, version)` with a `version` lower than the database's on-disk version rejects immediately with **`VersionError`**. Once any release bumps `DB_VERSION` (e.g. `1 → 2` in a post-MVP feature), you MUST **never** roll back to code expecting an older `DB_VERSION`. Instead:
+  - Author every schema change using non-destructive **expand-and-contract** migrations (add new optional fields, object stores, or indexes first; avoid destructive in-place column drops or lossy rewrites in the same release).
+  - If a post-schema-bump release has a defect, ship a **roll-forward** hotfix at **`DB_VERSION = N + 1`** (e.g. `3`) whose `onupgradeneeded` handler safely repairs or migrates state from `oldVersion === 2` inside the atomic `versionchange` transaction.
+- **Defensive non-destructive `VersionError` UI handling (`deleteDatabase()` forbidden):**
+  - `src/storage/indexeddb.ts` MUST catch `VersionError` when opening the database and surface a typed, non-destructive error to the UI so the app renders an accessible **"Update required"** banner instructing the user to reload/update to the latest version (and never silently overwrites or resets local state).
+  - **Explicitly forbidden:** Never call `indexedDB.deleteDatabase(DB_NAME)` in response to `VersionError` (or any open/migration error) on local-first user financial data — there is no remote server to re-sync from, so deleting the database causes irreversible financial data loss.
+
 ## Storage Durability & WebKit Eviction Mitigation
 
 Local-first browser and WebView storage is subject to user-agent storage pressure and platform eviction policies. The plan avoids overstated durability guarantees and pairs honest platform expectations with explicit user-visible controls and a store-release durability gate:
