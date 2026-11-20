@@ -13,7 +13,7 @@ and referenced by [data-model.md](data-model.md) and
 
 - **Primary store: IndexedDB.**
 - **Access pattern:** all reads/writes go through a small
-  **`StorageAdapter`** interface (`open` / `save` / `delete` / `query` / `replaceAll`). Business
+  **`StorageAdapter`** interface (`open` / `save` / `delete` / `query` / `replaceAll` / `getMeta` / `setMeta`). Business
   logic (recurring engine, derived Available Funds, CRUD) never touches IndexedDB
   directly — only the adapter does.
 
@@ -43,6 +43,12 @@ interface StorageAdapter {
     rules: RecurringRule[];
     activities: Activity[];
   }): Promise<void>;
+
+  /** Read a metadata record by key from the "meta" object store (e.g. "lastBackupAt"). */
+  getMeta<T>(key: string): Promise<T | null>;
+
+  /** Upsert a metadata record by key in the "meta" object store. */
+  setMeta<T>(key: string, value: T): Promise<void>;
 }
 ```
 
@@ -199,10 +205,12 @@ Local-first browser and WebView storage is subject to user-agent storage pressur
   - On GitHub Pages project sites, production (`/simple-budget-app/`), PR
     previews (`/simple-budget-app/pr-<N>/`), and any other repository under
     `https://tandyn.github.io` share the same browser origin. Deriving the
-    IndexedDB database name (`simple-budget-app` vs `simple-budget-app-pr-<N>`)
-    and CacheStorage names (`sbapp-<buildhash>` vs `sbapp-pr-<N>-<buildhash>`)
-    from `import.meta.env.BASE_URL` prevents accidental cross-contamination or
-    `DB_VERSION` upgrades between previews and production.
+    IndexedDB database name (`simple-budget-app` vs `simple-budget-app-pr-<N>`),
+    CacheStorage names (`sbapp-<buildhash>` vs `sbapp-pr-<N>-<buildhash>`), and
+    `BroadcastChannel` name (`"simple-budget-sync"` vs
+    `"simple-budget-sync-pr-<N>"`) from `import.meta.env.BASE_URL` prevents
+    accidental cross-contamination, cross-tab sync bleed, or `DB_VERSION`
+    upgrades between previews and production.
   - **Residual risk & optional upgrade:** Base-path namespacing does **not**
     prevent an XSS-compromised sibling GitHub Pages repo on
     `https://tandyn.github.io` from reading same-origin IndexedDB (neither CSP
@@ -219,8 +227,8 @@ Local-first browser and WebView storage is subject to user-agent storage pressur
     App Store / Play Store release** (Phase 6 store-release gate).
   - Uses built-in **WebCrypto (`crypto.subtle`)** — zero production
     dependencies — with **AES-256-GCM** (`AES-GCM`), **PBKDF2-HMAC-SHA256**
-    (`>= 600,000` iterations, OWASP baseline), fresh per-export random salt and
-    12-byte IV, wrapped in the versioned envelope
+    (`600_000..5_000_000` iterations — OWASP floor + CWE-400 upper bound), fresh
+    per-export random salt and 12-byte IV, wrapped in the versioned envelope
     `{ schemaVersion, enc: { alg, kdf, iter, salt, iv }, ciphertext }` (see
     [data-model.md → Post-MVP Encrypted Backup Envelope](data-model.md#post-mvp-encrypted-backup-envelope-store-release-gate)).
 - **Optional native biometric app lock (post-MVP, native-only before store release):**
@@ -263,8 +271,8 @@ Local-first browser and WebView storage is subject to user-agent storage pressur
 ## Resolved MVP default (carried to the index)
 
 - **At-rest IndexedDB encryption is deferred for the MVP; passphrase-encrypted
-  backup export (WebCrypto AES-256-GCM, PBKDF2-HMAC-SHA256 `>= 600,000`
-  iterations) and optional native biometric app lock are post-MVP store-release
-  gates** — on-device IndexedDB + zero network egress satisfies the MVP
-  requirement. Tracked in
+  backup export (WebCrypto AES-256-GCM, PBKDF2-HMAC-SHA256 `600_000..5_000_000`
+  iterations — OWASP floor + CWE-400 upper bound) and optional native biometric
+  app lock are post-MVP store-release gates** — on-device IndexedDB + zero
+  network egress satisfies the MVP requirement. Tracked in
   [portability.md → resolved MVP defaults](portability.md#resolved-mvp-defaults).
