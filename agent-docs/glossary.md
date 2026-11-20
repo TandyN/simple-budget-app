@@ -151,7 +151,7 @@ in its own topic doc, not here.
   `readwrite` transaction (`replaceAll`) that rolls back on any failure.
   [project-plan/data-model.md](../project-plan/data-model.md#versioned-budgetbackup-schema--hardened-import-validation)
 - **encrypted backup envelope** — the Phase 6 store-release passphrase-encrypted
-  backup format (`{ schemaVersion, enc: { alg: "AES-256-GCM", kdf: "PBKDF2-HMAC-SHA256", iter >= 600_000, salt, iv }, ciphertext }`)
+  backup format (`{ schemaVersion, enc: { alg: "AES-256-GCM", kdf: "PBKDF2-HMAC-SHA256", 600_000 <= iter <= 5_000_000, salt, iv }, ciphertext }`)
   built on WebCrypto so exported financial history is never left in plaintext in
   iCloud/Drive.
   [project-plan/data-model.md](../project-plan/data-model.md#post-mvp-encrypted-backup-envelope-store-release-gate)

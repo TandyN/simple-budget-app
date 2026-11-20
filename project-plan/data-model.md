@@ -260,7 +260,7 @@ interface EncryptedBudgetBackup {
   enc: {
     alg: "AES-256-GCM";        // WebCrypto AES-GCM with 256-bit derived key
     kdf: "PBKDF2-HMAC-SHA256"; // WebCrypto PBKDF2 + SHA-256
-    iter: number;              // >= 600_000 iterations (OWASP PBKDF2-HMAC-SHA256 baseline)
+    iter: number;              // integer in [600_000, 5_000_000] (OWASP PBKDF2-HMAC-SHA256 floor; upper bound prevents CPU DoS)
     salt: string;              // base64-encoded random 16-byte salt (crypto.getRandomValues)
     iv: string;                // base64-encoded random 12-byte AES-GCM IV (fresh per export)
   };
@@ -270,7 +270,7 @@ interface EncryptedBudgetBackup {
 
 - **Key derivation:** `PBKDF2-HMAC-SHA256` with `iter >= 600_000` (OWASP minimum) and a fresh cryptographically random 16-byte `salt` per export.
 - **Authenticated encryption:** `AES-256-GCM` (WebCrypto `AES-GCM`, 256-bit key, fresh 12-byte `iv` per export). Tampering or a wrong passphrase fails GCM authentication before any JSON parsing occurs.
-- **Validation on restore:** On import, after checking the 10 MB `file.size` ceiling, the importer detects the `enc` header, prompts for the passphrase, verifies `enc.alg`, `enc.kdf`, and `enc.iter >= 600_000`, decrypts the UTF-8 payload, and passes the plaintext JSON through the exact same hardened `validateBackupPayload(rawJson)` pipeline before invoking `replaceAll`.
+- **Validation on restore:** On import, after checking the 10 MB `file.size` ceiling, the importer detects the `enc` header, prompts for the passphrase, verifies `enc.alg === "AES-256-GCM"`, `enc.kdf === "PBKDF2-HMAC-SHA256"`, and `Number.isInteger(enc.iter) && enc.iter >= 600_000 && enc.iter <= 5_000_000` **before** calling `crypto.subtle.deriveKey` / PBKDF2—rejecting non-integer or out-of-range values to prevent CPU/WebView resource exhaustion (CWE-400) from crafted backup files. Only after header validation passes does it decrypt the UTF-8 payload and pass the plaintext JSON through the exact same hardened `validateBackupPayload(rawJson)` pipeline before invoking `replaceAll`. Phase 6 encrypted backup import unit tests MUST verify rejection of `enc.iter` values below `600_000`, above `5_000_000`, and non-integers (e.g., floats, `NaN`, `Infinity`) without executing PBKDF2.
 
 ## Post-MVP Extensibility & Growth Seams
 
