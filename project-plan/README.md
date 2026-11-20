@@ -22,7 +22,11 @@ stack, and post-MVP extensibility), and independently reviewed in **Story #164**
 `gh-pages` branch publishing (OQ-5, flagged to the user for confirmation),
 add origin isolation, Trusted Types, and a Vite-generated Service Worker,
 fix storage/data-model correctness gaps, specify **Phase 6** (native shell
-packaging & store submission), and rewrite post-MVP extensibility seams
+packaging & store submission), rewrite post-MVP extensibility seams, and
+refined in **Story #192** (spike #199) to re-slice Phase 4 into iterative
+story-sized vertical slices (**Phases 4A–4D** with co-shipped Playwright E2E),
+refocus **Phase 5** on MVP release hardening, SemVer versioning/tagging/changelog
+automation, and rollback/roll-forward readiness, and add a story-sizing map
 ([build-order.md](build-order.md)). **No code in this story** —
 the deliverable is this plan. A software-engineer should be able to decompose
 it into task tickets and start implementing.
@@ -39,7 +43,7 @@ README.md  (you are here — what this is, MVP scope, links, out-of-scope)
     ├── portability.md          — one bundle / three webview targets, native/ package boundary + PlatformServices seam, App Store / Play Store privacy & Store Submission Checklist
     ├── dependency-strategy.md  — zero prod deps in web bundle (native/ isolated for Phase 6) + well-maintained dev-dep & SHA-pinned CI-action set + .nvmrc, pnpm-workspace.yaml, Dependabot, CodeQL & strict tsconfig
     ├── testing.md              — Testing & CI/CD strategy (unit, integration, E2E, >= 95% core coverage, @axe-core/playwright a11y, zero-egress E2E gate, gh-pages mode-(a) PR preview, credential-gated builds)
-    └── build-order.md          — MVP Execution & Build Order (5-phase PWA MVP + Phase 6 native shell & store submission, verification gates, 5-pillar matrix & adopted defaults OQ-1..OQ-5)
+    └── build-order.md          — MVP Execution & Build Order (iterative Phases 1–3, 4A–4D, 5 PWA MVP + Phase 6 native shell & store submission, story-sizing map, release/rollback summary, 5-pillar matrix & adopted defaults OQ-1..OQ-5)
 ```
 
 Read in this order for a first pass: **data-model → storage →
@@ -144,7 +148,7 @@ where the boundary matters.
   **Two guarantees:** the **production root is untouched** on a PR deploy (only
   `pr-<PR#>/` is written), and the **PR sub-path is pruned on merge/close**.
   **OQ-5 is adopted by default and flagged to the user for explicit
-  confirmation** before Phase 5 deployment is enabled. See
+  confirmation** before Phase 4A deployment is enabled. See
   [testing.md → CI deploy & preview](testing.md#ci-deploy--preview-github-pages)
   and [frontend.md → base path](frontend.md#base-path-configurable-explicit-build-decision).
 - **Responsive viewport target — iPhone-Duo foldable (dual-state)**: the
@@ -188,14 +192,19 @@ where the boundary matters.
 - **UTC-stored, local-TZ display** (req 7): the backend stores ISO-8601 UTC
   instants; the frontend renders them in the user's local timezone via
   `Intl.DateTimeFormat`. See [frontend.md → time display](frontend.md#time--timezone-display-req-7).
-- **Execution & build order (5-Phase PWA MVP + Phase 6 Native Shell & Store Submission)**:
-  a sequenced implementation blueprint (Phase 1: Toolchain, Security/CSP & CI Gate
-  Bootstrap → Phase 2: Pure Core Domain, Validation, Recurring Engine & Insights →
-  Phase 3: IndexedDB Storage Layer & `BudgetApi` → Phase 4: Zero-Prod-Dep Frontend
-  UI, iPhone-Duo Layout & Vite-Generated PWA Service Worker → Phase 5: Playwright
-  E2E Suite, Zero-Egress/A11y Audit Gates & Mode-(a) `gh-pages` Deploy → Phase 6:
-  Native Shell Packaging (`native/` workspace) & App Store / Play Store Submission)
-  with executable verification gates at every phase and adopted Story #164 review
+- **Execution & build order (Iterative Phases 1–3, 4A–4D, 5 PWA MVP + Phase 6 Native Shell & Store Submission)**:
+  a sequenced implementation blueprint mapped to ~8 right-sized MVP stories
+  (Phase 1: Toolchain, Security/CSP & CI Gate Bootstrap → Phase 2: Pure Core
+  Domain, Validation, Recurring Engine & Insights → Phase 3: IndexedDB Storage
+  Layer & `BudgetApi` → Phase 4A: Walking Skeleton — App Shell,
+  `PlatformServices` Seam, Smoke Chromium/WebKit E2E & Mode-(a) `gh-pages`
+  Deploy → Phase 4B: Budget Tab + Co-Shipped E2E → Phase 4C: Insights &
+  Settings Tabs + Co-Shipped E2E → Phase 4D: Offline PWA Manifest & Custom Vite
+  SW Plugin + SW/Isolation E2E → Phase 5: MVP Release Hardening,
+  Versioning/Tagging/Changelog Automation, Rollback/Roll-Forward Verification &
+  Native CI Scaffolding → Phase 6: Native Shell Packaging (`native/` workspace),
+  Store Compliance & Phased Mobile Releases) with executable verification gates
+  at every phase, a release/rollback summary, and adopted Story #164 review
   defaults (**OQ-1..OQ-5**, with **OQ-5** flagged to the user for confirmation).
   See [build-order.md](build-order.md#adopted-review-defaults-story-164--oq-1oq-5).
 

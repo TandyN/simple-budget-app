@@ -97,12 +97,13 @@ in its own topic doc, not here.
   whole app under `project-plan/` (data model, storage, recurring engine,
   activity model, frontend / UI surface, portability, dependency strategy,
   testing, and MVP build order). [budget-app.md](budget-app.md#the-app-plan)
-- **MVP build order (5-phase PWA + Phase 6 native/store)** — the sequenced
-  implementation plan (Phase 1: Toolchain/CSP/CI → Phase 2: Pure `src/core/` →
-  Phase 3: IndexedDB Storage & `BudgetApi` → Phase 4: Zero-Prod-Dep Frontend UI
-  & Vite-Generated PWA SW → Phase 5: Playwright E2E, Zero-Egress/A11y Gates &
-  `gh-pages` Deploy → Phase 6: Native Shell Packaging & Store Submission)
-  guaranteeing all 5 core engineering pillars from commit #1.
+- **MVP build order (5-phase PWA + Phase 6 native/store)** — the iterative
+  implementation sequence (Phase 1: Toolchain/CSP/CI → Phase 2: Pure `src/core/` →
+  Phase 3: IndexedDB Storage & `BudgetApi` → Phases 4A–4D: Walking Skeleton +
+  `gh-pages` Deploy / Budget Tab / Insights & Settings Tabs / Offline PWA SW, each
+  with co-shipped Playwright E2E → Phase 5: Release Hardening, SemVer Tagging &
+  Rollback/Roll-Forward Verification → Phase 6: Native Shell Packaging & Phased
+  Store Releases) guaranteeing all 5 core engineering pillars from commit #1.
   [project-plan/build-order.md](../project-plan/build-order.md)
 - **Content Security Policy (CSP — `connect-src 'none'`)** — the strict W3C CSP3
   `<meta http-equiv="Content-Security-Policy">` tag in `index.html` (`default-src 'self'`,
@@ -259,6 +260,11 @@ in its own topic doc, not here.
 - **gh-pages preview (mode a)** — the mode-(a) same-site sub-path PR-preview architecture (`tandyn.github.io/simple-budget-app/pr-<PR#>/`) published via plain `git` to the `gh-pages` branch using `GITHUB_TOKEN` (no third-party Pages action; OQ-5, flagged to the user for confirmation), serialized via `concurrency: { group: "pages-deploy", cancel-in-progress: false }`, guaranteeing **production root untouched** on PR deploys and **PR sub-path pruned on merge/close**. [project-plan/testing.md](../project-plan/testing.md#ci-workflow-mechanics-gh-pages-branch-publishing--prune-on-merge--production-unchanged)
 - **well-maintained criterion** — the governing rule for **any** dev dependency (local package *or* CI action): must be **Active & current**, **First-party / tool-maintainer**, and **Industry-standard** in its category; the curated dev-dep set (pnpm, Vite, Vitest, `@vitest/coverage-v8`, Playwright, `@axe-core/playwright`, `fake-indexeddb`, Biome, tsc) and the SHA-pinned CI actions all pass it. [project-plan/dependency-strategy.md](../project-plan/dependency-strategy.md#the-well-maintained-criterion-the-governing-rule-for-any-dev-dependency)
 - **credential-gated build** — the Android/iOS native build jobs are **skip-not-fail** gated at job level by `if: ${{ vars.NATIVE_BUILDS_ENABLED == 'true' }}` with signing secrets mapped to step-level `env:` (disabled/absent → **skipped, not failed**); the always-run Web/PWA build is **not** credential-gated. Build-only, no store upload. [project-plan/testing.md](../project-plan/testing.md#android--ios-test-build-pipeline-credential-skip-build-only)
+- **release automation (`.github/workflows/release.yml`)** — manual SemVer in root `package.json` + annotated `vX.Y.Z` git tags on `main` triggering `.github/workflows/release.yml` (SHA-pinned first-party actions, zero extra third-party release bots) to verify CI, attach an immutable `dist/` archive + SHA-256 checksum, and publish a Conventional Commits GitHub Release. [project-plan/testing.md](../project-plan/testing.md#release-versioning--rollback--roll-forward-pipeline)
+- **Roll-Forward** — the mandatory forward-only recovery strategy when binary or schema downgrade is impossible (post-`DB_VERSION`-bump IndexedDB migrations at `N + 1`, Emergency No-Op/Kill-Switch `sw.js` recovery, and Phase 6 iOS/Android monotonic hotfix releases after pausing/halting a rollout); same-schema PWA releases (`DB_VERSION` unchanged) may roll back via `workflow_dispatch` tag re-deploy. [project-plan/testing.md](../project-plan/testing.md#release-versioning--rollback--roll-forward-pipeline)
+- **Phased Release / Staged Rollout** — gradual production mobile release ramps (**Apple 7-day Phased Release** `1% → 100%` with Pause + Expedited Review; **Google Play Staged Rollout** with Halt Rollout) paired with monotonic build numbers (`CFBundleVersion` / `versionCode`) and zero-SDK OS-level crash/vitals monitoring. [project-plan/portability.md](../project-plan/portability.md#native-versioning-phasedstaged-rollouts--roll-forward-hotfix-strategy)
+- **`updateViaCache`** — Service Worker registration option set to `{ updateViaCache: "none" }` so the browser always revalidates `sw.js` directly against the network, bypassing GitHub Pages' default 10-minute `Cache-Control` window for immediate update and rollback detection. [project-plan/frontend.md](../project-plan/frontend.md#service-worker-design-pwa-offline-scoping--update-lifecycle)
+- **`VersionError`** — W3C IndexedDB error thrown when `indexedDB.open(name, version)` requests a lower `DB_VERSION` than the on-disk database; handled defensively with a non-destructive "Update required" banner (calling `indexedDB.deleteDatabase()` is strictly forbidden) and avoided via expand-and-contract roll-forward migrations (`DB_VERSION = N + 1`). [project-plan/storage.md](../project-plan/storage.md#indexeddb-schema-rollback-safety-versionerror--expand-and-contract)
 
 > As backend / frontend / data topics land, add their terms here and split the
 > area doc into `budget-app/<area>.md` when it grows.
