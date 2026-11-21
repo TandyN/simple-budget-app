@@ -131,7 +131,7 @@ where the boundary matters.
   **well-maintained criterion** (Active & current · First-party /
   tool-maintainer · Industry-standard), with exact current majors decided at
   bootstrap, `.nvmrc` + `engines`, `.npmrc` `save-exact=true`,
-  `pnpm-workspace.yaml` (`onlyBuiltDependencies`, `minimumReleaseAge`),
+  `pnpm-workspace.yaml` (`allowBuilds`, `minimumReleaseAge`),
   `pnpm install --frozen-lockfile`, `pnpm audit --audit-level=high`, full
   40-character SHA-pinned CI actions, `.github/dependabot.yml` (`github-actions`
   + `npm`), CodeQL, `actions/dependency-review-action`, strict `tsconfig.json`
