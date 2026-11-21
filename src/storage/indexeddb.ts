@@ -14,13 +14,13 @@ import type {
  * **T-A** (#246) shipped the database name derivation, the `DB_VERSION = 1`
  * schema (three object stores + the `activities` secondary/compound index set),
  * and the basic `getMeta` / `setMeta` meta round-trip. **U1** (#249) added the
- * atomic `replaceAll` backup-restore over `["rules", "activities"]`. The
- * remaining contract methods (`save` / `delete` / `query`, defensive
- * `VersionError` handling, and `navigator.storage.persist()` wiring) are later
- * slices — the defensive `VersionError` handling is #252 (U2) and the
- * `navigator.storage.persist()` / `persisted()` durability API is #253 (U3) —
- * and are left as minimal stubs here so the class satisfies the full
- * `StorageAdapter` contract and type-checks.
+ * atomic `replaceAll` backup-restore over `["rules", "activities"]`. **U2**
+ * (#252) added the defensive, non-destructive `VersionError` handling in
+ * `open()`, and **U3** (#253) added the best-effort durability API
+ * (`requestPersistenceAfterFirstAction()` / `getPersisted()` /
+ * `getLastBackupAt()`). The remaining contract methods (`save` / `delete` /
+ * `query`) are a later slice and are left as minimal stubs here so the class
+ * satisfies the full `StorageAdapter` contract and type-checks.
  *
  * `project-plan/storage.md` — Recommended approach & IndexedDB Schema
  * Versioning: business logic never touches IndexedDB directly; it goes through
@@ -272,6 +272,113 @@ export class IndexedDbAdapter implements StorageAdapter {
         // above rejects this promise. Swallow here so the executor itself does
         // not throw and leave the promise unsettled.
       }
+    });
+  }
+
+  /**
+   * Request persistent storage (best-effort durability) — U3 (#253).
+   *
+   * Invoked **after the user's first meaningful write/action**, NOT during
+   * cold `init()` / `open()`: Firefox displays a permission prompt on
+   * `persist()` (jarring before the user has interacted), while Safari and
+   * Chrome evaluate persistence heuristically based on engagement.
+   *
+   * **Best-effort / never throws:** `navigator.storage` (or `persist`) is
+   * optional and may be absent (Node, older WebViews); a denial or rejection
+   * simply resolves to `false` — the app proceeds with standard IndexedDB
+   * storage and surfaces the result to the UI. The method may be called more
+   * than once; the browser's persistence grant is idempotent per origin.
+   *
+   * `project-plan/storage.md` → Storage Durability & WebKit Eviction
+   * Mitigation: "Best-effort `navigator.storage.persist()` after first user
+   * action (not cold `init()`)".
+   */
+  requestPersistenceAfterFirstAction(): Promise<boolean> {
+    try {
+      const storage = globalThis.navigator?.storage;
+      if (storage === undefined || storage.persist === undefined) {
+        return Promise.resolve(false);
+      }
+      return storage.persist().then(
+        (granted) => granted === true,
+        () => false,
+      );
+    } catch {
+      return Promise.resolve(false);
+    }
+  }
+
+  /**
+   * Report the live storage-persistence status for the Settings readout
+   * (e.g. *"Persistent storage granted"* vs. *"Best-effort browser storage —
+   * export regular backups"*).
+   *
+   * **Best-effort / never throws:** resolves to `false` when
+   * `navigator.storage` / `persisted()` is unsupported or the call rejects.
+   *
+   * `project-plan/storage.md` → Storage Durability & WebKit Eviction
+   * Mitigation: "Settings durability status (`navigator.storage.persisted()`)".
+   */
+  async getPersisted(): Promise<boolean> {
+    try {
+      const storage = globalThis.navigator?.storage;
+      if (storage === undefined || storage.persisted === undefined) {
+        return false;
+      }
+      return (await storage.persisted()) === true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Read the last-backup timestamp from the `"meta"` store (the Settings
+   * "last-backup date" / N-day backup nag input). **Read-only** here — the
+   * write is #247's `exportBackup` scope, which records
+   * `{ key: "lastBackupAt", timestamp }`.
+   *
+   * Reads the **raw** `"meta"` store record (not through `getMeta`, whose
+   * `{ key, value }` envelope would drop the `timestamp` field): the spec's
+   * `{ key: "lastBackupAt", timestamp }` record shape carries no `value`
+   * field. Resolves to `null` when no `lastBackupAt` meta exists (never
+   * backed up) or carries no readable timestamp; otherwise the recorded
+   * ISO-8601 timestamp string. A `setMeta` `{ key, value }` envelope with an
+   * ISO-string value is also accepted.
+   *
+   * Requires `open()` to have run (same precondition as `getMeta`).
+   *
+   * `project-plan/storage.md` → Storage Durability & WebKit Eviction
+   * Mitigation: "Last-backup date & N-day backup reminder".
+   */
+  getLastBackupAt(): Promise<string | null> {
+    const db = this.requireDb();
+    return new Promise<string | null>((resolve, reject) => {
+      const tx = db.transaction("meta", "readonly");
+      const request = tx.objectStore("meta").get("lastBackupAt");
+      request.onsuccess = () => {
+        const record = request.result as
+          | { timestamp?: unknown; value?: unknown }
+          | string
+          | undefined;
+        if (record === undefined) {
+          resolve(null);
+          return;
+        }
+        if (typeof record === "string") {
+          resolve(record);
+          return;
+        }
+        if (typeof record.timestamp === "string") {
+          resolve(record.timestamp);
+          return;
+        }
+        if (typeof record.value === "string") {
+          resolve(record.value);
+          return;
+        }
+        resolve(null);
+      };
+      request.onerror = () => reject(request.error);
     });
   }
 

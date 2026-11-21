@@ -22,10 +22,12 @@ import {
  * - **U2** (#252): defensive, non-destructive `VersionError` handling in
  *   `open()` — a `VersionError` (on-disk version > `DB_VERSION`) rejects with a
  *   typed `VersionMismatchError` and NEVER calls `deleteDatabase()`.
+ * - **U3** (#253): the best-effort durability API — `persist()` /
+ *   `persisted()` resolve to `false` when `navigator.storage` is absent, and
+ *   `getLastBackupAt()` round-trips the `"lastBackupAt"` meta record.
  *
  * Uses `fake-indexeddb` (a devDependency) injected via the `idbFactory`
  * constructor argument — no DOM, no Node globals, zero production dependencies.
- * `persist()` / the durability API tests belong to U3 (#253).
  */
 
 /** Open a fresh database through `factory`, running `onUpgrade` if provided. */
@@ -401,5 +403,103 @@ describe("IndexedDbAdapter — defensive VersionError handling in open() (U2, #2
       req.onerror = () => resolve(false);
     });
     expect(stillThere).toBe(true);
+  });
+});
+
+describe("IndexedDbAdapter — best-effort durability API (U3, #253)", () => {
+  /**
+   * Replace the `navigator` global with a stub for the duration of `body`,
+   * restoring the original binding afterwards. Vitest's `navigator` is a
+   * getter-only accessor (no setter), so `defineProperty` is the only way to
+   * stub it (and `delete` for the "absent" case).
+   */
+  async function withNavigatorStub(
+    stub: { storage?: unknown } | undefined,
+    body: () => Promise<void>,
+  ): Promise<void> {
+    const prev = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+    try {
+      if (stub === undefined) {
+        delete (globalThis as { navigator?: unknown }).navigator;
+      } else {
+        Object.defineProperty(globalThis, "navigator", {
+          value: stub,
+          configurable: true,
+          writable: true,
+        });
+      }
+      await body();
+    } finally {
+      if (prev !== undefined) {
+        Object.defineProperty(globalThis, "navigator", prev);
+      } else {
+        delete (globalThis as { navigator?: unknown }).navigator;
+      }
+    }
+  }
+
+  it("requestPersistenceAfterFirstAction() resolves to false when navigator.storage is absent (never throws)", async () => {
+    const adapter = new IndexedDbAdapter();
+    await withNavigatorStub(undefined, async () => {
+      await expect(adapter.requestPersistenceAfterFirstAction()).resolves.toBe(
+        false,
+      );
+    });
+  });
+
+  it("requestPersistenceAfterFirstAction() resolves to false when persist() rejects (denied/unsupported)", async () => {
+    const adapter = new IndexedDbAdapter();
+    const persist = vi.fn().mockRejectedValue(new Error("denied"));
+    await withNavigatorStub({ storage: { persist } }, async () => {
+      await expect(adapter.requestPersistenceAfterFirstAction()).resolves.toBe(
+        false,
+      );
+      expect(persist).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("getPersisted() resolves to false when navigator.storage is absent (never throws)", async () => {
+    const adapter = new IndexedDbAdapter();
+    await withNavigatorStub(undefined, async () => {
+      await expect(adapter.getPersisted()).resolves.toBe(false);
+    });
+  });
+
+  it("getLastBackupAt() resolves to null when no lastBackupAt meta exists", async () => {
+    const factory = new IDBFactory();
+    const adapter = new IndexedDbAdapter(factory);
+    await adapter.open();
+
+    await expect(adapter.getLastBackupAt()).resolves.toBeNull();
+  });
+
+  it("getLastBackupAt() resolves to the recorded ISO-8601 timestamp when a lastBackupAt meta record exists", async () => {
+    const factory = new IDBFactory();
+    const adapter = new IndexedDbAdapter(factory);
+    await adapter.open();
+
+    const iso = "2026-01-01T00:00:00.000Z";
+    // Seed the exact record shape #247's exportBackup() will write to the
+    // `"meta"` store (spec: `{ key: "lastBackupAt", timestamp: <iso> }`),
+    // directly through the object store (this slice is read-only for it).
+    const seed = await openRaw(factory, DB_NAME);
+    await new Promise<void>((resolve, reject) => {
+      const tx = seed.transaction("meta", "readwrite");
+      tx.objectStore("meta").put({ key: "lastBackupAt", timestamp: iso });
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+
+    await expect(adapter.getLastBackupAt()).resolves.toBe(iso);
+  });
+
+  it("getLastBackupAt() also reads the setMeta { key, value } envelope (ISO string value)", async () => {
+    const factory = new IDBFactory();
+    const adapter = new IndexedDbAdapter(factory);
+    await adapter.open();
+
+    const iso = "2026-01-01T00:00:00.000Z";
+    await adapter.setMeta("lastBackupAt", iso);
+    await expect(adapter.getLastBackupAt()).resolves.toBe(iso);
   });
 });
