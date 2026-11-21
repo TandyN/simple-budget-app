@@ -73,20 +73,37 @@ export const DB_NAME = deriveDbName(
 export const DB_VERSION = 1;
 
 /**
- * Predicate field → `activities` index name for the index-backed `query()`
- * path. Only the single-field indexes are listed: `by_type` (`type`),
- * `by_tags` (`tags`, `multiEntry`), `by_dateTime` (`dateTime`). The compound
- * `by_rule_period` index is intentionally **excluded** — it is keyed by
- * `[sourceRuleId, period]` and cannot be addressed by a single-field
- * `{ field, eq }` predicate (a bare `sourceRuleId` value is not a valid
- * key into the compound index), so those predicates filter in memory over
- * `getAll()`. Any field not listed here (e.g. `id`, `sourceRuleId`, and all
- * `rules` fields) likewise falls back to in-memory filtering.
+ * Store-scoped predicate-field → index-name map for the index-backed
+ * `query()` path. Because `FIELD_INDEX` is keyed **by store first**, a field
+ * name that is valid on more than one store (e.g. `type`, which is a key on
+ * **both** `RecurringRule` and `Activity`) only resolves to an index on the
+ * store that actually has one — the `"rules"` store gets **no** index-backed
+ * read and always falls back to `getAll()` + in-memory filtering.
+ *
+ * Only `activities` has single-field secondary indexes (see `handleUpgrade`):
+ * `by_type` (`type`), `by_tags` (`tags`, `multiEntry`), and `by_dateTime`
+ * (`dateTime`). The compound `by_rule_period` index is intentionally
+ * **excluded** — it is keyed by `[sourceRuleId, period]` and cannot be
+ * addressed by a single-field `{ field, eq }` predicate (a bare `sourceRuleId`
+ * value is not a valid key into the compound index), so those predicates
+ * filter in memory over `getAll()`.
+ *
+ * NOTE: the `tags → by_tags` entry is effectively dead weight — the blanket
+ * strict-equality (`===`) re-filter applied to every indexed read cannot match
+ * a `string[]` array field, so a `tags` predicate still resolves to `[]`
+ * (consistent with `InMemoryAdapter` and the documented `===` contract). It is
+ * kept only for symmetry with the index set; removing it would avoid one
+ * wasted index read.
  */
-const FIELD_INDEX: Record<string, string> = {
-  type: "by_type",
-  tags: "by_tags",
-  dateTime: "by_dateTime",
+const FIELD_INDEX: Record<EntityKey, Record<string, string>> = {
+  // The `rules` store has no secondary indexes (only the `id` keyPath), so
+  // every `rules` predicate is read via `getAll()` and filtered in memory.
+  rules: {},
+  activities: {
+    type: "by_type",
+    tags: "by_tags",
+    dateTime: "by_dateTime",
+  },
 };
 
 /**
@@ -285,12 +302,13 @@ export class IndexedDbAdapter implements StorageAdapter {
    *
    * Runs in its own `readonly` transaction. With no `where` predicate the
    * whole store is read via `getAll()`. When a `{ field, eq }` predicate names
-   * a field covered by `FIELD_INDEX` (the `"activities"` `by_type`, `by_tags`,
-   * and `by_dateTime` indexes), the read goes through
-   * `index.getAll(predicate.eq)`; any other field (e.g. `id`,
-   * `sourceRuleId`, or any `"rules"` field) reads via `getAll()` and is
-   * filtered in memory (strict `===`) — the same predicate semantics as
-   * `InMemoryAdapter.query`. Resolves on `request.onsuccess`, rejects on
+   * a field covered by `FIELD_INDEX[store]` (the `"activities"` `by_type`,
+   * `by_tags`, and `by_dateTime` indexes), the read goes through
+   * `index.getAll(predicate.eq)`; any other field — including **every**
+   * `"rules"` field, since the `"rules"` store has no secondary indexes, plus
+   * `activities` fields like `id` and `sourceRuleId` — reads via `getAll()`
+   * and is filtered in memory (strict `===`) — the same predicate semantics
+   * as `InMemoryAdapter.query`. Resolves on `request.onsuccess`, rejects on
    * `request.onerror`.
    */
   query<K extends EntityKey>(
@@ -303,11 +321,15 @@ export class IndexedDbAdapter implements StorageAdapter {
       const objectStore = tx.objectStore(store);
       let request: IDBRequest<Entity[K][]>;
       if (where !== undefined) {
-        const indexName = FIELD_INDEX[where.field];
+        // Store-scoped lookup: `FIELD_INDEX` is keyed by store first, so this
+        // only resolves to an index name when **this** store actually has one.
+        // (The `rules` store has no secondary indexes — `FIELD_INDEX.rules` is
+        // `{}` — so a `type` predicate on `rules` falls through to the
+        // in-memory path below instead of throwing `NotFoundError`.)
+        const indexName = FIELD_INDEX[store][where.field];
         if (indexName !== undefined) {
-          // `indexName` names a real index on `where.field` (see `FIELD_INDEX`),
-          // so `where.eq` is a valid key for that index (e.g. a `tags` array
-          // field matches its `multiEntry` index by a single tag string).
+          // `indexName` names a real index on this store's `where.field` (see
+          // `FIELD_INDEX`), so `where.eq` is a valid key for that index.
           request = objectStore
             .index(indexName)
             .getAll(where.eq as IDBValidKey);

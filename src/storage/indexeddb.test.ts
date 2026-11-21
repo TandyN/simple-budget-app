@@ -650,4 +650,40 @@ describe("IndexedDbAdapter — save / delete / query (#265)", () => {
       await adapter.query("activities", { field: "id", eq: "missing" }),
     ).toEqual([]);
   });
+
+  it('query("rules", { field: "type" }) resolves via in-memory fallback (no NotFoundError)', async () => {
+    const factory = new IDBFactory();
+    const adapter = new IndexedDbAdapter(factory);
+    await adapter.open();
+
+    const expense = makeRule("rule-expense", "utilities");
+    expense.type = "expense";
+    const income = makeRule("rule-income", "salary");
+    await adapter.save("rules", expense);
+    await adapter.save("rules", income);
+
+    // `type` is a valid predicate field on `RecurringRule`, but the `rules`
+    // store has no `by_type` index (only `activities` does). A store-unscoped
+    // `FIELD_INDEX` lookup would resolve `by_type` here and crash with
+    // `NotFoundError`; the store-scoped map must instead fall back to
+    // `getAll()` + strict `===` in-memory filtering.
+    const expenses = await adapter.query("rules", {
+      field: "type",
+      eq: "expense",
+    });
+    expect(expenses).toEqual([expense]);
+
+    const incomes = await adapter.query("rules", {
+      field: "type",
+      eq: "income",
+    });
+    expect(incomes).toEqual([income]);
+
+    // No matching rule → empty array (still resolves, does not reject).
+    const none = await adapter.query("rules", {
+      field: "type",
+      eq: "deposit",
+    });
+    expect(none).toEqual([]);
+  });
 });
