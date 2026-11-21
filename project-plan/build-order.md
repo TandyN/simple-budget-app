@@ -14,7 +14,7 @@
 ```
 Phase 1: Toolchain, Security/CSP Baseline & CI Gate Bootstrap
    │     (package.json ["dependencies": {}, version "0.1.0", engines, packageManager], .nvmrc, .npmrc [save-exact=true],
-    │      pnpm-workspace.yaml [allowBuilds, minimumReleaseAge], pnpm-lock.yaml,
+   │      pnpm-workspace.yaml [allowBuilds, minimumReleaseAge], pnpm-lock.yaml,
    │      strict tsconfig.json, biome.json, vite.config.ts [VITE_BASE_PATH], vitest.config.ts [@vitest/coverage-v8],
    │      playwright.config.ts [@axe-core/playwright], index.html [CSP connect-src 'none' + Trusted Types + no-referrer],
    │      src/main.ts [frame-buster] + src/main.test.ts, .github/workflows/ci.yml [SHA-pinned actions, CodeQL, dependency-review],
