@@ -595,15 +595,21 @@ describe("IndexedDbAdapter — save / delete / query (#265)", () => {
 
     const income = makeActivity("act-income", "income");
     const expense = makeActivity("act-expense", "expense");
+    // A recurring-sourced activity carrying `sourceRuleId` (plus a
+    // non-matching rule id on the manual activities above).
+    const recurring = makeActivity("act-recurring", "income");
+    recurring.source = "recurring";
+    recurring.sourceRuleId = "rule-42";
     await adapter.save("activities", income);
     await adapter.save("activities", expense);
+    await adapter.save("activities", recurring);
 
     // `type` is indexed (`by_type`) — index-backed equality read.
     const incomeOnly = await adapter.query("activities", {
       field: "type",
       eq: "income",
     });
-    expect(incomeOnly).toEqual([income]);
+    expect(incomeOnly).toEqual([income, recurring]);
 
     const expenseOnly = await adapter.query("activities", {
       field: "type",
@@ -617,6 +623,21 @@ describe("IndexedDbAdapter — save / delete / query (#265)", () => {
       eq: "deposit",
     });
     expect(none).toEqual([]);
+
+    // `sourceRuleId` is unindexed as a single field (only part of the
+    // compound `by_rule_period` index) — in-memory filtering, same
+    // strict-equality semantics.
+    const byRule = await adapter.query("activities", {
+      field: "sourceRuleId",
+      eq: "rule-42",
+    });
+    expect(byRule).toEqual([recurring]);
+    expect(
+      await adapter.query("activities", {
+        field: "sourceRuleId",
+        eq: "rule-99",
+      }),
+    ).toEqual([]);
 
     // An unindexed field (`id`) falls back to in-memory filtering — same
     // strict-equality semantics.

@@ -73,6 +73,23 @@ export const DB_NAME = deriveDbName(
 export const DB_VERSION = 1;
 
 /**
+ * Predicate field → `activities` index name for the index-backed `query()`
+ * path. Only the single-field indexes are listed: `by_type` (`type`),
+ * `by_tags` (`tags`, `multiEntry`), `by_dateTime` (`dateTime`). The compound
+ * `by_rule_period` index is intentionally **excluded** — it is keyed by
+ * `[sourceRuleId, period]` and cannot be addressed by a single-field
+ * `{ field, eq }` predicate (a bare `sourceRuleId` value is not a valid
+ * key into the compound index), so those predicates filter in memory over
+ * `getAll()`. Any field not listed here (e.g. `id`, `sourceRuleId`, and all
+ * `rules` fields) likewise falls back to in-memory filtering.
+ */
+const FIELD_INDEX: Record<string, string> = {
+  type: "by_type",
+  tags: "by_tags",
+  dateTime: "by_dateTime",
+};
+
+/**
  * `VersionMismatchError` — the typed, **non-destructive** rejection `open()`
  * raises when the on-disk database version is HIGHER than `DB_VERSION`
  * (W3C IndexedDB `VersionError`).
@@ -267,11 +284,12 @@ export class IndexedDbAdapter implements StorageAdapter {
    * Run a query against a named object store and return the matching records.
    *
    * Runs in its own `readonly` transaction. With no `where` predicate the
-   * whole store is read via `getAll()`. When a `{ field, eq }` predicate is
-   * supplied and the store carries a usable index on that field (the
-   * `"activities"` `by_type` index), the read goes through
-   * `index.getAll(predicate.eq)`; otherwise the store is read with `getAll()`
-   * and filtered in memory (strict `===`) — the same predicate semantics as
+   * whole store is read via `getAll()`. When a `{ field, eq }` predicate names
+   * a field covered by `FIELD_INDEX` (the `"activities"` `by_type`, `by_tags`,
+   * and `by_dateTime` indexes), the read goes through
+   * `index.getAll(predicate.eq)`; any other field (e.g. `id`,
+   * `sourceRuleId`, or any `"rules"` field) reads via `getAll()` and is
+   * filtered in memory (strict `===`) — the same predicate semantics as
    * `InMemoryAdapter.query`. Resolves on `request.onsuccess`, rejects on
    * `request.onerror`.
    */
@@ -284,15 +302,18 @@ export class IndexedDbAdapter implements StorageAdapter {
       const tx = db.transaction(store, "readonly");
       const objectStore = tx.objectStore(store);
       let request: IDBRequest<Entity[K][]>;
-      if (
-        where !== undefined &&
-        [...objectStore.indexNames].includes(where.field)
-      ) {
-        // This branch is only reached when the store carries an index on
-        // `where.field`, so `where.eq` is a valid index key for that field
-        // (e.g. a `tags` array field matches its `multiEntry` index by a
-        // single tag string).
-        request = objectStore.index(where.field).getAll(where.eq as IDBValidKey);
+      if (where !== undefined) {
+        const indexName = FIELD_INDEX[where.field];
+        if (indexName !== undefined) {
+          // `indexName` names a real index on `where.field` (see `FIELD_INDEX`),
+          // so `where.eq` is a valid key for that index (e.g. a `tags` array
+          // field matches its `multiEntry` index by a single tag string).
+          request = objectStore
+            .index(indexName)
+            .getAll(where.eq as IDBValidKey);
+        } else {
+          request = objectStore.getAll();
+        }
       } else {
         request = objectStore.getAll();
       }
