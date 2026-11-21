@@ -18,9 +18,9 @@ import type {
  * (#252) added the defensive, non-destructive `VersionError` handling in
  * `open()`, and **U3** (#253) added the best-effort durability API
  * (`requestPersistenceAfterFirstAction()` / `getPersisted()` /
- * `getLastBackupAt()`). The remaining contract methods (`save` / `delete` /
- * `query`) are a later slice and are left as minimal stubs here so the class
- * satisfies the full `StorageAdapter` contract and type-checks.
+ * `getLastBackupAt()`). **#265** replaced the final `save` / `delete` /
+ * `query` stubs with real `readwrite` / `readonly` implementations over the
+ * v1 object stores, completing the full `StorageAdapter` contract.
  *
  * `project-plan/storage.md` — Recommended approach & IndexedDB Schema
  * Versioning: business logic never touches IndexedDB directly; it goes through
@@ -130,7 +130,10 @@ interface MetaRecord {
  * `getMeta` / `setMeta` read/write the `"meta"` store in their own
  * `readonly` / `readwrite` transactions. `replaceAll` atomically clears and
  * re-writes `"rules"` + `"activities"` in one `readwrite` transaction.
- * `save` / `delete` / `query` remain stubs (later slices).
+ * `save` / `delete` upsert / remove a record by its `id` primary key inside
+ * their own `readwrite` transactions; `query` reads the named store (or an
+ * index) inside a `readonly` transaction and applies the optional
+ * `{ field, eq }` predicate.
  */
 export class IndexedDbAdapter implements StorageAdapter {
   /** The `IDBFactory` to open databases through (defaults to the platform global). */
@@ -196,31 +199,113 @@ export class IndexedDbAdapter implements StorageAdapter {
   }
 
   /**
-   * Upsert a record into a named object store. Not yet implemented in this
-   * slice — see the later Phase-3 storage slice that lands `save` / `delete` /
-   * `query` (atomic `replaceAll` already landed in U1, #249).
+   * Upsert a record into a named object store, keyed by the record's `id`
+   * (the store's `keyPath`).
+   *
+   * Runs in its own `readwrite` transaction and resolves on `tx.oncomplete`.
+   * A write failure (invalid key, quota, type mismatch, …) aborts the
+   * transaction; `onerror` / `onabort` reject the promise. Terminal handlers
+   * are attached **before** the request is queued so the promise settles
+   * exactly once. The `catch` below mirrors `replaceAll`: a synchronous
+   * failure (e.g. an invalid key throwing out of `put`) has already flagged
+   * the transaction to abort and the handlers above settle this promise —
+   * swallow it so the executor itself does not throw and leave it unsettled.
+   *
+   * **No** `indexedDB.deleteDatabase()` is ever called on the failure path
+   * (`project-plan/storage.md` → "deleteDatabase() forbidden").
    */
-  save<K extends EntityKey>(_store: K, _value: Entity[K]): Promise<void> {
-    return Promise.reject(notImplementedInSlice("save"));
+  save<K extends EntityKey>(store: K, value: Entity[K]): Promise<void> {
+    const db = this.requireDb();
+    return new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(store, "readwrite");
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error ?? new Error("save aborted"));
+
+      try {
+        tx.objectStore(store).put(value);
+      } catch {
+        // Synchronous failure (e.g. an invalid key): the transaction has
+        // already been flagged to abort and `onabort` / `onerror` above reject
+        // this promise. Swallow so the executor does not throw.
+      }
+    });
   }
 
   /**
-   * Delete a record by primary key from a named object store. Not yet
-   * implemented in this slice (see `save` for the follow-up slice).
+   * Delete a record by primary key from a named object store.
+   *
+   * Runs in its own `readwrite` transaction and resolves on
+   * `tx.oncomplete`. **Idempotent:** deleting an unknown id resolves cleanly
+   * (an IndexedDB `delete()` on a missing key simply performs no work — the
+   * same contract as `InMemoryAdapter.delete`). A transaction failure rejects
+   * the promise; terminal handlers are attached before the request is queued
+   * so the promise settles exactly once.
+   *
+   * **No** `indexedDB.deleteDatabase()` is ever called on the failure path
+   * (`project-plan/storage.md` → "deleteDatabase() forbidden").
    */
-  delete(_store: EntityKey, _id: string): Promise<void> {
-    return Promise.reject(notImplementedInSlice("delete"));
+  delete(store: EntityKey, id: string): Promise<void> {
+    const db = this.requireDb();
+    return new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(store, "readwrite");
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error ?? new Error("delete aborted"));
+
+      try {
+        tx.objectStore(store).delete(id);
+      } catch {
+        // Synchronous failure: the transaction has already been flagged to
+        // abort and `onabort` / `onerror` above reject this promise. Swallow
+        // so the executor does not throw.
+      }
+    });
   }
 
   /**
-   * Run a query against a named object store. Not yet implemented in this
-   * slice (see `save` for the follow-up slice).
+   * Run a query against a named object store and return the matching records.
+   *
+   * Runs in its own `readonly` transaction. With no `where` predicate the
+   * whole store is read via `getAll()`. When a `{ field, eq }` predicate is
+   * supplied and the store carries a usable index on that field (the
+   * `"activities"` `by_type` index), the read goes through
+   * `index.getAll(predicate.eq)`; otherwise the store is read with `getAll()`
+   * and filtered in memory (strict `===`) — the same predicate semantics as
+   * `InMemoryAdapter.query`. Resolves on `request.onsuccess`, rejects on
+   * `request.onerror`.
    */
   query<K extends EntityKey>(
-    _store: K,
-    _where?: QueryPredicate<K>,
+    store: K,
+    where?: QueryPredicate<K>,
   ): Promise<Entity[K][]> {
-    return Promise.reject(notImplementedInSlice("query"));
+    const db = this.requireDb();
+    return new Promise<Entity[K][]>((resolve, reject) => {
+      const tx = db.transaction(store, "readonly");
+      const objectStore = tx.objectStore(store);
+      let request: IDBRequest<Entity[K][]>;
+      if (
+        where !== undefined &&
+        [...objectStore.indexNames].includes(where.field)
+      ) {
+        // This branch is only reached when the store carries an index on
+        // `where.field`, so `where.eq` is a valid index key for that field
+        // (e.g. a `tags` array field matches its `multiEntry` index by a
+        // single tag string).
+        request = objectStore.index(where.field).getAll(where.eq as IDBValidKey);
+      } else {
+        request = objectStore.getAll();
+      }
+      request.onsuccess = () => {
+        const records = (request.result as Entity[K][]) ?? [];
+        if (where === undefined) {
+          resolve(records);
+          return;
+        }
+        resolve(records.filter((record) => record[where.field] === where.eq));
+      };
+      request.onerror = () => reject(request.error);
+    });
   }
 
   /**
@@ -476,15 +561,4 @@ function handleUpgrade(db: IDBDatabase, oldVersion: number): void {
 
   // NOTE: future migrations that touch `meta` records must wrap their seed as
   // `{ key, value }` (see `MetaRecord`) so `getMeta` / `setMeta` stay consistent.
-}
-
-/**
- * The single stub error: a contract method that is not yet implemented in this
- * slice (atomic `replaceAll` landed in U1 / #249) rejects with a message
- * pointing at the later `src/storage/` slices.
- */
-function notImplementedInSlice(method: string): Error {
-  return new Error(
-    `IndexedDbAdapter.${method} is not implemented yet; see the later Phase-3 storage slices`,
-  );
 }

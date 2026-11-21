@@ -25,6 +25,9 @@ import {
  * - **U3** (#253): the best-effort durability API — `persist()` /
  *   `persisted()` resolve to `false` when `navigator.storage` is absent, and
  *   `getLastBackupAt()` round-trips the `"lastBackupAt"` meta record.
+ * - **#265:** `save` / `delete` / `query` over the real adapter — upsert +
+ *   idempotent delete + `{ field, eq }` predicate filtering (indexed and
+ *   unindexed fields).
  *
  * Uses `fake-indexeddb` (a devDependency) injected via the `idbFactory`
  * constructor argument — no DOM, no Node globals, zero production dependencies.
@@ -501,5 +504,129 @@ describe("IndexedDbAdapter — best-effort durability API (U3, #253)", () => {
     const iso = "2026-01-01T00:00:00.000Z";
     await adapter.setMeta("lastBackupAt", iso);
     await expect(adapter.getLastBackupAt()).resolves.toBe(iso);
+  });
+});
+
+describe("IndexedDbAdapter — save / delete / query (#265)", () => {
+  /** A valid deterministic `RecurringRule` for seeding / asserting. */
+  function makeRule(id: string, name: string): RecurringRule {
+    return {
+      id,
+      name,
+      type: "income",
+      amountCents: 25_000,
+      currency: "USD",
+      schedule: { cadence: "monthly", dayOfMonth: 1 },
+      active: true,
+      lastPostPeriod: null,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    };
+  }
+
+  /** A valid deterministic manual `Activity`. */
+  function makeActivity(id: string, type: Activity["type"]): Activity {
+    return {
+      id,
+      type,
+      amountCents: 1_200,
+      currency: "USD",
+      dateTime: "2026-03-15T00:00:00.000Z",
+      tags: ["coffee"],
+      source: "manual",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    };
+  }
+
+  it("save() upserts a record: save then query returns it (rules + activities)", async () => {
+    const factory = new IDBFactory();
+    const adapter = new IndexedDbAdapter(factory);
+    await adapter.open();
+
+    const rule = makeRule("rule-1", "salary");
+    await adapter.save("rules", rule);
+    const [savedRule] = await adapter.query("rules");
+    expect(savedRule).toEqual(rule);
+
+    const activity = makeActivity("act-1", "expense");
+    await adapter.save("activities", activity);
+    const [savedActivity] = await adapter.query("activities");
+    expect(savedActivity).toEqual(activity);
+  });
+
+  it("save() of the same id is an upsert: the second save replaces the record", async () => {
+    const factory = new IDBFactory();
+    const adapter = new IndexedDbAdapter(factory);
+    await adapter.open();
+
+    await adapter.save("rules", makeRule("rule-1", "first name"));
+    await adapter.save("rules", makeRule("rule-1", "second name"));
+
+    const rules = await adapter.query("rules");
+    expect(rules).toHaveLength(1);
+    expect(rules[0]?.name).toBe("second name");
+  });
+
+  it("delete() removes an existing id; deleting an unknown id resolves cleanly (idempotent)", async () => {
+    const factory = new IDBFactory();
+    const adapter = new IndexedDbAdapter(factory);
+    await adapter.open();
+
+    await adapter.save("rules", makeRule("rule-1", "salary"));
+    await adapter.save("rules", makeRule("rule-2", "freelance"));
+    await adapter.delete("rules", "rule-1");
+    const remaining = await adapter.query("rules");
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0]?.id).toBe("rule-2");
+
+    // Unknown id: resolves cleanly (does not reject) — the idempotent
+    // `delete` contract shared with InMemoryAdapter.
+    await expect(
+      adapter.delete("rules", "no-such-id"),
+    ).resolves.toBeUndefined();
+    await expect(adapter.query("rules")).resolves.toHaveLength(1);
+  });
+
+  it("query() with a { field, eq } predicate returns only matching records ([] when none match)", async () => {
+    const factory = new IDBFactory();
+    const adapter = new IndexedDbAdapter(factory);
+    await adapter.open();
+
+    const income = makeActivity("act-income", "income");
+    const expense = makeActivity("act-expense", "expense");
+    await adapter.save("activities", income);
+    await adapter.save("activities", expense);
+
+    // `type` is indexed (`by_type`) — index-backed equality read.
+    const incomeOnly = await adapter.query("activities", {
+      field: "type",
+      eq: "income",
+    });
+    expect(incomeOnly).toEqual([income]);
+
+    const expenseOnly = await adapter.query("activities", {
+      field: "type",
+      eq: "expense",
+    });
+    expect(expenseOnly).toEqual([expense]);
+
+    // No matching record → empty array.
+    const none = await adapter.query("activities", {
+      field: "type",
+      eq: "deposit",
+    });
+    expect(none).toEqual([]);
+
+    // An unindexed field (`id`) falls back to in-memory filtering — same
+    // strict-equality semantics.
+    const byId = await adapter.query("activities", {
+      field: "id",
+      eq: "act-income",
+    });
+    expect(byId).toEqual([income]);
+    expect(
+      await adapter.query("activities", { field: "id", eq: "missing" }),
+    ).toEqual([]);
   });
 });
