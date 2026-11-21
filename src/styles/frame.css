@@ -11,17 +11,30 @@
  * insets**, not fixed device pixel widths (slab phones ≈ folded are the
  * secondary target).
  *
+ * **DOM the frame targets (the `renderShell` output, `src/ui/shell.ts`):**
+ *
+ *   #app
+ *   ├─ nav[role="tablist"]
+ *   │   └─ button[role="tab"]×3
+ *   ├─ section[role="tabpanel"]×3   (exactly one is visible; the rest are hidden)
+ *   └─ dialog.confirm-dialog         (native <dialog>, hidden until .showModal())
+ *
+ * There is **no** `.shell` wrapper and **no** `<main>` element anywhere in the
+ * rendered markup, so this stylesheet drives both states off `#app` directly.
+ *
  * Load-bearing rules:
  * - **System font stack** on `:root` — no remote fonts (zero external URLs,
  *   `project-plan/dependency-strategy.md`; `font-src 'self'` CSP).
  * - **Viewport-relative full-height** (`100svh` with a `100dvh` fallback) so the
  *   mobile Safari URL-bar chrome does not break `100vh`, with `overflow: hidden`
- *   so the folded state stays a single non-scrolling page.
- * - **Safe-area insets** (`env(safe-area-inset-*)`) in `main` padding so content
- *   is never obscured by the notch / Dynamic Island / home indicator / status bar.
- * - **Unfolded split-pane** at `>= 700px` (the fold↔unfold breakpoint): the
- *   `.shell` becomes a **row** — a fixed-width `nav[role="tablist"]` rail plus a
- *   flexible `main` pane (side-by-side), distinct from the folded column layout.
+ *   on `html`/`body` so the folded state stays a single non-scrolling page.
+ * - **Safe-area insets** (`env(safe-area-inset-*)`) applied on `#app` padding so
+ *   no shell element — the tablist or any visible tabpanel — can be obscured by
+ *   the notch / Dynamic Island / home indicator / status bar.
+ * - **Unfolded split-pane** at `>= 700px` (the fold↔unfold breakpoint): `#app`
+ *   becomes a **row** — a fixed-width `nav[role="tablist"]` rail plus a flexible
+ *   `section[role="tabpanel"]` pane (side-by-side), distinct from the folded
+ *   column layout.
  * - **WCAG 2.2 AA touch-target floor** (`>= 44×44 CSS px`) on every `button`,
  *   matching the `control()` floor already guaranteed by construction in
  *   `src/ui/shell.ts`.
@@ -29,6 +42,18 @@
  * Linked from `index.html` (`<link rel="stylesheet">`); built by Vite into
  * `dist/assets/*.css`. Zero production dependencies, zero remote URLs.
  */
+
+/*
+ * Contain every flex item: `#app`'s children (`nav[role="tablist"]` +
+ * `section[role="tabpanel"]`) are flex items that would otherwise overflow
+ * their flex line and cause horizontal page scroll at narrow viewports.
+ * `content-box` would re-inflate the `200px` rail width by its padding; `border-box`
+ * keeps the declared width as the outer bound, so the rail is exactly `200px`.
+ */
+#app,
+#app * {
+  box-sizing: border-box;
+}
 
 /* System font stack — no remote fonts (local system fonts only). */
 :root {
@@ -40,12 +65,17 @@
 /*
  * Viewport-relative full-height: `100svh` preferred (avoids the mobile-Safari
  * URL-bar chrome that breaks `100vh`), `100dvh` fallback for browsers without
- * `svh`. `overflow: hidden` keeps the folded state a single non-scrolling page.
+ * `svh`. `overflow: hidden` keeps the folded state a single non-scrolling page
+ * (the folded acceptance criterion: "one page, no scroll"). `margin: 0` resets
+ * the browser's default `body` margin (8px in Chromium) so the shell fills the
+ * viewport edge-to-edge instead of being pushed 8px down and right — which
+ * would otherwise overflow the page by exactly 8px on every side.
  */
 html,
 body {
   height: 100dvh;
   overflow: hidden;
+  margin: 0;
 }
 
 @supports (height: 100svh) {
@@ -56,45 +86,59 @@ body {
 }
 
 /*
- * Safe-area insets: pad `main` so content is never obscured by the notch, the
- * Dynamic Island, the home indicator, or the Android status bar
- * (`project-plan/frontend.md` — safe-area based layout, not hard-pixel viewports).
+ * Folded (slab) state — the baseline single-panel 1-page layout.
+ *
+ * `#app` is the actual shell container: a full-height **column** with the
+ * `nav[role="tablist"]` rail on top and the active `section[role="tabpanel"]`
+ * pane below. Only one tabpanel is ever visible at a time (`hidden` on the
+ * others), so the column shows exactly one content region — "a single panel,
+ * no scroll".
+ *
+ * **Safe-area insets** are applied here on `#app`'s padding (not on a `main`
+ * that does not exist in the rendered markup), so every child — the tablist
+ * and the active tabpanel — is inset by the notch / Dynamic Island / home
+ * indicator / status bar clearance. `padding` on a flex container does not
+ * consume the rail's `200px` or the pane's `flex:1` because both are sized
+ * relative to the *content box*, not the border box, so the inset padding
+ * shrinks the available space rather than the declared sizes.
  */
-main {
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
   padding: env(safe-area-inset-top) env(safe-area-inset-right)
     env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
 
-/*
- * Folded (slab) fallback — the baseline single-panel layout: the `.shell` is a
- * full-height **column** (tablist rail on top, content below). This is the
- * default and the mobile baseline; the `>= 700px` rule below switches it to the
- * unfolded split-pane.
- */
-.shell {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
+/* The active tabpanel is the visible content region: it grows to fill the
+   column below the rail, and any content overflow scrolls *inside* the pane
+   (never at the page level, which stays `overflow: hidden`). */
+#app > section[role="tabpanel"] {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 /*
  * Unfolded (dual-panel) split-pane — the fold↔unfold breakpoint (`>= 700px`).
- * Distinct from the folded column layout: the `.shell` becomes a **row** with a
- * fixed-width `nav[role="tablist"]` rail and a flexible `main` pane — the
- * side-by-side / split-pane arrangement that takes advantage of the dual-panel
- * spread (enhanced, not a stretched fold).
+ *
+ * Genuinely distinct from the folded column layout: `#app` becomes a **row**
+ * with a fixed-width `nav[role="tablist"]` rail on the left and the active
+ * `section[role="tabpanel"]` pane on the right — the side-by-side / split-pane
+ * arrangement that takes advantage of the dual-panel spread (enhanced, not a
+ * stretched fold). This is the layout `project-plan/frontend.md` (req 2)
+ * calls for in the unfolded state: "split-pane", "state-aware, not just wider".
  */
 @media (min-width: 700px) {
-  .shell {
-    display: flex;
+  #app {
     flex-direction: row;
   }
-  .shell nav[role="tablist"] {
+  #app > nav[role="tablist"] {
     flex: 0 0 auto;
     width: 200px;
   }
-  .shell main {
-    flex: 1;
+  #app > section[role="tabpanel"] {
+    flex: 1 1 0;
   }
 }
 
