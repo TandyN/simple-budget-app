@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createBudgetApi } from "./budgetApi";
-import type { RecurringRule } from "./core/types";
+import type { Activity, RecurringRule } from "./core/types";
+import { MAX_BACKUP_BYTES } from "./core/validate";
 import { InMemoryAdapter } from "./storage/memory";
 
 /**
@@ -603,19 +604,220 @@ describe("createBudgetApi — runRecurringEngine", () => {
   });
 });
 
-describe("createBudgetApi — V2 backup surface stubs (#258)", () => {
-  it("throws `not implemented in V1; see #258 (V2)` for all three methods", async () => {
+describe("createBudgetApi — V2 backup surface (#258)", () => {
+  /** A valid `RecurringRule` entity for constructing backup payloads. */
+  function mkRule(id: string, name = "Imported Rule"): RecurringRule {
+    return {
+      id,
+      name,
+      type: "income",
+      amountCents: 100,
+      currency: "USD",
+      schedule: { cadence: "monthly", dayOfMonth: 1 },
+      active: true,
+      lastPostPeriod: null,
+      createdAt: "2026-10-01T12:00:00.000Z",
+      updatedAt: "2026-10-01T12:00:00.000Z",
+    };
+  }
+
+  /** A valid `Activity` entity for constructing backup payloads. */
+  function mkActivity(
+    id: string,
+    type: "income" | "expense" | "deposit" = "expense",
+  ): Activity {
+    return {
+      id,
+      type,
+      amountCents: 100,
+      currency: "USD",
+      dateTime: "2026-10-15T09:00:00.000Z",
+      tags: [],
+      source: "manual",
+      createdAt: "2026-10-15T09:00:00.000Z",
+      updatedAt: "2026-10-15T09:00:00.000Z",
+    };
+  }
+
+  it("exportBackup() returns the versioned envelope and records lastBackupAt", async () => {
+    const FIXED_ISO = "2026-11-21T12:00:00.000Z";
+    const adapter = new InMemoryAdapter();
+    const clock = (() => new Date(FIXED_ISO)) as () => Date;
+    const api = createBudgetApi({ adapter, now: clock });
+    await api.init();
+
+    const rule = await api.addRule({
+      name: "Salary",
+      type: "income",
+      amountCents: 500_000,
+    });
+    const activity = await api.addActivity({
+      type: "expense",
+      amountCents: 4_200,
+    });
+
+    const backup = await api.exportBackup();
+
+    expect(backup.schemaVersion).toBe(1);
+    expect(backup.exportedAt).toBe(FIXED_ISO);
+    expect(backup.rules).toEqual([rule]);
+    expect(backup.activities).toEqual([activity]);
+    // getLastBackupAt() reads back the same ISO timestamp (not null).
+    await expect(api.getLastBackupAt()).resolves.toBe(FIXED_ISO);
+  });
+
+  it("getLastBackupAt() returns null when never backed up", async () => {
+    const { api } = makeApi();
+    await api.init();
+    await expect(api.getLastBackupAt()).resolves.toBeNull();
+  });
+
+  it("importBackup() rejects corrupt JSON while prior stored data stays 100% intact", async () => {
     const { api } = makeApi();
     await api.init();
 
-    await expect(api.exportBackup()).rejects.toThrow(
-      "not implemented in V1; see #258 (V2)",
+    const rule = await api.addRule({
+      name: "Salary",
+      type: "income",
+      amountCents: 500_000,
+    });
+    const activity = await api.addActivity({
+      type: "expense",
+      amountCents: 4_200,
+    });
+
+    const beforeRules = await api.listRules();
+    const beforeActivities = await api.listActivities();
+    const beforeFunds = await api.getAvailableFunds();
+    const beforeLastBackup = await api.getLastBackupAt();
+
+    await expect(api.importBackup("{not valid json")).rejects.toThrow(
+      /Invalid backup payload JSON/,
     );
-    await expect(api.getLastBackupAt()).rejects.toThrow(
-      "not implemented in V1; see #258 (V2)",
+
+    // Prior data is unchanged (100% intact).
+    await expect(api.listRules()).resolves.toEqual(beforeRules);
+    await expect(api.listActivities()).resolves.toEqual(beforeActivities);
+    await expect(api.getAvailableFunds()).resolves.toBe(beforeFunds);
+    await expect(api.getLastBackupAt()).resolves.toBe(beforeLastBackup);
+    // The failed import did not touch the rule or activity.
+    expect((await api.listRules())[0]?.id).toBe(rule.id);
+    expect((await api.listActivities())[0]?.id).toBe(activity.id);
+  });
+
+  it("importBackup() rejects an oversized (>10 MB) payload while prior stored data stays 100% intact", async () => {
+    const { api } = makeApi();
+    await api.init();
+
+    const rule = await api.addRule({
+      name: "Salary",
+      type: "income",
+      amountCents: 500_000,
+    });
+    const activity = await api.addActivity({
+      type: "expense",
+      amountCents: 4_200,
+    });
+
+    const beforeRules = await api.listRules();
+    const beforeActivities = await api.listActivities();
+    const beforeFunds = await api.getAvailableFunds();
+
+    // The byte-ceiling check runs before any other validation in
+    // `validateBackupPayload`, so a raw string exceeding 10 MB triggers the
+    // size rejection regardless of its JSON shape.
+    const oversizedJson = `"${"x".repeat(MAX_BACKUP_BYTES + 1)}"`;
+    expect(new TextEncoder().encode(oversizedJson).byteLength).toBeGreaterThan(
+      MAX_BACKUP_BYTES,
     );
-    await expect(api.importBackup("{}")).rejects.toThrow(
-      "not implemented in V1; see #258 (V2)",
+
+    await expect(api.importBackup(oversizedJson)).rejects.toThrow(
+      /exceeds 10 MB ceiling/,
     );
+
+    await expect(api.listRules()).resolves.toEqual(beforeRules);
+    await expect(api.listActivities()).resolves.toEqual(beforeActivities);
+    await expect(api.getAvailableFunds()).resolves.toBe(beforeFunds);
+    expect((await api.listRules())[0]?.id).toBe(rule.id);
+    expect((await api.listActivities())[0]?.id).toBe(activity.id);
+  });
+
+  it("importBackup() rejects a prototype-polluting (__proto__) payload while prior stored data stays 100% intact", async () => {
+    const { api } = makeApi();
+    await api.init();
+
+    const rule = await api.addRule({
+      name: "Salary",
+      type: "income",
+      amountCents: 500_000,
+    });
+    const activity = await api.addActivity({
+      type: "expense",
+      amountCents: 4_200,
+    });
+
+    const beforeRules = await api.listRules();
+    const beforeActivities = await api.listActivities();
+    const beforeFunds = await api.getAvailableFunds();
+
+    // A JSON string with a `__proto__` key at an activity level.
+    const pollutedJson =
+      '{"schemaVersion":1,"exportedAt":"2026-11-21T12:00:00.000Z","rules":[],"activities":[{"__proto__":{"polluted":true}}]}';
+    expect(
+      new TextEncoder().encode(pollutedJson).byteLength,
+    ).toBeLessThanOrEqual(10 * 1024 * 1024);
+
+    await expect(api.importBackup(pollutedJson)).rejects.toThrow(
+      /Forbidden prototype-pollution key/,
+    );
+
+    await expect(api.listRules()).resolves.toEqual(beforeRules);
+    await expect(api.listActivities()).resolves.toEqual(beforeActivities);
+    await expect(api.getAvailableFunds()).resolves.toBe(beforeFunds);
+    expect((await api.listRules())[0]?.id).toBe(rule.id);
+    expect((await api.listActivities())[0]?.id).toBe(activity.id);
+  });
+
+  it("importBackup() with a valid payload replaces both collections and returns the correct counts", async () => {
+    const { api } = makeApi();
+    await api.init();
+
+    // Seed prior data that will be replaced.
+    await api.addRule({ name: "Old Rule", type: "income", amountCents: 100 });
+    await api.addActivity({ type: "expense", amountCents: 200 });
+
+    // Build a valid backup with distinct rules and activities.
+    const importedRule1 = mkRule("imported-rule-1", "Imported Rule 1");
+    const importedRule2 = mkRule("imported-rule-2", "Imported Rule 2");
+    const importedActivity1 = mkActivity("imported-activity-1", "income");
+    const importedActivity2 = mkActivity("imported-activity-2");
+    const backupJson = JSON.stringify({
+      schemaVersion: 1,
+      exportedAt: "2026-11-21T12:00:00.000Z",
+      rules: [importedRule1, importedRule2],
+      activities: [importedActivity1, importedActivity2],
+    });
+
+    const result = await api.importBackup(backupJson);
+    expect(result.rulesCount).toBe(2);
+    expect(result.activitiesCount).toBe(2);
+
+    // The prior data is gone; only the imported records remain.
+    const rules = await api.listRules();
+    expect(rules).toHaveLength(2);
+    expect(rules.map((r) => r.id)).toEqual([
+      "imported-rule-1",
+      "imported-rule-2",
+    ]);
+
+    const activities = await api.listActivities();
+    expect(activities).toHaveLength(2);
+    expect(activities.map((a) => a.id)).toEqual([
+      "imported-activity-1",
+      "imported-activity-2",
+    ]);
+
+    // Available Funds reflects only the imported activities (1 income + 1 expense).
+    await expect(api.getAvailableFunds()).resolves.toBe(0); // both 100 cents cancel
   });
 });

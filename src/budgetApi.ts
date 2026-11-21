@@ -14,6 +14,7 @@ import type {
 } from "./core/types";
 import {
   validateActivityPatch,
+  validateBackupPayload,
   validateNewActivity,
   validateNewRule,
   validateRulePatch,
@@ -28,8 +29,24 @@ import type { StorageAdapter } from "./storage/adapter";
  * **V1 scope (#247):** core CRUD + lifecycle —
  * `init`, rule CRUD, activity CRUD, `searchActivities` / `summarizeByTag`,
  * `runRecurringEngine(now?)`, and `getAvailableFunds()`.
- * The backup surface (`exportBackup` / `getLastBackupAt` / `importBackup`) is
- * **V2** (#258) and throws `not implemented in V1; see #258 (V2)` here.
+ * **V2 scope (#258):** the backup surface —
+ * `exportBackup()`, `getLastBackupAt()`, and `importBackup(json)`.
+ *
+ * Backup-surface invariants (`project-plan/portability.md → The public API`):
+ * - `exportBackup()` returns the versioned `BudgetBackup` envelope
+ *   (`schemaVersion: 1`, `exportedAt`, `rules`, `activities`) and records the
+ *   same `exportedAt` ISO-8601 timestamp as the `"lastBackupAt"` meta value
+ *   via `adapter.setMeta`.
+ * - `getLastBackupAt()` reads that value back via `adapter.getMeta` (returning
+ *   `null` if never backed up) so the Settings UI never touches IndexedDB
+ *   directly. It stores/reads the ISO timestamp string as the meta value so
+ *   the read returns a `string` through the portable `StorageAdapter` contract
+ *   (both `InMemoryAdapter` and `IndexedDbAdapter` honour `getMeta`).
+ * - `importBackup(json)` validates the full untrusted payload in memory via
+ *   `validateBackupPayload(json)` (10 MB ceiling, prototype-pollution key
+ *   rejection, full schema/invariant checks) **before** atomically replacing
+ *   both collections via `adapter.replaceAll`; an invalid payload rejects with
+ *   the stored data left 100% intact.
  *
  * Invariants:
  * - `init()` is idempotent and opens the adapter store only — it does NOT
@@ -52,14 +69,15 @@ import type { StorageAdapter } from "./storage/adapter";
  * Web-platform built-ins (`crypto.randomUUID`, `Date`).
  */
 
-/** V2 backup-surface stub error (see #258). */
-const NOT_IMPLEMENTED_V1 = "not implemented in V1; see #258 (V2)";
+/** The `"meta"` store key holding the last-backup ISO-8601 timestamp. */
+const LAST_BACKUP_AT_META_KEY = "lastBackupAt";
 
 /**
  * The public `BudgetApi` contract the front-end calls
- * (`project-plan/portability.md → The public API`), minus the V2 backup
- * methods which remain declared (with `never` return types) so the interface
- * shape stays the documented contract while #258 fills them in.
+ * (`project-plan/portability.md → The public API`): lifecycle, rule CRUD,
+ * activity CRUD, insights/search, the recurring engine, the derived
+ * Available Funds, and the V2 backup surface (`exportBackup` /
+ * `getLastBackupAt` / `importBackup`).
  */
 export interface BudgetApi {
   // Lifecycle
@@ -88,7 +106,7 @@ export interface BudgetApi {
   // Derived
   getAvailableFunds(): Promise<number>;
 
-  // Local backup export / atomic import — V2 (#258); throw in V1.
+  // Local backup export / atomic import (V2, #258).
   exportBackup(): Promise<BudgetBackup>;
   getLastBackupAt(): Promise<string | null>;
   importBackup(json: string): Promise<{
@@ -365,24 +383,76 @@ export function createBudgetApi(options: CreateBudgetApiOptions): BudgetApi {
       return computeAvailableFunds(activities);
     },
 
-    // --- Backup surface: V2 (#258) — stubs that throw in V1. ---
+    // --- Backup surface: V2 (#258). ---
 
-    /** V2 (#258). */
-    exportBackup(): Promise<BudgetBackup> {
-      return Promise.reject(new Error(NOT_IMPLEMENTED_V1));
+    /**
+     * Export a versioned `BudgetBackup` envelope of the current store and
+     * record the last-backup timestamp in `"meta"` for the Settings backup-age
+     * indicator (the same `exportedAt` value is used as the `"lastBackupAt"`
+     * meta value, so `getLastBackupAt()` reads back the export instant).
+     */
+    async exportBackup(): Promise<BudgetBackup> {
+      requireInit();
+      const rules = await adapter.query("rules");
+      const activities = await adapter.query("activities");
+      const exportedAt = clock().toISOString();
+      await adapter.setMeta(LAST_BACKUP_AT_META_KEY, exportedAt);
+      return {
+        schemaVersion: 1,
+        exportedAt,
+        rules,
+        activities,
+      };
     },
 
-    /** V2 (#258). */
-    getLastBackupAt(): Promise<string | null> {
-      return Promise.reject(new Error(NOT_IMPLEMENTED_V1));
+    /**
+     * Read the last-backup ISO-8601 timestamp from `"meta"`, or `null` if the
+     * user has never backed up. The UI never touches IndexedDB directly — it
+     * calls this method (per `project-plan/portability.md → The public API`).
+     */
+    async getLastBackupAt(): Promise<string | null> {
+      requireInit();
+      const value = await adapter.getMeta(LAST_BACKUP_AT_META_KEY);
+      if (typeof value === "string") {
+        return value;
+      }
+      // Tolerate the spec's `{ key, timestamp }` record shape (e.g. written
+      // directly to IndexedDB by a prior writer) in addition to the plain
+      // ISO-string value this API records.
+      if (
+        typeof value === "object" &&
+        value !== null &&
+        "timestamp" in value &&
+        typeof (value as { timestamp: unknown }).timestamp === "string"
+      ) {
+        return (value as { timestamp: string }).timestamp;
+      }
+      return null;
     },
 
-    /** V2 (#258). */
-    importBackup(_json: string): Promise<{
+    /**
+     * Import a `BudgetBackup` JSON string: validate the entire untrusted
+     * payload in memory via `validateBackupPayload` (10 MB ceiling,
+     * prototype-pollution rejection, full schema/invariant checks) **before**
+     * atomically replacing both collections via `adapter.replaceAll`. An
+     * invalid payload rejects with the prior stored data left 100% intact.
+     */
+    async importBackup(json: string): Promise<{
       rulesCount: number;
       activitiesCount: number;
     }> {
-      return Promise.reject(new Error(NOT_IMPLEMENTED_V1));
+      requireInit();
+      // Validate FIRST — this is the safety gate that prevents a corrupt,
+      // oversized, or prototype-polluting payload from reaching storage.
+      const backup = validateBackupPayload(json);
+      await adapter.replaceAll({
+        rules: backup.rules,
+        activities: backup.activities,
+      });
+      return {
+        rulesCount: backup.rules.length,
+        activitiesCount: backup.activities.length,
+      };
     },
   };
 }
