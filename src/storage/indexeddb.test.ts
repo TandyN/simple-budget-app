@@ -1,5 +1,6 @@
-import { indexedDB as fakeIndexedDB } from "fake-indexeddb";
-import { describe, expect, it } from "vitest";
+import { indexedDB as fakeIndexedDB, IDBObjectStore } from "fake-indexeddb";
+import { describe, expect, it, vi } from "vitest";
+import type { Activity, RecurringRule } from "../core/types";
 import {
   DB_NAME,
   DB_VERSION,
@@ -155,5 +156,168 @@ describe("IndexedDbAdapter — basic getMeta / setMeta round-trip", () => {
     await adapter.setMeta("k", "first");
     await adapter.setMeta("k", "second");
     await expect(adapter.getMeta("k")).resolves.toBe("second");
+  });
+});
+
+describe("IndexedDbAdapter — atomic replaceAll (U1, #249)", () => {
+  /** A valid deterministic `RecurringRule` for seeding / asserting. */
+  function makeRule(id: string, lastPostPeriod: string): RecurringRule {
+    return {
+      id,
+      name: `rule-${id}`,
+      type: "expense",
+      amountCents: 10_000,
+      currency: "USD",
+      schedule: { cadence: "monthly", dayOfMonth: 1 },
+      active: true,
+      lastPostPeriod,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    };
+  }
+
+  /** A valid deterministic recurring-generated `Activity`. */
+  function makeActivity(
+    id: string,
+    sourceRuleId: string,
+    period: string,
+  ): Activity {
+    return {
+      id,
+      type: "expense",
+      amountCents: 10_000,
+      currency: "USD",
+      dateTime: "2026-03-15T00:00:00.000Z",
+      tags: ["rent"],
+      source: "recurring",
+      sourceRuleId,
+      period,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    };
+  }
+
+  /** Read every record from a store through a fresh readonly transaction. */
+  function readAll(db: IDBDatabase, store: string): Promise<unknown[]> {
+    return new Promise((resolve, reject) => {
+      const req = db.transaction(store, "readonly").objectStore(store).getAll();
+      req.onsuccess = () => resolve(req.result as unknown[]);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  /** Write every record into a store inside one readwrite transaction. */
+  function writeAll(
+    db: IDBDatabase,
+    store: string,
+    records: readonly unknown[],
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(store, "readwrite");
+      const s = tx.objectStore(store);
+      for (const record of records) {
+        s.put(record);
+      }
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  it("rolls back BOTH stores when a mid-transaction put fails, leaving prior data 100% intact and never calling deleteDatabase", async () => {
+    const factory = fakeIndexedDB;
+    const deleteDatabaseSpy = vi.spyOn(factory, "deleteDatabase");
+
+    const adapter = new IndexedDbAdapter(factory);
+    await adapter.open();
+
+    // Seed a known rules + activities set (the "prior data" we must preserve).
+    const priorRules = [makeRule("rule-1", "2026-01")];
+    const priorActivities = [makeActivity("act-1", "rule-1", "2026-01")];
+    const seed = await openRaw(factory, DB_NAME);
+    await writeAll(seed, "rules", priorRules);
+    await writeAll(seed, "activities", priorActivities);
+
+    // Force a genuine mid-transaction write failure: when the "bad" record is
+    // queued, abort the readwrite transaction. This is exactly what a real
+    // write error / quota rejection does in a browser — it aborts the
+    // transaction and rolls back every participating store.
+    const originalPut = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function (
+      this: IDBObjectStore,
+      value: unknown,
+    ): IDBRequest {
+      if (
+        value !== null &&
+        typeof value === "object" &&
+        (value as { id?: unknown }).id === "bad"
+      ) {
+        (this.transaction as IDBTransaction).abort();
+        return undefined as unknown as IDBRequest;
+      }
+      return originalPut.call(this, value);
+    };
+
+    let rejected = false;
+    try {
+      await adapter.replaceAll({
+        rules: [
+          makeRule("new-rule", "2026-02"),
+          { ...makeRule("bad", "2026-02") },
+        ],
+        activities: [makeActivity("new-act", "new-rule", "2026-02")],
+      });
+    } catch {
+      rejected = true;
+    } finally {
+      IDBObjectStore.prototype.put = originalPut;
+    }
+
+    // (a) replaceAll rejects (does not resolve) on the failed restore.
+    expect(rejected).toBe(true);
+
+    // (b) The original rules AND activities are 100% intact — no partial write
+    // (the new rule / new activity must be absent; the cleared originals must
+    // be restored).
+    const rulesAfter = await readAll(seed, "rules");
+    const activitiesAfter = await readAll(seed, "activities");
+    expect(rulesAfter).toEqual(priorRules);
+    expect(activitiesAfter).toEqual(priorActivities);
+
+    // (c) deleteDatabase is NEVER invoked on the failure path (project-plan/
+    // storage.md → "deleteDatabase() forbidden").
+    expect(deleteDatabaseSpy).not.toHaveBeenCalled();
+    deleteDatabaseSpy.mockRestore();
+  });
+
+  it("supports a by_rule_period compound index lookup after a successful replaceAll", async () => {
+    const factory = fakeIndexedDB;
+    const adapter = new IndexedDbAdapter(factory);
+    await adapter.open();
+
+    const sourceRuleId = "rule-42";
+    const period = "2026-03";
+    const target = makeActivity("act-target", sourceRuleId, period);
+    // Decoys: same rule different period, different rule same period.
+    await adapter.replaceAll({
+      rules: [makeRule(sourceRuleId, period)],
+      activities: [
+        target,
+        makeActivity("act-other-period", sourceRuleId, "2026-02"),
+        makeActivity("act-other-rule", "rule-99", period),
+      ],
+    });
+
+    // Look up exactly (sourceRuleId, period) through the compound index.
+    const inspect = await openRaw(factory, DB_NAME);
+    const index = inspect
+      .transaction("activities", "readonly")
+      .objectStore("activities")
+      .index("by_rule_period");
+    const hit = await new Promise<unknown>((resolve, reject) => {
+      const req = index.get([sourceRuleId, period]);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    expect(hit).toEqual(target);
   });
 });

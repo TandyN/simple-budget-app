@@ -211,7 +211,7 @@ in its own topic doc, not here.
   the `Entity`/`EntityKey`/`EntityField`/`QueryPredicate` contract lets the store be
   swapped (IndexedDB → durable native, OQ-4) without touching `src/core/` or the front-end.
   [budget-app/backend.md](budget-app/backend.md#6-storageadapter-contract-srcstorageadapterts)
-- **`IndexedDbAdapter` (T-A, `src/storage/indexeddb.ts`)** — the production `StorageAdapter` (Phase 3, #246 slice 1): `deriveDbName`/`DB_NAME` origin isolation (OQ-1), `DB_VERSION = 1` + `onupgradeneeded` (meta/rules/activities stores + `by_dateTime`/`by_type`/`by_tags`(multi)/`by_rule_period` indexes, no boolean `active` index), idempotent `open()`, and basic `getMeta`/`setMeta`; `save`/`delete`/`query`/`replaceAll` are T-A stubs pointing to T-B (#249).
+- **`IndexedDbAdapter` (T-A + U1, `src/storage/indexeddb.ts`)** — the production `StorageAdapter` (Phase 3): `deriveDbName`/`DB_NAME` origin isolation (OQ-1), `DB_VERSION = 1` + `onupgradeneeded` (meta/rules/activities stores + `by_dateTime`/`by_type`/`by_tags`(multi)/`by_rule_period` indexes, no boolean `active` index), idempotent `open()`, basic `getMeta`/`setMeta`, and the atomic `replaceAll` (#249) that clears + re-writes `"rules"`+`"activities"` in one `readwrite` transaction with automatic rollback on failure. `save`/`delete`/`query` remain stubs (later slices #250/#252/#253).
   [budget-app/backend.md](budget-app/backend.md#8-indexeddbadapter--t-a-srcstorageindexeddbts)
 - **`InMemoryAdapter` (`src/storage/memory.ts`)** — the deterministic, zero-dependency
   `StorageAdapter` for unit/integration tests: `replaceAll` validates the full payload

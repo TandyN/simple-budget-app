@@ -11,13 +11,16 @@ import type {
  * the native Capacitor shells (iOS `WKWebView` + Android `WebView` both support
  * IndexedDB).
  *
- * This is **T-A** of #246: the database name derivation, the `DB_VERSION = 1`
+ * **T-A** (#246) shipped the database name derivation, the `DB_VERSION = 1`
  * schema (three object stores + the `activities` secondary/compound index set),
- * and the basic `getMeta` / `setMeta` meta round-trip. The heavier contract
- * methods (`save` / `delete` / `query` / `replaceAll` — atomic backup restore,
- * defensive `VersionError` handling, and `navigator.storage.persist()` wiring)
- * are **T-B** (#249) and are left as minimal stubs here so the class satisfies
- * the full `StorageAdapter` contract and type-checks.
+ * and the basic `getMeta` / `setMeta` meta round-trip. **U1** (#249) added the
+ * atomic `replaceAll` backup-restore over `["rules", "activities"]`. The
+ * remaining contract methods (`save` / `delete` / `query`, defensive
+ * `VersionError` handling, and `navigator.storage.persist()` wiring) are later
+ * slices — the defensive `VersionError` handling is #252 (U2) and the
+ * `navigator.storage.persist()` / `persisted()` durability API is #253 (U3) —
+ * and are left as minimal stubs here so the class satisfies the full
+ * `StorageAdapter` contract and type-checks.
  *
  * `project-plan/storage.md` — Recommended approach & IndexedDB Schema
  * Versioning: business logic never touches IndexedDB directly; it goes through
@@ -79,9 +82,11 @@ interface MetaRecord {
  * `IndexedDbAdapter implements StorageAdapter`.
  *
  * `open()` opens (and, on first open, creates) the database — it does NOT run
- * the recurring engine or call `persist()` (that is T-B's scope). `getMeta` /
- * `setMeta` read/write the `"meta"` store in their own `readonly` / `readwrite`
- * transactions. `save` / `delete` / `query` / `replaceAll` are stubs for T-B.
+ * the recurring engine or call `persist()` (that is U2 / U3's scope).
+ * `getMeta` / `setMeta` read/write the `"meta"` store in their own
+ * `readonly` / `readwrite` transactions. `replaceAll` atomically clears and
+ * re-writes `"rules"` + `"activities"` in one `readwrite` transaction.
+ * `save` / `delete` / `query` remain stubs (later slices).
  */
 export class IndexedDbAdapter implements StorageAdapter {
   /** The `IDBFactory` to open databases through (defaults to the platform global). */
@@ -105,7 +110,7 @@ export class IndexedDbAdapter implements StorageAdapter {
    * re-running `onupgradeneeded`.
    *
    * T-A scope: open only — does not run the recurring engine or call
-   * `persist()` (T-B, #249).
+   * `persist()` (the durability API is U3, #253).
    */
   open(): Promise<void> {
     if (this.db !== undefined) {
@@ -126,41 +131,83 @@ export class IndexedDbAdapter implements StorageAdapter {
   }
 
   /**
-   * Upsert a record into a named object store. **T-B (#249)** — not yet
-   * implemented in this slice.
+   * Upsert a record into a named object store. Not yet implemented in this
+   * slice — see the later Phase-3 storage slice that lands `save` / `delete` /
+   * `query` (atomic `replaceAll` already landed in U1, #249).
    */
   save<K extends EntityKey>(_store: K, _value: Entity[K]): Promise<void> {
-    return Promise.reject(notImplementedInTA("save"));
+    return Promise.reject(notImplementedInSlice("save"));
   }
 
   /**
-   * Delete a record by primary key from a named object store. **T-B (#249)** —
-   * not yet implemented in this slice.
+   * Delete a record by primary key from a named object store. Not yet
+   * implemented in this slice (see `save` for the follow-up slice).
    */
   delete(_store: EntityKey, _id: string): Promise<void> {
-    return Promise.reject(notImplementedInTA("delete"));
+    return Promise.reject(notImplementedInSlice("delete"));
   }
 
   /**
-   * Run a query against a named object store. **T-B (#249)** — not yet
-   * implemented in this slice.
+   * Run a query against a named object store. Not yet implemented in this
+   * slice (see `save` for the follow-up slice).
    */
   query<K extends EntityKey>(
     _store: K,
     _where?: QueryPredicate<K>,
   ): Promise<Entity[K][]> {
-    return Promise.reject(notImplementedInTA("query"));
+    return Promise.reject(notImplementedInSlice("query"));
   }
 
   /**
-   * Atomically clear and replace all `"rules"` / `"activities"` records.
-   * **T-B (#249)** — not yet implemented in this slice.
+   * Atomically clear and replace all `"rules"` / `"activities"` records
+   * (invoked by `budget.importBackup` after full validation).
+   *
+   * The whole operation runs in a **single** `readwrite` transaction spanning
+   * `["rules", "activities"]`: both stores are `clear()`-ed and every record
+   * is re-`put()`-ed inside that one transaction. The promise resolves only
+   * when the transaction's `oncomplete` fires. If any write fails (bad key,
+   * quota, type mismatch, …), IndexedDB auto-aborts the transaction and the
+   * pre-existing data is left 100 % intact — no partial write is visible.
+   *
+   * **No** `indexedDB.deleteDatabase()` is ever called on the failure path
+   * (`project-plan/storage.md` → "deleteDatabase() forbidden").
    */
-  replaceAll(_data: {
+  replaceAll(data: {
     rules: RecurringRule[];
     activities: Activity[];
   }): Promise<void> {
-    return Promise.reject(notImplementedInTA("replaceAll"));
+    const db = this.requireDb();
+    return new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(["rules", "activities"], "readwrite");
+      // Attach the terminal handlers *before* queueing any work so the promise
+      // is settled exactly once on whichever terminal event fires, whether the
+      // failure surfaces synchronously (an invalid key throws out of `put`) or
+      // asynchronously (quota, type mismatch) — both abort the transaction and
+      // roll both stores back to their pre-import state.
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error ?? new Error("replaceAll aborted"));
+
+      const rulesStore = tx.objectStore("rules");
+      const activitiesStore = tx.objectStore("activities");
+
+      try {
+        rulesStore.clear();
+        activitiesStore.clear();
+
+        for (const rule of data.rules) {
+          rulesStore.put(rule);
+        }
+        for (const activity of data.activities) {
+          activitiesStore.put(activity);
+        }
+      } catch {
+        // Synchronous failure (e.g. an invalid key): the transaction has
+        // already been flagged to abort, and the `onabort` / `onerror` handler
+        // above rejects this promise. Swallow here so the executor itself does
+        // not throw and leave the promise unsettled.
+      }
+    });
   }
 
   /**
@@ -260,11 +307,12 @@ function handleUpgrade(db: IDBDatabase, oldVersion: number): void {
 }
 
 /**
- * The single T-A stub error: any contract method that is not implemented in
- * this slice rejects with a message pointing at T-B (#249).
+ * The single stub error: a contract method that is not yet implemented in this
+ * slice (atomic `replaceAll` landed in U1 / #249) rejects with a message
+ * pointing at the later `src/storage/` slices.
  */
-function notImplementedInTA(method: string): Error {
+function notImplementedInSlice(method: string): Error {
   return new Error(
-    `IndexedDbAdapter.${method} is not implemented in T-A; see #249 (T-B)`,
+    `IndexedDbAdapter.${method} is not implemented yet; see the later Phase-3 storage slices`,
   );
 }
