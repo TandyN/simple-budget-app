@@ -206,9 +206,21 @@ in its own topic doc, not here.
   future periods only. [project-plan/recurring-engine.md](../project-plan/recurring-engine.md)
 - **Available Funds** — derived (income − expense) from the activity log, never
   stored. [project-plan/activity-model.md](../project-plan/activity-model.md#available-funds--derived-from-the-activity-log)
-- **storage adapter** — the thin `open/save/delete/query/replaceAll/getMeta/setMeta`
-  seam over IndexedDB; the only platform surface the backend depends on.
-  [project-plan/storage.md](../project-plan/storage.md)
+- **storage adapter (`StorageAdapter`)** — the thin `open/save/delete/query/replaceAll/getMeta/setMeta`
+  seam (`src/storage/adapter.ts`) that is the only platform surface the backend depends on;
+  the `Entity`/`EntityKey`/`EntityField`/`QueryPredicate` contract lets the store be
+  swapped (IndexedDB → durable native, OQ-4) without touching `src/core/` or the front-end.
+  [budget-app/backend.md](budget-app/backend.md#6-storageadapter-contract-srcstorageadapterts)
+- **`InMemoryAdapter` (`src/storage/memory.ts`)** — the deterministic, zero-dependency
+  `StorageAdapter` for unit/integration tests: `replaceAll` validates the full payload
+  then swaps both collections in one synchronous step (the identical atomic contract as the
+  IndexedDB adapter), errors are surfaced as rejected Promises, and no DOM / Node globals are used.
+  [budget-app/backend.md](budget-app/backend.md#7-inmemoryadapter-srcstoragememoryts)
+- **`QueryPredicate` (`src/storage/adapter.ts`)** — the minimal adapter-agnostic
+  `{ field, eq }` equality filter (first generic pins the entity collection, the second pins the
+  field so `eq` is type-checked against it); the IndexedDB adapter may translate it to index/range
+  queries, the in-memory adapter filters in memory.
+  [budget-app/backend.md](budget-app/backend.md#6-storageadapter-contract-srcstorageadapterts)
 - **portability** — backend as a framework-agnostic TS library shared by the PWA,
   the iOS (Capacitor / WebKit), and the Android (Capacitor / Chromium) shells;
   one bundle, three webview targets.

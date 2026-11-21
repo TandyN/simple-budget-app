@@ -44,3 +44,22 @@ All files under `src/core/` obey the strict portability boundary: zero imports f
 - **`searchActivities(activities, filter): Activity[]`:** intersecting (logical-AND) predicates — `since` (inclusive, `dateTime >= since`), `until` (exclusive, `dateTime < until`), `tag` (`tags.includes(tag)`), `type` (`type === type`); omitted predicates are unbounded so `{}` returns all. Lexicographic `dateTime` comparison is chronological (stored UTC ISO-8601) and timezone-independent.
 - **`summarizeByTag(activities): TagSummary[]`:** per-tag `totalInCents` (`income`+`deposit`) / `totalOutCents` (`expense`) rollup in integer cents; a multi-tag activity contributes to **each** tag; untagged activities create no bucket; soft-deleted records excluded; deterministically sorted by `tag` (`localeCompare`).
 - **OQ-2 period attribution (`activityPeriod` + `summarizeByPeriod` → `PeriodSummary`):** recurring activities (`source === "recurring"`) are bucketed by their authoritative `Activity.period` (e.g. `"2026-11"`) so timezone offsets / user timestamp edits never misattribute a 1st-of-month item to an adjacent month; non-recurring activities fall back to the UTC month of `dateTime` (`dateTime.slice(0, 7)`). `summarizeByPeriod` returns one rollup per period (chronological) with `totalInCents` / `totalOutCents` and a `summarizeByTag` breakdown per bucket.
+
+## Storage Adapter (`src/storage/`)
+
+The single platform seam over persistence. `src/core/` never touches the store; all reads/writes go through the `StorageAdapter` interface, so the store can be swapped (IndexedDB → durable native, OQ-4) without changing `src/core/` or the front-end.
+
+### 6. `StorageAdapter` contract (`src/storage/adapter.ts`)
+
+- **Types:** `Entity` (`{ rules: RecurringRule; activities: Activity }`), `EntityKey = keyof Entity`, `EntityField<K>`, and `QueryPredicate<K, F>` — a minimal, adapter-agnostic `{ field, eq }` equality predicate (the first generic pins the collection, the second pins the field so `eq` is type-checked against that field).
+- **`StorageAdapter` interface:** `open()`, `save(store, value)`, `delete(store, id)`, `query(store, where?)`, `replaceAll({ rules, activities })`, `getMeta<T>(key)`, and `setMeta<T>(key, value)` — exactly the recommended approach in [project-plan/storage.md](../../project-plan/storage.md).
+- **Atomic `replaceAll` contract:** both `"rules"` and `"activities"` are cleared + re-put inside a single readwrite transaction (IndexedDB) or one synchronous step (in-memory), so a failed restore leaves both collections in their exact pre-import state.
+
+### 7. `InMemoryAdapter` (`src/storage/memory.ts`)
+
+- A deterministic, zero-dependency `StorageAdapter` for unit/integration testing (no timing, no DOM, no Node globals — Web-platform APIs only).
+- `open()` is an idempotent no-op; `save` upserts by the record's `id` and stores an independent shallow copy; `query` returns fresh copies filtered by an optional `{ field, eq }` predicate; `delete` is idempotent (unknown id resolves cleanly); `getMeta`/`setMeta` round-trip values on an independent `"meta"` record (absent key → `null`).
+- **`replaceAll` parity:** validates the entire payload before swapping either collection, then swaps both in a single synchronous step — the identical atomic contract as the IndexedDB adapter, so a rejected/invalid restore never clobbers or partially overwrites existing user data.
+- Errors are surfaced as **rejected Promises** (the async contract), never synchronous throws, so callers can `await`/`catch` uniformly.
+
+> `src/storage/indexeddb.ts` (the IndexedDB implementation) and `src/budgetApi.ts` (the public `BudgetApi` composition root) are planned next — see [project-plan/build-order.md](../../project-plan/build-order.md) (Phase 3).
