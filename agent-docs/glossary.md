@@ -119,9 +119,20 @@ in its own topic doc, not here.
   `index.html` enforcing at the browser engine level that no unsafe DOM
   injection sink can receive raw strings, while allowlisting a single
   `createScriptURL`-only `sw-register` policy for `navigator.serviceWorker.register`
-  (layering on top of the CI-enforced DOM XSS ban).
-  [project-plan/frontend.md](../project-plan/frontend.md#1-strict-content-security-policy-indexhtml)
-- **origin isolation** — deriving IndexedDB (`DB_NAME`), CacheStorage, and
+   (layering on top of the CI-enforced DOM XSS ban).
+   [project-plan/frontend.md](../project-plan/frontend.md#1-strict-content-security-policy-indexhtml)
+ - **safe-DOM helper layer (`src/ui/`)** — the small, framework-free, DOM-only
+   primitive layer every UI task builds on: `el(tag, attrs?, children?)`,
+   `text(value)`, `setAttrs(el, attrs)` (value `null` removes an attribute),
+   and `replaceChildren(el, ...nodes)` (`null` children are dropped). It builds
+   and updates the DOM **exclusively** through the safe set —
+   `document.createElement`, `document.createTextNode`, `node.textContent`,
+   `element.setAttribute`, `element.replaceChildren` — so user-controlled
+   strings are always rendered as inert text, enforcing the DOM XSS ban by
+   construction (Gate 4 scan). Unit-tested in the `happy-dom` Vitest
+   environment (`src/ui/dom.test.ts`); `happy-dom` is a devDependency only.
+   [src/ui/dom.ts](../src/ui/dom.ts)
+ - **origin isolation** — deriving IndexedDB (`DB_NAME`), CacheStorage, and
   `BroadcastChannel` names from `import.meta.env.BASE_URL`
   (`simple-budget-app` / `simple-budget-sync` vs.
   `simple-budget-app-pr-<N>` / `simple-budget-sync-pr-<N>`) so PR previews on
