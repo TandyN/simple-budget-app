@@ -1,4 +1,8 @@
-import { indexedDB as fakeIndexedDB, IDBObjectStore } from "fake-indexeddb";
+import {
+  indexedDB as fakeIndexedDB,
+  IDBFactory,
+  IDBObjectStore,
+} from "fake-indexeddb";
 import { describe, expect, it, vi } from "vitest";
 import type { Activity, RecurringRule } from "../core/types";
 import {
@@ -6,17 +10,22 @@ import {
   DB_VERSION,
   deriveDbName,
   IndexedDbAdapter,
+  VersionMismatchError,
 } from "./indexeddb";
 
 /**
- * T-A tests for `IndexedDbAdapter` (#246).
+ * Tests for `IndexedDbAdapter`.
  *
- * Focus: the v1 schema (store + index set) and the basic `getMeta` / `setMeta`
- * round-trip. Atomic `replaceAll` / `VersionError` / `persist()` tests belong to
- * T-B (#249).
+ * - **T-A** (#246): the v1 schema (store + index set) and the basic
+ *   `getMeta` / `setMeta` round-trip.
+ * - **U1** (#249): atomic `replaceAll` + rollback-leaves-prior-data tests.
+ * - **U2** (#252): defensive, non-destructive `VersionError` handling in
+ *   `open()` — a `VersionError` (on-disk version > `DB_VERSION`) rejects with a
+ *   typed `VersionMismatchError` and NEVER calls `deleteDatabase()`.
  *
  * Uses `fake-indexeddb` (a devDependency) injected via the `idbFactory`
  * constructor argument — no DOM, no Node globals, zero production dependencies.
+ * `persist()` / the durability API tests belong to U3 (#253).
  */
 
 /** Open a fresh database through `factory`, running `onUpgrade` if provided. */
@@ -319,5 +328,78 @@ describe("IndexedDbAdapter — atomic replaceAll (U1, #249)", () => {
       req.onerror = () => reject(req.error);
     });
     expect(hit).toEqual(target);
+  });
+});
+
+describe("IndexedDbAdapter — defensive VersionError handling in open() (U2, #252)", () => {
+  /**
+   * Pre-create a database at `version` on `factory` so the on-disk version is
+   * HIGHER than the adapter's `DB_VERSION`, forcing a genuine W3C
+   * `VersionError` when the adapter later calls `open(DB_NAME, DB_VERSION)`.
+   */
+  async function preCreateAtVersion(
+    factory: IDBFactory,
+    name: string,
+    version: number,
+  ): Promise<void> {
+    await new Promise<void>((resolve, reject) => {
+      const req = factory.open(name, version);
+      req.onsuccess = () => {
+        req.result.close();
+        resolve();
+      };
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  it("rejects with a typed VersionMismatchError and NEVER calls deleteDatabase when on-disk version > DB_VERSION", async () => {
+    // Isolated in-memory IDBFactory (fresh per-test): prior tests in this file
+    // leave the shared `fakeIndexedDB` singleton with the DB open at
+    // `DB_VERSION = 1`; a versionchange to `DB_VERSION + 1` would hang waiting
+    // for those handles to close. A fresh `IDBFactory` gives a clean namespace.
+    const factory = new IDBFactory();
+    const deleteDatabaseSpy = vi.spyOn(factory, "deleteDatabase");
+
+    // Force the VersionError precondition: on-disk DB at DB_VERSION + 1,
+    // then open() at the lower DB_VERSION → W3C VersionError.
+    await preCreateAtVersion(factory, DB_NAME, DB_VERSION + 1);
+
+    const adapter = new IndexedDbAdapter(factory);
+
+    // (a) open() REJECTS (does not resolve) with the typed error.
+    let caught: unknown;
+    try {
+      await adapter.open();
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(VersionMismatchError);
+    expect((caught as Error).name).toBe("VersionMismatchError");
+
+    // (b) deleteDatabase is NEVER invoked on the VersionError path
+    // (project-plan/storage.md → "deleteDatabase() forbidden").
+    expect(deleteDatabaseSpy).not.toHaveBeenCalled();
+    deleteDatabaseSpy.mockRestore();
+  });
+
+  it("leaves the higher-version on-disk database intact (non-destructive) after a VersionError rejection", async () => {
+    // Isolated in-memory IDBFactory (see the sibling test for why).
+    const factory = new IDBFactory();
+    await preCreateAtVersion(factory, DB_NAME, DB_VERSION + 1);
+
+    const adapter = new IndexedDbAdapter(factory);
+    await expect(adapter.open()).rejects.toBeInstanceOf(VersionMismatchError);
+
+    // The on-disk DB is still openable at its (higher) version — proving we did
+    // not delete or downgrade it.
+    const stillThere = await new Promise<boolean>((resolve) => {
+      const req = factory.open(DB_NAME, DB_VERSION + 1);
+      req.onsuccess = () => {
+        req.result.close();
+        resolve(true);
+      };
+      req.onerror = () => resolve(false);
+    });
+    expect(stillThere).toBe(true);
   });
 });

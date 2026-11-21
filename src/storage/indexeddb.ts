@@ -72,6 +72,50 @@ export const DB_NAME = deriveDbName(
  */
 export const DB_VERSION = 1;
 
+/**
+ * `VersionMismatchError` — the typed, **non-destructive** rejection `open()`
+ * raises when the on-disk database version is HIGHER than `DB_VERSION`
+ * (W3C IndexedDB `VersionError`).
+ *
+ * This is the stable contract a later UI slice branches on to render an
+ * accessible **"Update required"** banner (instruct the user to reload /
+ * update to the latest version of the app). The UI can key off either
+ * `err.name === "VersionMismatchError"` or an `instanceof` check.
+ *
+ * **Non-destructive guarantee:** `open()` NEVER calls
+ * `indexedDB.deleteDatabase()` in response to this error (or any open /
+ * migration error). Deleting a local-first financial database is irreversible
+ * data loss — there is no remote server to re-sync from.
+ * `project-plan/storage.md` → IndexedDB Schema Rollback Safety:
+ * "Defensive non-destructive `VersionError` UI handling (`deleteDatabase()`
+ * forbidden)".
+ */
+export class VersionMismatchError extends Error {
+  override readonly name = "VersionMismatchError";
+
+  /** The version this build of the app expects (`DB_VERSION`). */
+  readonly expectedVersion: number;
+
+  constructor(expectedVersion: number) {
+    super(
+      `IndexedDB version mismatch: the on-disk database is at a HIGHER ` +
+        `version than this build (version ${expectedVersion}). This build is ` +
+        `older than the stored data. Do NOT delete the database — reload or ` +
+        `update to the latest version of the app to continue.`,
+    );
+    this.expectedVersion = expectedVersion;
+  }
+}
+
+/** True when `err` is a W3C IndexedDB `VersionError` (on-disk version > requested). */
+function isVersionError(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    (err as { name?: unknown }).name === "VersionError"
+  );
+}
+
 /** Shape of the `"meta"` store records: a string key plus an arbitrary value. */
 interface MetaRecord {
   readonly key: string;
@@ -109,6 +153,14 @@ export class IndexedDbAdapter implements StorageAdapter {
    * Idempotent: a second call while already open resolves immediately without
    * re-running `onupgradeneeded`.
    *
+   * **VersionError handling (U2, #252):** if the on-disk database is at a
+   * HIGHER version than `DB_VERSION` (W3C IndexedDB `VersionError`), `open()`
+   * rejects with a typed, non-destructive `VersionMismatchError` the UI can
+   * render as an accessible "Update required" banner. It NEVER calls
+   * `indexedDB.deleteDatabase()` — deleting local-first financial data is
+   * irreversible loss with no remote copy to re-sync from.
+   * `project-plan/storage.md` → IndexedDB Schema Rollback Safety.
+   *
    * T-A scope: open only — does not run the recurring engine or call
    * `persist()` (the durability API is U3, #253).
    */
@@ -126,7 +178,20 @@ export class IndexedDbAdapter implements StorageAdapter {
         this.db = request.result;
         resolve();
       };
-      request.onerror = () => reject(request.error);
+      request.onerror = () => {
+        // Defensive, non-destructive VersionError handling (U2, #252):
+        // W3C IndexedDB rejects `open()` with a `VersionError` when the
+        // on-disk database version is HIGHER than the requested `DB_VERSION`
+        // (e.g. the app was rolled back after a schema bump). Surface a typed,
+        // non-destructive `VersionMismatchError` the UI can render as an
+        // "Update required" banner. NEVER call `deleteDatabase()` here —
+        // deleting local-first financial data is irreversible loss.
+        if (isVersionError(request.error)) {
+          reject(new VersionMismatchError(DB_VERSION));
+          return;
+        }
+        reject(request.error);
+      };
     });
   }
 
