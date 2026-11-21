@@ -8,7 +8,9 @@
   },
   "packageManager": "pnpm@12.21.0",
   "scripts": {
-    "build": "vite build",
+    "build": "pnpm run build:lib && pnpm run build:spa",
+    "build:lib": "vite build --config vite.lib.config.ts",
+    "build:spa": "vite build",
     "preview": "vite preview",
     "test": "vitest run --coverage",
     "test:e2e": "playwright test",
