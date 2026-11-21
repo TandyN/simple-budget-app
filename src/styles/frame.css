@@ -1,0 +1,105 @@
+/**
+ * Frame CSS — the iPhone-Duo foldable dual-state responsive frame.
+ *
+ * `project-plan/frontend.md → Responsive viewport — iPhone-Duo foldable
+ * dual-state (req 2)`: the primary viewport target is the iPhone-Duo — a
+ * **foldable** phone with exactly two states. The **folded** (slab) state is the
+ * baseline single-panel 1-page experience (no scroll); the **unfolded**
+ * (dual-panel) state is the enhanced one-screen view (side-by-side panes /
+ * split-pane). The layout is **state-aware** — folded → unfolded, NOT a
+ * mobile → tablet → desktop ladder — and is built on **logical units + safe-area
+ * insets**, not fixed device pixel widths (slab phones ≈ folded are the
+ * secondary target).
+ *
+ * Load-bearing rules:
+ * - **System font stack** on `:root` — no remote fonts (zero external URLs,
+ *   `project-plan/dependency-strategy.md`; `font-src 'self'` CSP).
+ * - **Viewport-relative full-height** (`100svh` with a `100dvh` fallback) so the
+ *   mobile Safari URL-bar chrome does not break `100vh`, with `overflow: hidden`
+ *   so the folded state stays a single non-scrolling page.
+ * - **Safe-area insets** (`env(safe-area-inset-*)`) in `main` padding so content
+ *   is never obscured by the notch / Dynamic Island / home indicator / status bar.
+ * - **Unfolded split-pane** at `>= 700px` (the fold↔unfold breakpoint): the
+ *   `.shell` becomes a **row** — a fixed-width `nav[role="tablist"]` rail plus a
+ *   flexible `main` pane (side-by-side), distinct from the folded column layout.
+ * - **WCAG 2.2 AA touch-target floor** (`>= 44×44 CSS px`) on every `button`,
+ *   matching the `control()` floor already guaranteed by construction in
+ *   `src/ui/shell.ts`.
+ *
+ * Linked from `index.html` (`<link rel="stylesheet">`); built by Vite into
+ * `dist/assets/*.css`. Zero production dependencies, zero remote URLs.
+ */
+
+/* System font stack — no remote fonts (local system fonts only). */
+:root {
+  font-family:
+    system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    sans-serif;
+}
+
+/*
+ * Viewport-relative full-height: `100svh` preferred (avoids the mobile-Safari
+ * URL-bar chrome that breaks `100vh`), `100dvh` fallback for browsers without
+ * `svh`. `overflow: hidden` keeps the folded state a single non-scrolling page.
+ */
+html,
+body {
+  height: 100dvh;
+  overflow: hidden;
+}
+
+@supports (height: 100svh) {
+  html,
+  body {
+    height: 100svh;
+  }
+}
+
+/*
+ * Safe-area insets: pad `main` so content is never obscured by the notch, the
+ * Dynamic Island, the home indicator, or the Android status bar
+ * (`project-plan/frontend.md` — safe-area based layout, not hard-pixel viewports).
+ */
+main {
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+    env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+/*
+ * Folded (slab) fallback — the baseline single-panel layout: the `.shell` is a
+ * full-height **column** (tablist rail on top, content below). This is the
+ * default and the mobile baseline; the `>= 700px` rule below switches it to the
+ * unfolded split-pane.
+ */
+.shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/*
+ * Unfolded (dual-panel) split-pane — the fold↔unfold breakpoint (`>= 700px`).
+ * Distinct from the folded column layout: the `.shell` becomes a **row** with a
+ * fixed-width `nav[role="tablist"]` rail and a flexible `main` pane — the
+ * side-by-side / split-pane arrangement that takes advantage of the dual-panel
+ * spread (enhanced, not a stretched fold).
+ */
+@media (min-width: 700px) {
+  .shell {
+    display: flex;
+    flex-direction: row;
+  }
+  .shell nav[role="tablist"] {
+    flex: 0 0 auto;
+    width: 200px;
+  }
+  .shell main {
+    flex: 1;
+  }
+}
+
+/* WCAG 2.2 AA touch-target floor on every interactive `button`. */
+button {
+  min-width: 44px;
+  min-height: 44px;
+}
