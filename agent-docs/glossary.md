@@ -130,9 +130,19 @@ in its own topic doc, not here.
    `element.setAttribute`, `element.replaceChildren` — so user-controlled
    strings are always rendered as inert text, enforcing the DOM XSS ban by
    construction (Gate 4 scan). Unit-tested in the `happy-dom` Vitest
-   environment (`src/ui/dom.test.ts`); `happy-dom` is a devDependency only.
-   [src/ui/dom.ts](../src/ui/dom.ts)
- - **origin isolation** — deriving IndexedDB (`DB_NAME`), CacheStorage, and
+    environment (`src/ui/dom.test.ts`); `happy-dom` is a devDependency only.
+    [src/ui/dom.ts](../src/ui/dom.ts)
+  - **accessible 3-tab shell (`src/ui/shell.ts`)** — the Phase 4A walking-skeleton
+    app shell: `renderShell(container)` builds a `<nav role="tablist">` with three
+    `<button role="tab">` controls (`Budget`/`Insights`/`Settings`) paired with
+    `<section role="tabpanel">` placeholders, roving `tabindex` + arrow-key
+    navigation, a native `<dialog>` confirmation helper (`showModal()` / `close()`
+    with focus returned to the invoking tab), and `>= 44×44 CSS px` touch targets
+    (WCAG 2.2 AA), all via the safe-DOM helpers. Wired into `src/main.ts`;
+    placeholder panels only — functional Budget/Insights/Settings views are
+    deferred to Phases 4B/4C. Unit-tested in `happy-dom` (`src/ui/shell.test.ts`).
+    [src/ui/shell.ts](../src/ui/shell.ts)
+  - **origin isolation** — deriving IndexedDB (`DB_NAME`), CacheStorage, and
   `BroadcastChannel` names from `import.meta.env.BASE_URL`
   (`simple-budget-app` / `simple-budget-sync` vs.
   `simple-budget-app-pr-<N>` / `simple-budget-sync-pr-<N>`) so PR previews on
