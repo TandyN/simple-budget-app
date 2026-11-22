@@ -81,7 +81,7 @@ area's detail into this file — keep it a short map.
   - **OQ-2:** Fixed `12:00:00Z` recurring due instant + `Activity.period` rollups.
   - **OQ-3:** Android `allowBackup="false"` + `dataExtractionRules` excluding cloud-backup and device-transfer.
   - **OQ-4:** Durable native store is a required Phase 6 gate before first store submission.
-  - **OQ-5 (flagged to the user for confirmation before Phase 4A deploy):** Publish GitHub Pages production + PR previews via plain `git` to the `gh-pages` branch using `GITHUB_TOKEN` (mode-(a) guarantees preserved, zero third-party Pages actions).
+  - **OQ-5 (user confirmed, implemented in `.github/workflows/deploy-pages.yml` #278):** Publish GitHub Pages production + PR previews via plain `git` to the `gh-pages` branch using `GITHUB_TOKEN` (mode-(a) guarantees preserved, zero third-party Pages actions).
   - **Release tagging default (Story #192 / Spike #199):** Maintain SemVer manually in root `package.json` and push annotated `vX.Y.Z` tags on `main` to trigger `.github/workflows/release.yml` (SHA-pinned first-party actions, zero extra third-party release bots).
 
 ## Conventions
