@@ -55,8 +55,10 @@ export interface MountBudgetTabOptions {
   readonly budget: BudgetApi;
   /** Shell's promise-based native `<dialog>` confirmation prompt. */
   readonly confirm: ShellHandle["confirm"];
-  /** Optional callback invoked after any successful local write (e.g. BroadcastChannel sync). */
+  /** Optional callback invoked after any successful local write (e.g. first-action persistence). */
   readonly onUserWrite?: () => void;
+  /** Optional callback invoked after data mutations so sibling tabs & BroadcastChannel sync. */
+  readonly onDataMutated?: () => Promise<void> | void;
   /**
    * Optional mount hook for the collapsible Recurring Rules panel inside the
    * Budget primary pane.
@@ -187,8 +189,14 @@ function extractErrorMessage(err: unknown): string {
 export function mountBudgetTab(
   options: MountBudgetTabOptions,
 ): BudgetTabController {
-  const { container, budget, confirm, onUserWrite, renderRecurringSlot } =
-    options;
+  const {
+    container,
+    budget,
+    confirm,
+    onUserWrite,
+    onDataMutated,
+    renderRecurringSlot,
+  } = options;
   const getNow = options.now ?? (() => new Date());
 
   // ---------------------------------------------------------------------------
@@ -684,6 +692,7 @@ export function mountBudgetTab(
         await budget.deleteActivity(activity.id);
         onUserWrite?.();
         await refresh();
+        await onDataMutated?.();
       } catch (err) {
         showFeedError(extractErrorMessage(err));
         if (deleteBtn.isConnected) {
@@ -830,6 +839,7 @@ export function mountBudgetTab(
       quickTagsInput.value = "";
 
       await refresh();
+      await onDataMutated?.();
     } catch (err) {
       showFormError(quickErrorEl, extractErrorMessage(err));
     } finally {
@@ -894,6 +904,7 @@ export function mountBudgetTab(
 
       onUserWrite?.();
       await refresh();
+      await onDataMutated?.();
       focusActivityIdAfterClose = targetId;
       if (editDialog.open) {
         editDialog.close();
@@ -923,14 +934,19 @@ export function mountBudgetTab(
     renderRecurringSlot(recurringSlot, async () => {
       onUserWrite?.();
       await refresh();
+      await onDataMutated?.();
     });
   } else {
     recurringController = mountRecurringRules({
       container: recurringSlot,
       budget,
       confirm,
+      ...(options.now !== undefined ? { now: options.now } : {}),
       ...(onUserWrite !== undefined ? { onUserWrite } : {}),
-      onChanged: refreshBudgetData,
+      onChanged: async () => {
+        await refreshBudgetData();
+        await onDataMutated?.();
+      },
     });
   }
 
