@@ -346,6 +346,10 @@ export function createBudgetApi(options: CreateBudgetApiOptions): BudgetApi {
      * rules, persist the new activities and the advanced `lastPostPeriod`
      * rules, and return the posted activities.
      *
+     * Forwards the API's injected `idFactory` and `now` clock (when `now` is
+     * omitted by the caller) to the core engine so engine-posted activity IDs
+     * and evaluation instants are deterministic in tests (#262).
+     *
      * Idempotent: `runRecurringEngine` checks `(sourceRuleId, period)`
      * against existing activities (`alreadyPosted`) and advances
      * `lastPostPeriod` only for periods actually posted, so a second call at
@@ -355,15 +359,12 @@ export function createBudgetApi(options: CreateBudgetApiOptions): BudgetApi {
       requireInit();
       const rules = await adapter.query("rules");
       const activities = await adapter.query("activities");
-      const engineOptions: {
-        rules: readonly RecurringRule[];
-        activities: readonly Activity[];
-        now?: Date;
-      } = { rules, activities };
-      if (now !== undefined) {
-        engineOptions.now = now;
-      }
-      const result = runRecurringEngine(engineOptions);
+      const result = runRecurringEngine({
+        rules,
+        activities,
+        now: now ?? clock(),
+        idFactory,
+      });
       for (const activity of result.posted) {
         await adapter.save("activities", activity);
       }
