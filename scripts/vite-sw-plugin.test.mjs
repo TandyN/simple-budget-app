@@ -263,6 +263,7 @@ describe("generateServiceWorkerSource & SW runtime behavior", () => {
     expect(sw).not.toContain('"/simple-budget-app/sw.js"');
     expect(sw).not.toContain("index-abc123.js.map");
     expect(sw).not.toMatch(/https?:\/\//i);
+    expect(sw).toContain("ignoreVary: true");
   });
 
   it("precaches PRECACHE_URLS on install without calling skipWaiting()", async () => {
