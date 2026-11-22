@@ -9,6 +9,9 @@
  * - `formatCents` converts canonical integer cents (positive, zero, or negative)
  *   to a localized currency string strictly at the display boundary via
  *   `Intl.NumberFormat` without performing floating-point business math.
+ * - `formatCentsForInput` formats canonical integer cents as a fixed 2-decimal
+ *   input string using exact integer arithmetic (`%` + exact division) so large
+ *   safe-integer cent values never suffer float64 precision loss.
  * - `parseDecimalInputToCents` validates user decimal text input and delegates
  *   to `toCents` in `src/core/validate.ts` so `Number.MAX_SAFE_INTEGER / 100`
  *   bounds and sub-cent rejections stay canonical.
@@ -50,6 +53,27 @@ export function formatCents(
     style: "currency",
     currency: validCurrency,
   }).format(normalizedUnits);
+}
+
+/**
+ * Formats an integer-cent amount as a fixed 2-decimal input string
+ * (e.g. `1234` -> `"12.34"`, `-50` -> `"-0.50"`) using exact integer
+ * arithmetic (`%` and exact multiple-of-100 division) to avoid float64
+ * precision loss for large safe-integer cent values.
+ *
+ * @param amountCents signed safe integer in minor units (cents)
+ */
+export function formatCentsForInput(amountCents: number): string {
+  if (typeof amountCents !== "number" || !Number.isSafeInteger(amountCents)) {
+    throw new Error(
+      "Invalid amountCents: must be a safe integer in minor units (cents)",
+    );
+  }
+  const abs = Math.abs(amountCents);
+  const remainder = abs % 100;
+  const whole = (abs - remainder) / 100;
+  const frac = String(remainder).padStart(2, "0");
+  return `${amountCents < 0 ? "-" : ""}${whole}.${frac}`;
 }
 
 /**

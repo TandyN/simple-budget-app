@@ -33,7 +33,11 @@ import type { BudgetApi } from "../budgetApi";
 import type { RecurringRule, RuleType } from "../core/types";
 import { validateRuleName } from "../core/validate";
 import { el, replaceChildren, setAttrs, text } from "./dom";
-import { formatCents, parseDecimalInputToCents } from "./format";
+import {
+  formatCents,
+  formatCentsForInput,
+  parseDecimalInputToCents,
+} from "./format";
 import type { ShellHandle } from "./shell";
 
 const RULE_TYPES: readonly RuleType[] = ["expense", "income"];
@@ -65,18 +69,6 @@ function isRuleType(value: string): value is RuleType {
 
 function labelForRuleType(type: RuleType): string {
   return type === "expense" ? "Expense" : "Income";
-}
-
-/**
- * Formats integer cents as a fixed 2-decimal input string (`"12.34"`) using
- * exact integer arithmetic (`Math.floor` + `%`) to avoid float64 precision loss
- * for large safe-integer cent values.
- */
-function formatCentsForInput(amountCents: number): string {
-  const abs = Math.abs(amountCents);
-  const whole = Math.floor(abs / 100);
-  const frac = String(abs % 100).padStart(2, "0");
-  return `${amountCents < 0 ? "-" : ""}${whole}.${frac}`;
 }
 
 function parseDayOfMonthInput(raw: string): number {
