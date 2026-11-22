@@ -12,6 +12,10 @@ import {
   type PersistableStorageAdapter,
 } from "./main";
 import type { PlatformServices } from "./platform/services";
+import type {
+  RegisterServiceWorkerOptions,
+  ServiceWorkerHandle,
+} from "./platform/sw";
 import type { BudgetMutatedMessage, SyncChannel } from "./platform/sync";
 import { IndexedDbAdapter } from "./storage/indexeddb";
 import { InMemoryAdapter } from "./storage/memory";
@@ -783,5 +787,65 @@ describe("bootstrapApp", () => {
     expect(container.querySelector("#insights-summary-in")?.textContent).toBe(
       "$1,000.00",
     );
+  });
+
+  it("wires Service Worker registration, reveals Update available banner on update, forwards acceptance, and cleans up on dispose()", async () => {
+    const container = createRoot();
+    const memory = new InMemoryAdapter();
+    const { win, doc } = createFakeWinDoc();
+    const sync = createFakeSyncChannel();
+    const platform = createFakePlatform();
+
+    const swDispose = vi.fn();
+    let capturedOptions: RegisterServiceWorkerOptions | null = null;
+    const registerSw = vi.fn(
+      (opts: RegisterServiceWorkerOptions): ServiceWorkerHandle => {
+        capturedOptions = opts;
+        return {
+          supported: true,
+          ready: Promise.resolve(null),
+          dispose: swDispose,
+        };
+      },
+    );
+
+    handle = await bootstrapApp({
+      container,
+      adapter: memory,
+      platform,
+      syncChannel: sync.channel,
+      win,
+      doc,
+      registerSw,
+    });
+
+    expect(registerSw).toHaveBeenCalledTimes(1);
+    expect(capturedOptions).not.toBeNull();
+    expect(
+      (capturedOptions as RegisterServiceWorkerOptions | null)?.isNative,
+    ).toBe(false);
+
+    const banner = container.querySelector(".update-banner") as HTMLElement;
+    expect(banner).not.toBeNull();
+    expect(banner.getAttribute("role")).toBe("status");
+    expect(banner.hasAttribute("hidden")).toBe(true);
+
+    const applyUpdate = vi.fn();
+    (
+      capturedOptions as RegisterServiceWorkerOptions | null
+    )?.onUpdateAvailable?.(applyUpdate);
+
+    expect(banner.hasAttribute("hidden")).toBe(false);
+    expect(applyUpdate).not.toHaveBeenCalled();
+
+    const updateBtn = banner.querySelector(
+      ".update-banner-btn-primary",
+    ) as HTMLButtonElement;
+    updateBtn.click();
+    expect(applyUpdate).toHaveBeenCalledTimes(1);
+
+    handle.dispose();
+    expect(swDispose).toHaveBeenCalledTimes(1);
+    expect(container.querySelector(".update-banner")).toBeNull();
   });
 });
