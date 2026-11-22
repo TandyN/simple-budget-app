@@ -3,6 +3,11 @@ import {
   createPlatformServices,
   type PlatformServices,
 } from "./platform/services";
+import {
+  type RegisterServiceWorkerOptions,
+  registerServiceWorker,
+  type ServiceWorkerHandle,
+} from "./platform/sw";
 import { createSyncChannel, type SyncChannel } from "./platform/sync";
 import type { StorageAdapter } from "./storage/adapter";
 import { IndexedDbAdapter, VersionMismatchError } from "./storage/indexeddb";
@@ -11,6 +16,7 @@ import { el, replaceChildren, text } from "./ui/dom";
 import { type InsightsTabController, mountInsightsTab } from "./ui/insightsTab";
 import { mountSettingsTab, type SettingsTabController } from "./ui/settingsTab";
 import { renderShell, type ShellHandle } from "./ui/shell";
+import { mountUpdateBanner, type UpdateBannerHandle } from "./ui/updateBanner";
 
 export interface FrameGuardWindow {
   readonly top: unknown;
@@ -83,6 +89,13 @@ export interface BootstrapAppOptions {
   readonly win?: BootstrapWindow;
   /** Document event target for `visibilitychange` recurring triggers; defaults to `document`. */
   readonly doc?: BootstrapDocument;
+  /**
+   * Optional Service Worker registration hook (defaults to `registerServiceWorker`).
+   * Injectable for deterministic unit testing of update-banner wiring and disposal.
+   */
+  readonly registerSw?: (
+    options: RegisterServiceWorkerOptions,
+  ) => ServiceWorkerHandle;
 }
 
 /** Handle returned by `bootstrapApp`, including a deterministic `dispose()` cleanup hook. */
@@ -92,6 +105,8 @@ export interface BootstrapAppHandle {
   readonly budgetTab: BudgetTabController | null;
   readonly insightsTab: InsightsTabController | null;
   readonly settingsTab: SettingsTabController | null;
+  readonly updateBanner: UpdateBannerHandle | null;
+  readonly sw: ServiceWorkerHandle | null;
   dispose(): void;
 }
 
@@ -192,6 +207,8 @@ export async function bootstrapApp(
       budgetTab: null,
       insightsTab: null,
       settingsTab: null,
+      updateBanner: null,
+      sw: null,
       dispose(): void {},
     };
   }
@@ -336,6 +353,17 @@ export async function bootstrapApp(
     }
   };
 
+  const updateBanner = mountUpdateBanner(container);
+  const swRegistrar = options.registerSw ?? registerServiceWorker;
+  const sw = swRegistrar({
+    isNative: platform.isNative,
+    onUpdateAvailable: (applyUpdate) => {
+      if (!disposed) {
+        updateBanner.show(applyUpdate);
+      }
+    },
+  });
+
   targetWin.addEventListener("focus", handleFocus);
   targetDoc.addEventListener("visibilitychange", handleVisibilityChange);
 
@@ -348,6 +376,8 @@ export async function bootstrapApp(
     targetDoc.removeEventListener("visibilitychange", handleVisibilityChange);
     unsubscribeSync();
     syncChannel.close();
+    sw.dispose();
+    updateBanner.dispose();
   };
 
   return {
@@ -356,6 +386,8 @@ export async function bootstrapApp(
     budgetTab,
     insightsTab,
     settingsTab,
+    updateBanner,
+    sw,
     dispose,
   };
 }
