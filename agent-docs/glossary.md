@@ -155,11 +155,20 @@ in its own topic doc, not here.
   `mountBudgetTab(options): BudgetTabController` implementing the sticky
   Available Funds header (`aria-live="polite"`), Quick-Add manual form
   (`expense`/`income`/`deposit`, CSP `form-action 'none'`), Recurring Rules
-  mount slot, reverse-chronological Activity Feed, native `<dialog>` Edit/Backdate/Tag
-  modal, and shell `confirm(...)` Delete flow using `src/ui/dom.ts` safe DOM
-  helpers and WCAG 2.2 AA dual-state responsive CSS; unit-tested in `happy-dom`
+  mount slot (wiring `mountRecurringRules` by default), reverse-chronological
+  Activity Feed, native `<dialog>` Edit/Backdate/Tag modal, and shell
+  `confirm(...)` Delete flow using `src/ui/dom.ts` safe DOM helpers and WCAG
+  2.2 AA dual-state responsive CSS; unit-tested in `happy-dom`
   (`src/ui/budgetTab.test.ts`).
   [budget-app/frontend.md](budget-app/frontend.md#3c-budget-tab-core-ui--responsive-styles-srcuibudgettabts-srcstylesbudgetcss)
+- **Recurring Rules panel (`src/ui/recurringRules.ts`)** —
+  `mountRecurringRules(options): RecurringRulesController` implementing the
+  collapsible `<details>`/`<summary>` Recurring Rules panel inside the Budget
+  tab (list rules, Add Rule form, native `<dialog>` Edit Rule modal,
+  Pause/Resume toggle, and shell `confirm(...)` Delete preserving auto-posted
+  history) via `src/ui/dom.ts`; unit-tested in `happy-dom`
+  (`src/ui/recurringRules.test.ts`).
+  [budget-app/frontend.md](budget-app/frontend.md#3d-collapsible-recurring-rules-panel-srcuirecurringrulests)
 - **frame CSS (`src/styles/frame.css`)** — the Phase 4A iPhone-Duo dual-state
   responsive stylesheet linked from `index.html`: system font stack on `:root`,
   `100dvh` with `@supports (height: 100svh)` and `overflow: hidden` on

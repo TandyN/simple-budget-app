@@ -34,6 +34,10 @@ import {
   parseTagsInput,
   toDateTimeLocalInputValue,
 } from "./format";
+import {
+  mountRecurringRules,
+  type RecurringRulesController,
+} from "./recurringRules";
 import type { ShellHandle } from "./shell";
 
 const ACTIVITY_TYPES: readonly ActivityType[] = [
@@ -642,7 +646,7 @@ export function mountBudgetTab(
     ) as HTMLLIElement;
   }
 
-  async function refresh(): Promise<void> {
+  async function refreshBudgetData(): Promise<void> {
     const seq = ++refreshSeq;
     const [availableCents, activities] = await Promise.all([
       budget.getAvailableFunds(),
@@ -673,6 +677,15 @@ export function mountBudgetTab(
     replaceChildren(feedListEl, ...sorted.map(renderActivityItem));
     setAttrs(feedListEl, { hidden: null });
     setAttrs(feedEmptyEl, { hidden: "true" });
+  }
+
+  let recurringController: RecurringRulesController | null = null;
+
+  async function refresh(): Promise<void> {
+    await Promise.all([
+      refreshBudgetData(),
+      recurringController?.refresh() ?? Promise.resolve(),
+    ]);
   }
 
   // ---------------------------------------------------------------------------
@@ -822,6 +835,14 @@ export function mountBudgetTab(
     renderRecurringSlot(recurringSlot, async () => {
       onUserWrite?.();
       await refresh();
+    });
+  } else {
+    recurringController = mountRecurringRules({
+      container: recurringSlot,
+      budget,
+      confirm,
+      ...(onUserWrite !== undefined ? { onUserWrite } : {}),
+      onChanged: refreshBudgetData,
     });
   }
 
