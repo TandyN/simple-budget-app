@@ -186,6 +186,13 @@ in its own topic doc, not here.
   (`["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]`) across all tabs and open
   `<dialog>`, and zero-overflow + `>= 44×44 CSS px` touch-target geometry.
   [budget-app/testing.md](budget-app/testing.md#playwright-e2e-harness-e2e)
+- **Budget tab Playwright E2E suite (`e2e/budget.spec.ts`)** —
+  the Phase 4B co-shipped Playwright E2E suite (#307) exercising the full Budget
+  tab vertical slice against real IndexedDB in `dist/` (cold start, Recurring
+  Rules CRUD + auto-post + reload idempotency, manual deposit/income/expense
+  integer-cent math, `<dialog>` edit/backdate/tag and delete confirmation +
+  non-repost, DOM XSS inert-text immunity, and WCAG 2.2 AA / 3-viewport gates).
+  [budget-app/testing.md](budget-app/testing.md#playwright-e2e-harness-e2e)
 - **origin isolation** — deriving IndexedDB (`DB_NAME`), CacheStorage, and
   `BroadcastChannel` names from `import.meta.env.BASE_URL`
   (`simple-budget-app` / `simple-budget-sync` vs.
