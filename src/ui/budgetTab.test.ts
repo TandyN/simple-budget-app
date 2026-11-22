@@ -456,4 +456,214 @@ describe("mountBudgetTab", () => {
     expect(fundsEl.textContent).toBe("$42.00");
     expect(onUserWrite).toHaveBeenCalledTimes(1);
   });
+
+  it("surfaces a role='alert' error banner and restores focus when deleteActivity fails", async () => {
+    await setup();
+
+    await budget.addActivity({
+      type: "expense",
+      amountCents: 1500,
+      dateTime: "2026-06-15T12:00:00.000Z",
+      memo: "Will fail delete",
+    });
+    await controller.refresh();
+
+    vi.spyOn(budget, "deleteActivity").mockRejectedValueOnce(
+      new Error("IndexedDB write failed"),
+    );
+
+    const deleteBtn = shell.panels.budget.querySelector(
+      ".budget-delete-btn",
+    ) as HTMLButtonElement;
+    deleteBtn.click();
+    await flushAsync();
+
+    (
+      shell.dialog.querySelector(".confirm-dialog-confirm") as HTMLButtonElement
+    ).click();
+    await flushAsync();
+
+    const feedErrorEl = shell.panels.budget.querySelector(
+      "#budget-feed-error",
+    ) as HTMLElement;
+    expect(feedErrorEl.hidden).toBe(false);
+    expect(feedErrorEl.getAttribute("role")).toBe("alert");
+    expect(feedErrorEl.textContent).toContain("IndexedDB write failed");
+    expect(deleteBtn.disabled).toBe(false);
+    expect(document.activeElement).toBe(deleteBtn);
+    expect(await budget.listActivities()).toHaveLength(1);
+  });
+
+  it("moves focus to a surviving feed item button after confirmed delete, and to Quick-Add submit when feed becomes empty", async () => {
+    await setup();
+
+    const older = await budget.addActivity({
+      type: "expense",
+      amountCents: 1000,
+      dateTime: "2026-06-10T12:00:00.000Z",
+      memo: "Older",
+    });
+    const newer = await budget.addActivity({
+      type: "expense",
+      amountCents: 2000,
+      dateTime: "2026-06-15T12:00:00.000Z",
+      memo: "Newer",
+    });
+    await controller.refresh();
+
+    // Delete the first (newer) item -> focus moves to the remaining (older) item's action button
+    const firstDeleteBtn = shell.panels.budget.querySelector(
+      `button.budget-delete-btn[data-activity-id="${newer.id}"]`,
+    ) as HTMLButtonElement;
+    firstDeleteBtn.click();
+    await flushAsync();
+    (
+      shell.dialog.querySelector(".confirm-dialog-confirm") as HTMLButtonElement
+    ).click();
+    await flushAsync();
+
+    const remainingEditBtn = shell.panels.budget.querySelector(
+      `button.budget-edit-btn[data-activity-id="${older.id}"]`,
+    ) as HTMLButtonElement;
+    expect(document.activeElement).toBe(remainingEditBtn);
+
+    // Delete the last remaining item -> focus moves to the surviving Quick-Add submit button
+    const lastDeleteBtn = shell.panels.budget.querySelector(
+      `button.budget-delete-btn[data-activity-id="${older.id}"]`,
+    ) as HTMLButtonElement;
+    lastDeleteBtn.click();
+    await flushAsync();
+    (
+      shell.dialog.querySelector(".confirm-dialog-confirm") as HTMLButtonElement
+    ).click();
+    await flushAsync();
+
+    const quickSubmitBtn = shell.panels.budget.querySelector(
+      '.budget-quick-add button[type="submit"]',
+    ) as HTMLButtonElement;
+    expect(document.activeElement).toBe(quickSubmitBtn);
+  });
+
+  it("ignores concurrent rapid submissions on quickForm while addActivity is in flight", async () => {
+    await setup();
+
+    const form = shell.panels.budget.querySelector(
+      ".budget-quick-add form",
+    ) as HTMLFormElement;
+    const amountInput = form.querySelector(
+      "#quick-add-amount",
+    ) as HTMLInputElement;
+    const submitBtn = form.querySelector(
+      'button[type="submit"]',
+    ) as HTMLButtonElement;
+
+    const originalAdd = budget.addActivity.bind(budget);
+    let releaseFirstWrite: (() => void) | undefined;
+    const firstWriteGate = new Promise<void>((resolve) => {
+      releaseFirstWrite = resolve;
+    });
+
+    const addSpy = vi
+      .spyOn(budget, "addActivity")
+      .mockImplementationOnce(async (input) => {
+        await firstWriteGate;
+        return originalAdd(input);
+      });
+
+    amountInput.value = "25.00";
+    submitForm(form);
+    expect(submitBtn.disabled).toBe(true);
+
+    // Rapid second submit while the first is still pending
+    const ev2 = submitForm(form);
+    expect(ev2.defaultPrevented).toBe(true);
+    expect(addSpy).toHaveBeenCalledTimes(1);
+
+    releaseFirstWrite?.();
+    await flushAsync();
+
+    expect(submitBtn.disabled).toBe(false);
+    expect(await budget.listActivities()).toHaveLength(1);
+    expect(onUserWrite).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores concurrent rapid submissions on editForm while editActivity is in flight", async () => {
+    await setup();
+
+    await budget.addActivity({
+      type: "expense",
+      amountCents: 4000,
+      dateTime: "2026-06-15T12:00:00.000Z",
+      memo: "Editable",
+    });
+    await controller.refresh();
+
+    const editBtn = shell.panels.budget.querySelector(
+      ".budget-edit-btn",
+    ) as HTMLButtonElement;
+    editBtn.click();
+
+    const editDialog = shell.panels.budget.querySelector(
+      "dialog.budget-edit-dialog",
+    ) as HTMLDialogElement;
+    const editForm = editDialog.querySelector("form") as HTMLFormElement;
+    const amountInput = editForm.querySelector(
+      "#edit-activity-amount",
+    ) as HTMLInputElement;
+    const saveBtn = editForm.querySelector(
+      'button[type="submit"]',
+    ) as HTMLButtonElement;
+
+    const originalEdit = budget.editActivity.bind(budget);
+    let releaseEdit: (() => void) | undefined;
+    const editGate = new Promise<void>((resolve) => {
+      releaseEdit = resolve;
+    });
+
+    const editSpy = vi
+      .spyOn(budget, "editActivity")
+      .mockImplementationOnce(async (id, patch) => {
+        await editGate;
+        return originalEdit(id, patch);
+      });
+
+    amountInput.value = "75.50";
+    submitForm(editForm);
+    expect(saveBtn.disabled).toBe(true);
+
+    // Rapid second submit while the first is still pending
+    const ev2 = submitForm(editForm);
+    expect(ev2.defaultPrevented).toBe(true);
+    expect(editSpy).toHaveBeenCalledTimes(1);
+
+    releaseEdit?.();
+    await flushAsync();
+
+    expect(saveBtn.disabled).toBe(false);
+    expect(editDialog.open).toBe(false);
+    expect(await budget.getAvailableFunds()).toBe(-7550);
+    expect(onUserWrite).toHaveBeenCalledTimes(1);
+  });
+
+  it("pre-populates the Edit modal amount with exact integer arithmetic for large safe-integer cent values", async () => {
+    await setup();
+
+    await budget.addActivity({
+      type: "income",
+      amountCents: Number.MAX_SAFE_INTEGER,
+      dateTime: "2026-06-15T12:00:00.000Z",
+      memo: "Max safe integer",
+    });
+    await controller.refresh();
+
+    const editBtn = shell.panels.budget.querySelector(
+      ".budget-edit-btn",
+    ) as HTMLButtonElement;
+    editBtn.click();
+
+    const editAmountInput = shell.panels.budget.querySelector(
+      "#edit-activity-amount",
+    ) as HTMLInputElement;
+    expect(editAmountInput.value).toBe("90071992547409.91");
+  });
 });

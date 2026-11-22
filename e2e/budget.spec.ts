@@ -47,10 +47,15 @@ test.describe("Phase 4B Budget tab vertical slice, DOM XSS, WCAG 2.2 AA & 3-view
     await expect(page.locator(".budget-feed-empty")).toBeVisible();
     await expect(page.locator(".budget-feed-list")).toBeHidden();
 
-    const recurringDetails = page.locator("details.budget-recurring-details");
+    const budgetPanel = page.locator("#panel-budget");
+    const recurringDetails = budgetPanel.locator(
+      "details.budget-recurring-details",
+    );
     await expect(recurringDetails).toBeVisible();
     await expect(recurringDetails).not.toHaveAttribute("open", "");
-    await expect(page.locator(".budget-recurring-count")).toHaveText("0");
+    await expect(budgetPanel.locator(".budget-recurring-count")).toHaveText(
+      "0",
+    );
   });
 
   test("supports recurring rule CRUD, auto-post on due day, reload persistence & idempotency, pause/resume, edit, and delete preserving history", async ({
@@ -59,13 +64,14 @@ test.describe("Phase 4B Budget tab vertical slice, DOM XSS, WCAG 2.2 AA & 3-view
     await page.clock.setSystemTime(FIXED_TEST_TIME);
     await page.goto("./");
 
+    const budgetPanel = page.locator("#panel-budget");
     const fundsEl = page.locator("#budget-available-funds");
     await expect(fundsEl).toHaveText("$0.00");
 
     // Expand Recurring Rules panel and add an active monthly income rule.
-    await page.locator("summary.budget-recurring-summary").click();
+    await budgetPanel.locator("summary.budget-recurring-summary").click();
     await expect(
-      page.locator("details.budget-recurring-details"),
+      budgetPanel.locator("details.budget-recurring-details"),
     ).toHaveAttribute("open", "");
 
     await page.locator("#recurring-add-type").selectOption("income");
@@ -73,16 +79,18 @@ test.describe("Phase 4B Budget tab vertical slice, DOM XSS, WCAG 2.2 AA & 3-view
     await page.locator("#recurring-add-name").fill("Monthly Salary");
     await page.locator("#recurring-add-day").fill("1");
     await expect(page.locator("#recurring-add-active")).toBeChecked();
-    await page.getByRole("button", { name: "Add Rule" }).click();
+    await budgetPanel.getByRole("button", { name: "Add Rule" }).click();
 
     // Rule is listed and immediately auto-posts for the due period.
-    const ruleItems = page.locator(".budget-recurring-item");
+    const ruleItems = budgetPanel.locator(".budget-recurring-item");
     await expect(ruleItems).toHaveCount(1);
     await expect(ruleItems.first()).toContainText("Monthly Salary");
     await expect(ruleItems.first()).toContainText("$2,000.00");
     await expect(ruleItems.first()).toContainText("Active");
     await expect(ruleItems.first()).toContainText("Monthly · Day 1");
-    await expect(page.locator(".budget-recurring-count")).toHaveText("1");
+    await expect(budgetPanel.locator(".budget-recurring-count")).toHaveText(
+      "1",
+    );
 
     const feedItems = page.locator(".budget-feed-item");
     await expect(feedItems).toHaveCount(1);
@@ -96,14 +104,18 @@ test.describe("Phase 4B Budget tab vertical slice, DOM XSS, WCAG 2.2 AA & 3-view
     await expect(fundsEl).toHaveText("$2,000.00");
     await expect(feedItems).toHaveCount(1);
 
-    await page.locator("summary.budget-recurring-summary").click();
+    await budgetPanel.locator("summary.budget-recurring-summary").click();
     await expect(ruleItems).toHaveCount(1);
     await expect(ruleItems.first()).toContainText("Monthly Salary");
-    await expect(page.locator(".budget-recurring-count")).toHaveText("1");
+    await expect(budgetPanel.locator(".budget-recurring-count")).toHaveText(
+      "1",
+    );
 
     // Edit the rule via native <dialog>; prior posted activity stays $2,000.00.
     await ruleItems.first().getByRole("button", { name: /Edit/ }).click();
-    const editRuleDialog = page.locator("dialog.budget-rule-edit-dialog");
+    const editRuleDialog = budgetPanel.locator(
+      "dialog.budget-rule-edit-dialog",
+    );
     await expect(editRuleDialog).toBeVisible();
 
     await page.locator("#recurring-edit-name").fill("Updated Salary");
@@ -149,8 +161,10 @@ test.describe("Phase 4B Budget tab vertical slice, DOM XSS, WCAG 2.2 AA & 3-view
     await expect(confirmDialog).toBeHidden();
 
     await expect(ruleItems).toHaveCount(0);
-    await expect(page.locator(".budget-recurring-empty")).toBeVisible();
-    await expect(page.locator(".budget-recurring-count")).toHaveText("0");
+    await expect(budgetPanel.locator(".budget-recurring-empty")).toBeVisible();
+    await expect(budgetPanel.locator(".budget-recurring-count")).toHaveText(
+      "0",
+    );
     await expect(feedItems).toHaveCount(1);
     await expect(fundsEl).toHaveText("$2,000.00");
   });
@@ -161,20 +175,21 @@ test.describe("Phase 4B Budget tab vertical slice, DOM XSS, WCAG 2.2 AA & 3-view
     await page.clock.setSystemTime(FIXED_TEST_TIME);
     await page.goto("./");
 
+    const budgetPanel = page.locator("#panel-budget");
     const fundsEl = page.locator("#budget-available-funds");
     await expect(fundsEl).toHaveText("$0.00");
 
     // Seed $2,000.00 recurring income so total reaches $2,305.00 after manual entries.
-    await page.locator("summary.budget-recurring-summary").click();
+    await budgetPanel.locator("summary.budget-recurring-summary").click();
     await page.locator("#recurring-add-type").selectOption("income");
     await page.locator("#recurring-add-amount").fill("2000.00");
     await page.locator("#recurring-add-name").fill("Base Salary");
     await page.locator("#recurring-add-day").fill("1");
-    await page.getByRole("button", { name: "Add Rule" }).click();
+    await budgetPanel.getByRole("button", { name: "Add Rule" }).click();
     await expect(fundsEl).toHaveText("$2,000.00");
 
     // Collapse Recurring Rules to use Quick Add cleanly.
-    await page.locator("summary.budget-recurring-summary").click();
+    await budgetPanel.locator("summary.budget-recurring-summary").click();
 
     // Manual deposit: +$250.50 -> $2,250.50
     await page.locator("#quick-add-type").selectOption("deposit");
@@ -231,18 +246,19 @@ test.describe("Phase 4B Budget tab vertical slice, DOM XSS, WCAG 2.2 AA & 3-view
     await page.clock.setSystemTime(FIXED_TEST_TIME);
     await page.goto("./");
 
+    const budgetPanel = page.locator("#panel-budget");
     const fundsEl = page.locator("#budget-available-funds");
     await expect(fundsEl).toHaveText("$0.00");
 
     // Create an active recurring income rule ($1,500.00) that auto-posts.
-    await page.locator("summary.budget-recurring-summary").click();
+    await budgetPanel.locator("summary.budget-recurring-summary").click();
     await page.locator("#recurring-add-type").selectOption("income");
     await page.locator("#recurring-add-amount").fill("1500.00");
     await page.locator("#recurring-add-name").fill("Paycheck");
     await page.locator("#recurring-add-day").fill("1");
-    await page.getByRole("button", { name: "Add Rule" }).click();
+    await budgetPanel.getByRole("button", { name: "Add Rule" }).click();
     await expect(fundsEl).toHaveText("$1,500.00");
-    await page.locator("summary.budget-recurring-summary").click();
+    await budgetPanel.locator("summary.budget-recurring-summary").click();
 
     // Add a manual expense ($50.00) -> $1,450.00.
     await page.locator("#quick-add-type").selectOption("expense");
@@ -328,17 +344,18 @@ test.describe("Phase 4B Budget tab vertical slice, DOM XSS, WCAG 2.2 AA & 3-view
     await page.clock.setSystemTime(FIXED_TEST_TIME);
     await page.goto("./");
 
+    const budgetPanel = page.locator("#panel-budget");
     await expect(page.locator("#budget-available-funds")).toHaveText("$0.00");
 
     // Submit IMG XSS payload in a recurring rule name.
-    await page.locator("summary.budget-recurring-summary").click();
+    await budgetPanel.locator("summary.budget-recurring-summary").click();
     await page.locator("#recurring-add-type").selectOption("income");
     await page.locator("#recurring-add-amount").fill("100.00");
     await page.locator("#recurring-add-name").fill(IMG_XSS_PAYLOAD);
     await page.locator("#recurring-add-day").fill("1");
-    await page.getByRole("button", { name: "Add Rule" }).click();
+    await budgetPanel.getByRole("button", { name: "Add Rule" }).click();
 
-    await expect(page.locator(".budget-recurring-name")).toHaveText(
+    await expect(budgetPanel.locator(".budget-recurring-name")).toHaveText(
       IMG_XSS_PAYLOAD,
     );
 
@@ -360,7 +377,7 @@ test.describe("Phase 4B Budget tab vertical slice, DOM XSS, WCAG 2.2 AA & 3-view
       await expect(page.locator("#panel-budget img")).toHaveCount(0);
       await expect(page.locator("#panel-budget script")).toHaveCount(0);
 
-      await expect(page.locator(".budget-recurring-name")).toHaveText(
+      await expect(budgetPanel.locator(".budget-recurring-name")).toHaveText(
         IMG_XSS_PAYLOAD,
       );
       await expect(page.locator(".budget-feed-memo")).toHaveText([
@@ -377,7 +394,7 @@ test.describe("Phase 4B Budget tab vertical slice, DOM XSS, WCAG 2.2 AA & 3-view
 
     // Reload from IndexedDB and verify payloads remain strictly inert.
     await page.reload();
-    await page.locator("summary.budget-recurring-summary").click();
+    await budgetPanel.locator("summary.budget-recurring-summary").click();
     await assertInertXssState();
   });
 
@@ -387,15 +404,16 @@ test.describe("Phase 4B Budget tab vertical slice, DOM XSS, WCAG 2.2 AA & 3-view
     await page.clock.setSystemTime(FIXED_TEST_TIME);
     await page.goto("./");
 
+    const budgetPanel = page.locator("#panel-budget");
     await expect(page.locator("#budget-available-funds")).toHaveText("$0.00");
 
     // Populate with a recurring income rule and a manual expense.
-    await page.locator("summary.budget-recurring-summary").click();
+    await budgetPanel.locator("summary.budget-recurring-summary").click();
     await page.locator("#recurring-add-type").selectOption("income");
     await page.locator("#recurring-add-amount").fill("1200.00");
     await page.locator("#recurring-add-name").fill("Monthly Stipend");
     await page.locator("#recurring-add-day").fill("1");
-    await page.getByRole("button", { name: "Add Rule" }).click();
+    await budgetPanel.getByRole("button", { name: "Add Rule" }).click();
     await expect(page.locator("#budget-available-funds")).toHaveText(
       "$1,200.00",
     );
@@ -410,19 +428,22 @@ test.describe("Phase 4B Budget tab vertical slice, DOM XSS, WCAG 2.2 AA & 3-view
     );
 
     // 1. Populated Budget tab (Recurring Rules collapsed).
-    await page.locator("summary.budget-recurring-summary").click();
+    await budgetPanel.locator("summary.budget-recurring-summary").click();
     await expect(
-      page.locator("details.budget-recurring-details"),
+      budgetPanel.locator("details.budget-recurring-details"),
     ).not.toHaveAttribute("open", "");
     await assertZeroAxeViolations(page, "populated Budget tab");
     await assertZeroViewportOverflow(page, "populated Budget tab");
     await assertTouchTargetGeometry(page, "button:visible");
-    await assertTouchTargetGeometry(page, "summary.budget-recurring-summary");
+    await assertTouchTargetGeometry(
+      page,
+      "#panel-budget summary.budget-recurring-summary",
+    );
 
     // 2. Populated Budget tab with Recurring Rules expanded.
-    await page.locator("summary.budget-recurring-summary").click();
+    await budgetPanel.locator("summary.budget-recurring-summary").click();
     await expect(
-      page.locator("details.budget-recurring-details"),
+      budgetPanel.locator("details.budget-recurring-details"),
     ).toHaveAttribute("open", "");
     await assertZeroAxeViolations(
       page,
@@ -451,18 +472,20 @@ test.describe("Phase 4B Budget tab vertical slice, DOM XSS, WCAG 2.2 AA & 3-view
     await expect(editActivityDialog).toBeHidden();
 
     // 4. Open Edit Recurring Rule <dialog>.
-    await page
+    await budgetPanel
       .locator(".budget-recurring-item")
       .first()
       .getByRole("button", { name: /Edit/ })
       .click();
-    const editRuleDialog = page.locator("dialog.budget-rule-edit-dialog");
+    const editRuleDialog = budgetPanel.locator(
+      "dialog.budget-rule-edit-dialog",
+    );
     await expect(editRuleDialog).toBeVisible();
     await assertZeroAxeViolations(page, "Edit Recurring Rule <dialog>");
     await assertZeroViewportOverflow(page, "Edit Recurring Rule <dialog>");
     await assertTouchTargetGeometry(
       page,
-      "dialog.budget-rule-edit-dialog button:visible",
+      "#panel-budget dialog.budget-rule-edit-dialog button:visible",
     );
     await editRuleDialog.getByRole("button", { name: "Cancel" }).click();
     await expect(editRuleDialog).toBeHidden();

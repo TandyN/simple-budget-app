@@ -27,6 +27,7 @@ import type { Activity, ActivityType } from "../core/types";
 import { el, replaceChildren, setAttrs, text } from "./dom";
 import {
   formatCents,
+  formatCentsForInput,
   formatLocalDateTime,
   formatTagsInput,
   fromDateTimeLocalInputValue,
@@ -54,8 +55,10 @@ export interface MountBudgetTabOptions {
   readonly budget: BudgetApi;
   /** Shell's promise-based native `<dialog>` confirmation prompt. */
   readonly confirm: ShellHandle["confirm"];
-  /** Optional callback invoked after any successful local write (e.g. BroadcastChannel sync). */
+  /** Optional callback invoked after any successful local write (e.g. first-action persistence). */
   readonly onUserWrite?: () => void;
+  /** Optional callback invoked after data mutations so sibling tabs & BroadcastChannel sync. */
+  readonly onDataMutated?: () => Promise<void> | void;
   /**
    * Optional mount hook for the collapsible Recurring Rules panel inside the
    * Budget primary pane.
@@ -100,10 +103,6 @@ function labelForSource(source: Activity["source"]): string {
     case "bank-sync":
       return "Synced";
   }
-}
-
-function formatCentsForInput(amountCents: number): string {
-  return (amountCents / 100).toFixed(2);
 }
 
 function compareActivitiesNewestFirst(a: Activity, b: Activity): number {
@@ -190,8 +189,14 @@ function extractErrorMessage(err: unknown): string {
 export function mountBudgetTab(
   options: MountBudgetTabOptions,
 ): BudgetTabController {
-  const { container, budget, confirm, onUserWrite, renderRecurringSlot } =
-    options;
+  const {
+    container,
+    budget,
+    confirm,
+    onUserWrite,
+    onDataMutated,
+    renderRecurringSlot,
+  } = options;
   const getNow = options.now ?? (() => new Date());
 
   // ---------------------------------------------------------------------------
@@ -325,6 +330,24 @@ export function mountBudgetTab(
   // ---------------------------------------------------------------------------
   // 4. Activity Feed Pane
   // ---------------------------------------------------------------------------
+  const feedErrorEl = el("div", {
+    id: "budget-feed-error",
+    class: "budget-form-error",
+    role: "alert",
+    "aria-live": "assertive",
+    hidden: "true",
+  }) as HTMLElement;
+
+  function clearFeedError(): void {
+    replaceChildren(feedErrorEl);
+    setAttrs(feedErrorEl, { hidden: "true" });
+  }
+
+  function showFeedError(message: string): void {
+    replaceChildren(feedErrorEl, text(message));
+    setAttrs(feedErrorEl, { hidden: null });
+  }
+
   const feedEmptyEl = el("p", { class: "budget-feed-empty" }, [
     text(
       "No activities yet. Add your first expense, income, or deposit to get started.",
@@ -348,6 +371,7 @@ export function mountBudgetTab(
           text("Activity Feed"),
         ]),
       ]),
+      feedErrorEl,
       feedEmptyEl,
       feedListEl,
     ],
@@ -531,6 +555,29 @@ export function mountBudgetTab(
   // ---------------------------------------------------------------------------
   // 6. Refresh & Activity Feed Rendering
   // ---------------------------------------------------------------------------
+  function restoreFocusAfterDelete(deletedIndex: number): void {
+    const remainingItems = Array.from(
+      feedListEl.querySelectorAll<HTMLLIElement>("li.budget-feed-item"),
+    );
+    if (remainingItems.length > 0) {
+      const targetIndex = Math.min(
+        Math.max(deletedIndex, 0),
+        remainingItems.length - 1,
+      );
+      const targetItem = remainingItems[targetIndex];
+      const actionBtn = targetItem?.querySelector<HTMLButtonElement>(
+        "button.budget-edit-btn, button.budget-delete-btn",
+      );
+      if (actionBtn?.isConnected) {
+        actionBtn.focus();
+        return;
+      }
+    }
+    if (quickSubmitBtn.isConnected) {
+      quickSubmitBtn.focus();
+    }
+  }
+
   let refreshSeq = 0;
 
   function renderActivityItem(activity: Activity): HTMLLIElement {
@@ -615,7 +662,12 @@ export function mountBudgetTab(
       openEditDialog(activity, editBtn);
     });
 
+    let isDeleting = false;
     deleteBtn.addEventListener("click", async () => {
+      if (isDeleting) {
+        return;
+      }
+      clearFeedError();
       const confirmed = await confirm({
         title: "Delete activity",
         message: `Delete this ${activity.type} of ${formatCents(activity.amountCents, activity.currency)}? This action cannot be undone.`,
@@ -626,9 +678,35 @@ export function mountBudgetTab(
       if (!confirmed) {
         return;
       }
-      await budget.deleteActivity(activity.id);
-      onUserWrite?.();
-      await refresh();
+
+      const feedItems = Array.from(
+        feedListEl.querySelectorAll<HTMLLIElement>("li.budget-feed-item"),
+      );
+      const deletedIndex = feedItems.findIndex(
+        (item) => item.getAttribute("data-activity-id") === activity.id,
+      );
+
+      isDeleting = true;
+      deleteBtn.disabled = true;
+      try {
+        await budget.deleteActivity(activity.id);
+        onUserWrite?.();
+        await refresh();
+        await onDataMutated?.();
+      } catch (err) {
+        showFeedError(extractErrorMessage(err));
+        if (deleteBtn.isConnected) {
+          deleteBtn.disabled = false;
+          deleteBtn.focus();
+        } else if (quickSubmitBtn.isConnected) {
+          quickSubmitBtn.focus();
+        }
+        return;
+      } finally {
+        isDeleting = false;
+      }
+
+      restoreFocusAfterDelete(deletedIndex);
     });
 
     const actionsRow = el("div", { class: "budget-feed-actions" }, [
@@ -691,9 +769,15 @@ export function mountBudgetTab(
   // ---------------------------------------------------------------------------
   // 7. Form Submit Handlers (CSP form-action 'none' compliant)
   // ---------------------------------------------------------------------------
+  let isQuickSubmitting = false;
+
   quickForm.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (isQuickSubmitting) {
+      return;
+    }
     clearFormError(quickErrorEl, quickControls);
+    clearFeedError();
 
     const rawType = quickTypeSelect.value;
     if (!isActivityType(rawType)) {
@@ -733,6 +817,8 @@ export function mountBudgetTab(
     const tags = parseTagsInput(quickTagsInput.value);
     const trimmedMemo = quickMemoInput.value.trim();
 
+    isQuickSubmitting = true;
+    quickSubmitBtn.disabled = true;
     try {
       await budget.addActivity({
         type: rawType,
@@ -741,26 +827,34 @@ export function mountBudgetTab(
         tags,
         ...(trimmedMemo.length > 0 ? { memo: trimmedMemo } : {}),
       });
+
+      onUserWrite?.();
+
+      quickTypeSelect.value = "expense";
+      quickAmountInput.value = "";
+      quickDateTimeInput.value = toDateTimeLocalInputValue(
+        getNow().toISOString(),
+      );
+      quickMemoInput.value = "";
+      quickTagsInput.value = "";
+
+      await refresh();
+      await onDataMutated?.();
     } catch (err) {
       showFormError(quickErrorEl, extractErrorMessage(err));
-      return;
+    } finally {
+      isQuickSubmitting = false;
+      quickSubmitBtn.disabled = false;
     }
-
-    onUserWrite?.();
-
-    quickTypeSelect.value = "expense";
-    quickAmountInput.value = "";
-    quickDateTimeInput.value = toDateTimeLocalInputValue(
-      getNow().toISOString(),
-    );
-    quickMemoInput.value = "";
-    quickTagsInput.value = "";
-
-    await refresh();
   });
+
+  let isEditSubmitting = false;
 
   editForm.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (isEditSubmitting) {
+      return;
+    }
     clearFormError(editErrorEl, editControls);
 
     const targetId = editingActivityId;
@@ -797,6 +891,8 @@ export function mountBudgetTab(
     const tags = parseTagsInput(editTagsInput.value);
     const trimmedMemo = editMemoInput.value.trim();
 
+    isEditSubmitting = true;
+    editSaveBtn.disabled = true;
     try {
       await budget.editActivity(targetId, {
         type: rawType,
@@ -805,16 +901,19 @@ export function mountBudgetTab(
         tags,
         memo: trimmedMemo,
       });
+
+      onUserWrite?.();
+      await refresh();
+      await onDataMutated?.();
+      focusActivityIdAfterClose = targetId;
+      if (editDialog.open) {
+        editDialog.close();
+      }
     } catch (err) {
       showFormError(editErrorEl, extractErrorMessage(err));
-      return;
-    }
-
-    onUserWrite?.();
-    await refresh();
-    focusActivityIdAfterClose = targetId;
-    if (editDialog.open) {
-      editDialog.close();
+    } finally {
+      isEditSubmitting = false;
+      editSaveBtn.disabled = false;
     }
   });
 
@@ -835,14 +934,19 @@ export function mountBudgetTab(
     renderRecurringSlot(recurringSlot, async () => {
       onUserWrite?.();
       await refresh();
+      await onDataMutated?.();
     });
   } else {
     recurringController = mountRecurringRules({
       container: recurringSlot,
       budget,
       confirm,
+      ...(options.now !== undefined ? { now: options.now } : {}),
       ...(onUserWrite !== undefined ? { onUserWrite } : {}),
-      onChanged: refreshBudgetData,
+      onChanged: async () => {
+        await refreshBudgetData();
+        await onDataMutated?.();
+      },
     });
   }
 

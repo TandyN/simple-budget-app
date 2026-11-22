@@ -147,9 +147,9 @@ in its own topic doc, not here.
   [budget-app/frontend.md](budget-app/frontend.md#3-accessible-3-tab-application-shell--dialog-helper-srcuishellts)
 - **display/input formatters (`src/ui/format.ts`)** — zero-dependency `Intl` /
   `Date` / `src/core/validate.ts` boundary helpers (`formatCents`,
-  `parseDecimalInputToCents`, `formatLocalDateTime`, `toDateTimeLocalInputValue`,
-  `fromDateTimeLocalInputValue`, `parseTagsInput`, `formatTagsInput`); unit-tested
-  in `src/ui/format.test.ts`.
+  `formatCentsForInput`, `parseDecimalInputToCents`, `formatLocalDateTime`,
+  `toDateTimeLocalInputValue`, `fromDateTimeLocalInputValue`, `parseTagsInput`,
+  `formatTagsInput`); unit-tested in `src/ui/format.test.ts`.
   [budget-app/frontend.md](budget-app/frontend.md#3b-display-formatting--input-boundary-helpers-srcuiformatts)
 - **Budget tab core UI (`src/ui/budgetTab.ts`, `src/styles/budget.css`)** —
   `mountBudgetTab(options): BudgetTabController` implementing the sticky
@@ -163,12 +163,21 @@ in its own topic doc, not here.
   [budget-app/frontend.md](budget-app/frontend.md#3c-budget-tab-core-ui--responsive-styles-srcuibudgettabts-srcstylesbudgetcss)
 - **Recurring Rules panel (`src/ui/recurringRules.ts`)** —
   `mountRecurringRules(options): RecurringRulesController` implementing the
-  collapsible `<details>`/`<summary>` Recurring Rules panel inside the Budget
-  tab (list rules, Add Rule form, native `<dialog>` Edit Rule modal,
-  Pause/Resume toggle, and shell `confirm(...)` Delete preserving auto-posted
-  history) via `src/ui/dom.ts`; unit-tested in `happy-dom`
-  (`src/ui/recurringRules.test.ts`).
+  collapsible `<details>`/`<summary>` Recurring Rules panel mounted in both the
+  Budget and Settings tabs (with configurable `idPrefix` for duplicate-ID
+  isolation and injectable `now` clock; list rules, Add Rule form, native
+  `<dialog>` Edit Rule modal, Pause/Resume toggle, and shell `confirm(...)`
+  Delete preserving auto-posted history) via `src/ui/dom.ts`; unit-tested in
+  `happy-dom` (`src/ui/recurringRules.test.ts`).
   [budget-app/frontend.md](budget-app/frontend.md#3d-collapsible-recurring-rules-panel-srcuirecurringrulests)
+- **Insights tab UI (`src/ui/insightsTab.ts`, `src/styles/insights.css`)** —
+  `mountInsightsTab(options): InsightsTabController` implementing date-range
+  (`since`/`until`), tag, type, and keyword filtering, `budget.summarizeByTag`
+  tag rollups, `summarizeByPeriod` period rollups (honoring `Activity.period`
+  for recurring items, OQ-2), matching activity list, distinct empty states, and
+  `refreshSeq` stale-render guard via `src/ui/dom.ts` and WCAG 2.2 AA dual-state
+  CSS; unit-tested in `happy-dom` (`src/ui/insightsTab.test.ts`).
+  [budget-app/frontend.md](budget-app/frontend.md#3e-insights-tab-ui--responsive-styles-srcuiinsightstabts-srcstylesinsightscss)
 - **frame CSS (`src/styles/frame.css`)** — the Phase 4A iPhone-Duo dual-state
   responsive stylesheet linked from `index.html`: system font stack on `:root`,
   `100dvh` with `@supports (height: 100svh)` and `overflow: hidden` on
@@ -192,6 +201,15 @@ in its own topic doc, not here.
   Rules CRUD + auto-post + reload idempotency, manual deposit/income/expense
   integer-cent math, `<dialog>` edit/backdate/tag and delete confirmation +
   non-repost, DOM XSS inert-text immunity, and WCAG 2.2 AA / 3-viewport gates).
+  [budget-app/testing.md](budget-app/testing.md#playwright-e2e-harness-e2e)
+- **Insights & Settings Playwright E2E suite (`e2e/insights-settings.spec.ts`)** —
+  the Phase 4C co-shipped Playwright E2E suite (#318) exercising Insights
+  filtering/rollups (including OQ-2 recurring `Activity.period`), Settings
+  durability/backup-nag/recurring-rule sync, hardened JSON export/import
+  (invalid/prototype-polluting/oversized rejections, `<dialog>` confirmation,
+  pre-import safety snapshot, atomic restore across reload), multi-tab
+  `BroadcastChannel` live sync, DOM XSS inert-text immunity, and WCAG 2.2 AA /
+  3-viewport gates.
   [budget-app/testing.md](budget-app/testing.md#playwright-e2e-harness-e2e)
 - **origin isolation** — deriving IndexedDB (`DB_NAME`), CacheStorage, and
   `BroadcastChannel` names from `import.meta.env.BASE_URL`
@@ -359,7 +377,7 @@ in its own topic doc, not here.
 - **`VersionError`** — W3C IndexedDB error thrown when `indexedDB.open(name, version)` requests a lower `DB_VERSION` than the on-disk database; handled defensively with a non-destructive "Update required" banner (calling `indexedDB.deleteDatabase()` is strictly forbidden) and avoided via expand-and-contract roll-forward migrations (`DB_VERSION = N + 1`). [project-plan/storage.md](../project-plan/storage.md#indexeddb-schema-rollback-safety-versionerror--expand-and-contract)
 - **`VersionMismatchError`** — the typed, **non-destructive** rejection `IndexedDbAdapter.open()` raises (exported from `src/storage/indexeddb.ts`) when the on-disk database version is **higher** than `DB_VERSION` (a W3C `VersionError`): a named class (`err.name === "VersionMismatchError"`, carrying `expectedVersion`) the UI branches on to render an accessible "Update required" banner. `open()` **never** calls `indexedDB.deleteDatabase()` in response — deleting local-first financial data is irreversible loss with no remote copy to re-sync from. Added in U2 (#252). [budget-app/backend.md](budget-app/backend.md#8-indexeddbadapter--t-a--u1--u2--u3-srcstorageindexeddbts)
 - **`assertNotFramed`** — dependency-injected `top !== self` clickjacking frame-buster guard exported by `src/main.ts` (clears `documentElement` via `replaceChildren()` and throws `"Framing is not permitted"` when framed; unit-tested in `src/main.test.ts`). [budget-app/frontend.md](budget-app/frontend.md#1-entry-point-csp-baseline--clickjacking-guard-indexhtml-srcmaints-srcenvdts)
-- **`bootstrapApp` (`src/main.ts`)** — dependency-injected app bootstrapper rendering `renderShell`, opening `IndexedDbAdapter` + `BudgetApi` (with non-destructive `role="alert"` recovery on `VersionMismatchError`/storage errors), running startup & serialized `focus`/`visibilitychange` recurring passes, wiring one-shot `onUserWrite` → `requestPersistenceAfterFirstAction()`, mounting `mountBudgetTab`, and returning a `dispose()` cleanup hook; unit-tested in `src/main.test.ts`. [budget-app/frontend.md](budget-app/frontend.md#1-entry-point-csp-baseline--clickjacking-guard-indexhtml-srcmaints-srcenvdts)
+- **`bootstrapApp` (`src/main.ts`)** — dependency-injected app bootstrapper rendering `renderShell`, opening `IndexedDbAdapter` + `BudgetApi` (with non-destructive `role="alert"` recovery on `VersionMismatchError`/storage errors), wiring `createPlatformServices()` + base-path-scoped `createSyncChannel()`, running startup & serialized `focus`/`visibilitychange` recurring passes, wiring one-shot `onUserWrite` → `requestPersistenceAfterFirstAction()`, mounting all 3 tabs (`mountBudgetTab`, `mountInsightsTab`, `mountSettingsTab`) with cross-tab mutation sync (zero echo loops), and returning a `dispose()` cleanup hook; unit-tested in `src/main.test.ts`. [budget-app/frontend.md](budget-app/frontend.md#1-entry-point-csp-baseline--clickjacking-guard-indexhtml-srcmaints-srcenvdts)
 - **`verify:gates` (`scripts/verify-build-gates.mjs`)** — zero-dependency Node ESM post-build security & privacy gate script (unit-tested in `scripts/verify-build-gates.test.mjs`) enforcing empty `dependencies`/`optionalDependencies` + exact `devDependencies` + zero `@capacitor/*` in `src/`, strict CSP + Trusted Types + `no-referrer` (and no `frame-ancestors`) in `dist/index.html` with linear comment stripping (`stripHtmlComments`) and fail-closed HTML5 comment-end checks, zero external `http(s)://` URLs in `dist/` (outside W3C XML namespaces), and zero banned DOM XSS / eval sinks in non-test `src/` files. [budget-app/testing.md](budget-app/testing.md#phase-1-toolchain-conventions)
 - **split `tsconfig` (`tsconfig.json` / `tsconfig.node.json`)** — strict browser/app TypeScript config (`types: ["vite/client"]`, `include: ["src"]`, `skipLibCheck: false`) paired with `tsconfig.node.json` (`types: ["node"]`, isolating `@types/node` to Vite/Vitest/Playwright configs and `e2e/`). [budget-app/testing.md](budget-app/testing.md#phase-1-toolchain-conventions)
 - **post-merge repo hardening** — the three `gh api` commands (`vulnerability-alerts`, `actions/permissions` `sha_pinning_required=true`, and `branches/main/protection` requiring the `ci` check with `enforce_admins: true`) run by `staff-software-engineer` immediately upon merging Story #216 to `main`. [budget-app/testing.md](budget-app/testing.md#post-merge-repository-hardening-commands)
@@ -370,6 +388,8 @@ in its own topic doc, not here.
 - **`searchActivities` (`src/core/insights.ts`)** — intersecting (logical-AND) `since`/`until`/`tag`/`type` filter over the activity log (`since` inclusive, `until` exclusive, omitted predicates unbounded so `{}` returns all). [budget-app/backend.md](budget-app/backend.md#5-insights--search-tag--period-rollups-srccoreinsightsts)
 - **`summarizeByTag` (`src/core/insights.ts`)** — per-tag `totalInCents`/`totalOutCents` integer-cent rollup (multi-tag contributes to each tag, untagged creates no bucket, `localeCompare` sorted). [budget-app/backend.md](budget-app/backend.md#5-insights--search-tag--period-rollups-srccoreinsightsts)
 - **period attribution (OQ-2, `activityPeriod` / `summarizeByPeriod` in `src/core/insights.ts`)** — buckets recurring activities by `Activity.period` (not `dateTime`) and non-recurring by the UTC month of `dateTime`, so timezone offsets / timestamp edits never misattribute a 1st-of-month recurring item to an adjacent month. [budget-app/backend.md](budget-app/backend.md#5-insights--search-tag--period-rollups-srccoreinsightsts)
+- **`mountSettingsTab` (`src/ui/settingsTab.ts`, `src/styles/settings.css`)** — Settings tab view controller providing honest storage durability (`getPersisted()` / `navigator.storage?.persisted?.()`), 30-day/never-backed-up reminder nag, hardened JSON backup export/share/import (`File.size <= 10 MB` pre-read guard → `confirm(...)` → automatic pre-import safety snapshot via `PlatformServices` → `budget.importBackup`), and recurring rules management via `mountRecurringRules`. [budget-app/frontend.md](budget-app/frontend.md#3f-settings-tab-ui--responsive-styles-srcuisettingstabts-srcstylessettingscss)
+- **`createSyncChannel` / `deriveSyncChannelName` (`src/platform/sync.ts`)** — base-path-scoped `BroadcastChannel` multi-tab sync helper (`"simple-budget-sync"` on prod vs. `"simple-budget-sync-pr-<N>"` on PR previews, OQ-1) with feature-detected no-op fallback, strict `"budget-mutated"` message validation, and idempotent `close()`; unit-tested in `src/platform/sync.test.ts`. [budget-app/frontend.md](budget-app/frontend.md#6-base-path-scoped-broadcastchannel-multi-tab-sync-srcplatformsyncts)
 
 > As backend / frontend / data topics land, add their terms here and split the
 > area doc into `budget-app/<area>.md` when it grows.
