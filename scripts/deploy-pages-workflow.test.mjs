@@ -204,8 +204,16 @@ describe("deploy-pages.yml mode-(a) git publish, prune & concurrency runtime beh
     const originDir = path.join(baseDir, "origin.git");
     const workspaceDir = path.join(baseDir, "workspace");
 
-    execFileSync("git", ["init", "--bare", originDir], { stdio: "pipe" });
-    execFileSync("git", ["init", workspaceDir], { stdio: "pipe" });
+    execFileSync(
+      "git",
+      ["init", "--bare", "--initial-branch=main", originDir],
+      {
+        stdio: "pipe",
+      },
+    );
+    execFileSync("git", ["init", "--initial-branch=main", workspaceDir], {
+      stdio: "pipe",
+    });
     execFileSync("git", ["-C", workspaceDir, "config", "user.name", "Test"], {
       stdio: "pipe",
     });
@@ -229,6 +237,11 @@ describe("deploy-pages.yml mode-(a) git publish, prune & concurrency runtime beh
     execFileSync(
       "git",
       ["-C", workspaceDir, "push", "origin", "HEAD:refs/heads/main"],
+      { stdio: "pipe" },
+    );
+    execFileSync(
+      "git",
+      ["-C", originDir, "symbolic-ref", "HEAD", "refs/heads/main"],
       { stdio: "pipe" },
     );
 
@@ -549,7 +562,14 @@ fi
     const shallowDir = path.join(baseDir, "shallow-workspace");
     execFileSync(
       "git",
-      ["clone", "--depth=1", `file://${originDir}`, shallowDir],
+      [
+        "clone",
+        "--depth=1",
+        "--branch",
+        "main",
+        `file://${originDir}`,
+        shallowDir,
+      ],
       {
         stdio: "pipe",
       },
