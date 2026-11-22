@@ -45,15 +45,23 @@ const INTEGER_INPUT_RE = /^\d+$/;
 
 /** Options accepted by `mountRecurringRules`. */
 export interface MountRecurringRulesOptions {
-  /** Target slot element inside the Budget tab (e.g. `[data-slot="recurring-rules"]`). */
+  /** Target slot element inside the Budget or Settings tab. */
   readonly container: HTMLElement;
   /** Public `BudgetApi` instance. */
   readonly budget: BudgetApi;
   /** Shell's promise-based native `<dialog>` confirmation prompt. */
   readonly confirm: ShellHandle["confirm"];
+  /** Optional clock forwarded to `budget.runRecurringEngine(now?.())` (injectable for tests). */
+  readonly now?: () => Date;
+  /**
+   * Optional DOM `id` prefix so multiple mounted instances (e.g. Budget tab
+   * and Settings tab) never produce duplicate element IDs (defaults to
+   * `"recurring"`).
+   */
+  readonly idPrefix?: string;
   /** Optional callback invoked after any successful local write. */
   readonly onUserWrite?: () => void;
-  /** Callback invoked after a rule mutation so the Budget tab refreshes Available Funds & Activity Feed. */
+  /** Callback invoked after a rule mutation so the host tab refreshes dependent views. */
   readonly onChanged: () => Promise<void>;
 }
 
@@ -155,7 +163,18 @@ function extractErrorMessage(err: unknown): string {
 export function mountRecurringRules(
   options: MountRecurringRulesOptions,
 ): RecurringRulesController {
-  const { container, budget, confirm, onUserWrite, onChanged } = options;
+  const { container, budget, confirm, now, onUserWrite, onChanged } = options;
+  const idPrefix = options.idPrefix ?? "recurring";
+  const editDialogTitleId =
+    idPrefix === "recurring"
+      ? "budget-rule-edit-dialog-title"
+      : `${idPrefix}-edit-dialog-title`;
+
+  function runRecurringPass(): Promise<{ posted: unknown[] }> {
+    return now !== undefined
+      ? budget.runRecurringEngine(now())
+      : budget.runRecurringEngine();
+  }
 
   // ---------------------------------------------------------------------------
   // 1. Collapsible <details> / <summary> Header with Count Badge
@@ -177,7 +196,7 @@ export function mountRecurringRules(
   ]) as HTMLElement;
 
   const panelErrorEl = el("div", {
-    id: "recurring-panel-error",
+    id: `${idPrefix}-panel-error`,
     class: "budget-form-error",
     role: "alert",
     "aria-live": "assertive",
@@ -209,10 +228,10 @@ export function mountRecurringRules(
   // ---------------------------------------------------------------------------
   // 3. Add Recurring Rule Form (CSP form-action 'none' compliant)
   // ---------------------------------------------------------------------------
-  const addTypeSelect = createRuleTypeSelect("recurring-add-type");
+  const addTypeSelect = createRuleTypeSelect(`${idPrefix}-add-type`);
 
   const addNameInput = el("input", {
-    id: "recurring-add-name",
+    id: `${idPrefix}-add-name`,
     name: "name",
     type: "text",
     autocomplete: "off",
@@ -222,7 +241,7 @@ export function mountRecurringRules(
   }) as HTMLInputElement;
 
   const addAmountInput = el("input", {
-    id: "recurring-add-amount",
+    id: `${idPrefix}-add-amount`,
     name: "amount",
     type: "text",
     inputmode: "decimal",
@@ -233,7 +252,7 @@ export function mountRecurringRules(
   }) as HTMLInputElement;
 
   const addDayInput = el("input", {
-    id: "recurring-add-day",
+    id: `${idPrefix}-add-day`,
     name: "dayOfMonth",
     type: "number",
     inputmode: "numeric",
@@ -247,7 +266,7 @@ export function mountRecurringRules(
   addDayInput.value = "1";
 
   const addActiveCheckbox = el("input", {
-    id: "recurring-add-active",
+    id: `${idPrefix}-add-active`,
     name: "active",
     type: "checkbox",
     checked: "true",
@@ -258,14 +277,14 @@ export function mountRecurringRules(
   const addActiveRow = el(
     "label",
     {
-      for: "recurring-add-active",
+      for: `${idPrefix}-add-active`,
       class: "budget-checkbox-label",
     },
     [addActiveCheckbox, el("span", {}, [text("Active (auto-post monthly)")])],
   ) as HTMLElement;
 
   const addErrorEl = el("div", {
-    id: "recurring-add-error",
+    id: `${idPrefix}-add-error`,
     class: "budget-form-error",
     role: "alert",
     "aria-live": "assertive",
@@ -300,11 +319,11 @@ export function mountRecurringRules(
         text("Add Recurring Rule"),
       ]),
       el("div", { class: "budget-form-row" }, [
-        createField("Type", "recurring-add-type", addTypeSelect),
-        createField("Amount", "recurring-add-amount", addAmountInput),
+        createField("Type", `${idPrefix}-add-type`, addTypeSelect),
+        createField("Amount", `${idPrefix}-add-amount`, addAmountInput),
       ]),
-      createField("Rule Name", "recurring-add-name", addNameInput),
-      createField("Day of Month (1–31)", "recurring-add-day", addDayInput),
+      createField("Rule Name", `${idPrefix}-add-name`, addNameInput),
+      createField("Day of Month (1–31)", `${idPrefix}-add-day`, addDayInput),
       addActiveRow,
       addErrorEl,
       el("div", { class: "budget-form-actions" }, [addSubmitBtn]),
@@ -314,10 +333,10 @@ export function mountRecurringRules(
   // ---------------------------------------------------------------------------
   // 4. Native <dialog> Edit Rule Modal
   // ---------------------------------------------------------------------------
-  const editTypeSelect = createRuleTypeSelect("recurring-edit-type");
+  const editTypeSelect = createRuleTypeSelect(`${idPrefix}-edit-type`);
 
   const editNameInput = el("input", {
-    id: "recurring-edit-name",
+    id: `${idPrefix}-edit-name`,
     name: "name",
     type: "text",
     autocomplete: "off",
@@ -326,7 +345,7 @@ export function mountRecurringRules(
   }) as HTMLInputElement;
 
   const editAmountInput = el("input", {
-    id: "recurring-edit-amount",
+    id: `${idPrefix}-edit-amount`,
     name: "amount",
     type: "text",
     inputmode: "decimal",
@@ -336,7 +355,7 @@ export function mountRecurringRules(
   }) as HTMLInputElement;
 
   const editDayInput = el("input", {
-    id: "recurring-edit-day",
+    id: `${idPrefix}-edit-day`,
     name: "dayOfMonth",
     type: "number",
     inputmode: "numeric",
@@ -348,7 +367,7 @@ export function mountRecurringRules(
   }) as HTMLInputElement;
 
   const editActiveCheckbox = el("input", {
-    id: "recurring-edit-active",
+    id: `${idPrefix}-edit-active`,
     name: "active",
     type: "checkbox",
     class: "budget-checkbox",
@@ -357,14 +376,14 @@ export function mountRecurringRules(
   const editActiveRow = el(
     "label",
     {
-      for: "recurring-edit-active",
+      for: `${idPrefix}-edit-active`,
       class: "budget-checkbox-label",
     },
     [editActiveCheckbox, el("span", {}, [text("Active (auto-post monthly)")])],
   ) as HTMLElement;
 
   const editErrorEl = el("div", {
-    id: "recurring-edit-error",
+    id: `${idPrefix}-edit-error`,
     class: "budget-form-error",
     role: "alert",
     "aria-live": "assertive",
@@ -405,11 +424,11 @@ export function mountRecurringRules(
     },
     [
       el("div", { class: "budget-form-row" }, [
-        createField("Type", "recurring-edit-type", editTypeSelect),
-        createField("Amount", "recurring-edit-amount", editAmountInput),
+        createField("Type", `${idPrefix}-edit-type`, editTypeSelect),
+        createField("Amount", `${idPrefix}-edit-amount`, editAmountInput),
       ]),
-      createField("Rule Name", "recurring-edit-name", editNameInput),
-      createField("Day of Month (1–31)", "recurring-edit-day", editDayInput),
+      createField("Rule Name", `${idPrefix}-edit-name`, editNameInput),
+      createField("Day of Month (1–31)", `${idPrefix}-edit-day`, editDayInput),
       editActiveRow,
       editErrorEl,
       el("div", { class: "budget-dialog-actions" }, [
@@ -423,13 +442,13 @@ export function mountRecurringRules(
     "dialog",
     {
       class: "budget-rule-edit-dialog",
-      "aria-labelledby": "budget-rule-edit-dialog-title",
+      "aria-labelledby": editDialogTitleId,
     },
     [
       el(
         "h2",
         {
-          id: "budget-rule-edit-dialog-title",
+          id: editDialogTitleId,
           class: "budget-dialog-title",
         },
         [text("Edit Recurring Rule")],
@@ -597,7 +616,7 @@ export function mountRecurringRules(
         await budget.setRuleActive(rule.id, nextActive);
         onUserWrite?.();
         if (nextActive) {
-          await budget.runRecurringEngine();
+          await runRecurringPass();
         }
         await refresh();
         await onChanged();
@@ -750,7 +769,7 @@ export function mountRecurringRules(
       });
       onUserWrite?.();
       if (active) {
-        await budget.runRecurringEngine();
+        await runRecurringPass();
       }
     } catch (err) {
       showFormError(addErrorEl, extractErrorMessage(err));
@@ -822,7 +841,7 @@ export function mountRecurringRules(
       });
       onUserWrite?.();
       if (active) {
-        await budget.runRecurringEngine();
+        await runRecurringPass();
       }
       await refresh();
       await onChanged();
