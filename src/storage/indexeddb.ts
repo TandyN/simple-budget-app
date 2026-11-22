@@ -248,8 +248,8 @@ export class IndexedDbAdapter implements StorageAdapter {
    * **No** `indexedDB.deleteDatabase()` is ever called on the failure path
    * (`project-plan/storage.md` → "deleteDatabase() forbidden").
    */
-  save<K extends EntityKey>(store: K, value: Entity[K]): Promise<void> {
-    const db = this.requireDb();
+  async save<K extends EntityKey>(store: K, value: Entity[K]): Promise<void> {
+    const db = await this.requireDb();
     return new Promise<void>((resolve, reject) => {
       const tx = db.transaction(store, "readwrite");
       tx.oncomplete = () => resolve();
@@ -279,8 +279,8 @@ export class IndexedDbAdapter implements StorageAdapter {
    * **No** `indexedDB.deleteDatabase()` is ever called on the failure path
    * (`project-plan/storage.md` → "deleteDatabase() forbidden").
    */
-  delete(store: EntityKey, id: string): Promise<void> {
-    const db = this.requireDb();
+  async delete(store: EntityKey, id: string): Promise<void> {
+    const db = await this.requireDb();
     return new Promise<void>((resolve, reject) => {
       const tx = db.transaction(store, "readwrite");
       tx.oncomplete = () => resolve();
@@ -311,11 +311,11 @@ export class IndexedDbAdapter implements StorageAdapter {
    * as `InMemoryAdapter.query`. Resolves on `request.onsuccess`, rejects on
    * `request.onerror`.
    */
-  query<K extends EntityKey>(
+  async query<K extends EntityKey>(
     store: K,
     where?: QueryPredicate<K>,
   ): Promise<Entity[K][]> {
-    const db = this.requireDb();
+    const db = await this.requireDb();
     return new Promise<Entity[K][]>((resolve, reject) => {
       const tx = db.transaction(store, "readonly");
       const objectStore = tx.objectStore(store);
@@ -365,11 +365,11 @@ export class IndexedDbAdapter implements StorageAdapter {
    * **No** `indexedDB.deleteDatabase()` is ever called on the failure path
    * (`project-plan/storage.md` → "deleteDatabase() forbidden").
    */
-  replaceAll(data: {
+  async replaceAll(data: {
     rules: RecurringRule[];
     activities: Activity[];
   }): Promise<void> {
-    const db = this.requireDb();
+    const db = await this.requireDb();
     return new Promise<void>((resolve, reject) => {
       const tx = db.transaction(["rules", "activities"], "readwrite");
       // Attach the terminal handlers *before* queueing any work so the promise
@@ -478,8 +478,8 @@ export class IndexedDbAdapter implements StorageAdapter {
    * `project-plan/storage.md` → Storage Durability & WebKit Eviction
    * Mitigation: "Last-backup date & N-day backup reminder".
    */
-  getLastBackupAt(): Promise<string | null> {
-    const db = this.requireDb();
+  async getLastBackupAt(): Promise<string | null> {
+    const db = await this.requireDb();
     return new Promise<string | null>((resolve, reject) => {
       const tx = db.transaction("meta", "readonly");
       const request = tx.objectStore("meta").get("lastBackupAt");
@@ -514,8 +514,8 @@ export class IndexedDbAdapter implements StorageAdapter {
    * Read a metadata record by key from the `"meta"` store, or `null` if the
    * key is absent. Runs in its own `readonly` transaction.
    */
-  getMeta<T>(key: string): Promise<T | null> {
-    const db = this.requireDb();
+  async getMeta<T>(key: string): Promise<T | null> {
+    const db = await this.requireDb();
     return new Promise<T | null>((resolve, reject) => {
       const tx = db.transaction("meta", "readonly");
       const request = tx.objectStore("meta").get(key);
@@ -533,8 +533,8 @@ export class IndexedDbAdapter implements StorageAdapter {
    * value type. Runs in its own `readwrite` transaction and resolves on
    * `oncomplete`.
    */
-  setMeta<T>(key: string, value: T): Promise<void> {
-    const db = this.requireDb();
+  async setMeta<T>(key: string, value: T): Promise<void> {
+    const db = await this.requireDb();
     return new Promise<void>((resolve, reject) => {
       const tx = db.transaction("meta", "readwrite");
       tx.objectStore("meta").put({ key, value });
@@ -544,12 +544,19 @@ export class IndexedDbAdapter implements StorageAdapter {
     });
   }
 
-  /** Return the open database handle, throwing if `open()` has not run yet. */
-  private requireDb(): IDBDatabase {
+  /**
+   * Return a Promise resolving to the open database handle, or rejecting with
+   * an `Error` if `open()` has not run yet (honoring the async
+   * `Promise`-returning `StorageAdapter` contract rather than throwing
+   * synchronously).
+   */
+  private requireDb(): Promise<IDBDatabase> {
     if (this.db === undefined) {
-      throw new Error("IndexedDbAdapter: call open() before using the adapter");
+      return Promise.reject(
+        new Error("IndexedDbAdapter: call open() before using the adapter"),
+      );
     }
-    return this.db;
+    return Promise.resolve(this.db);
   }
 }
 

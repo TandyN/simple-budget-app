@@ -28,6 +28,9 @@ import {
  * - **#265:** `save` / `delete` / `query` over the real adapter — upsert +
  *   idempotent delete + `{ field, eq }` predicate filtering (indexed and
  *   unindexed fields).
+ * - **#255:** calling `replaceAll` / `save` / `delete` / `query` /
+ *   `getLastBackupAt` / `getMeta` / `setMeta` before `open()` returns a
+ *   rejected `Promise` (never throws synchronously).
  *
  * Uses `fake-indexeddb` (a devDependency) injected via the `idbFactory`
  * constructor argument — no DOM, no Node globals, zero production dependencies.
@@ -685,5 +688,53 @@ describe("IndexedDbAdapter — save / delete / query (#265)", () => {
       eq: "deposit",
     });
     expect(none).toEqual([]);
+  });
+
+  it("rejects with a Promise (does not throw synchronously) when replaceAll / save / delete / query / meta methods are called before open() (#255)", async () => {
+    const factory = new IDBFactory();
+    const adapter = new IndexedDbAdapter(factory);
+    const expectedMessage =
+      "IndexedDbAdapter: call open() before using the adapter";
+
+    // Invoking each method without `await` must return a rejected Promise
+    // rather than throwing synchronously (so callers using `.catch(...)` or
+    // `await expect(adapter.method(...)).rejects.toThrow(...)` never miss a
+    // synchronous exception).
+    const replaceAllPromise = adapter.replaceAll({
+      rules: [],
+      activities: [],
+    });
+    expect(replaceAllPromise).toBeInstanceOf(Promise);
+    await expect(replaceAllPromise).rejects.toThrow(expectedMessage);
+    await expect(() =>
+      adapter.replaceAll({ rules: [], activities: [] }),
+    ).rejects.toThrow(expectedMessage);
+
+    const savePromise = adapter.save("rules", makeRule("rule-1", "salary"));
+    expect(savePromise).toBeInstanceOf(Promise);
+    await expect(savePromise).rejects.toThrow(expectedMessage);
+
+    const deletePromise = adapter.delete("rules", "rule-1");
+    expect(deletePromise).toBeInstanceOf(Promise);
+    await expect(deletePromise).rejects.toThrow(expectedMessage);
+
+    const queryPromise = adapter.query("rules");
+    expect(queryPromise).toBeInstanceOf(Promise);
+    await expect(queryPromise).rejects.toThrow(expectedMessage);
+
+    const getLastBackupAtPromise = adapter.getLastBackupAt();
+    expect(getLastBackupAtPromise).toBeInstanceOf(Promise);
+    await expect(getLastBackupAtPromise).rejects.toThrow(expectedMessage);
+
+    const getMetaPromise = adapter.getMeta("lastBackupAt");
+    expect(getMetaPromise).toBeInstanceOf(Promise);
+    await expect(getMetaPromise).rejects.toThrow(expectedMessage);
+
+    const setMetaPromise = adapter.setMeta(
+      "lastBackupAt",
+      "2026-01-01T00:00:00.000Z",
+    );
+    expect(setMetaPromise).toBeInstanceOf(Promise);
+    await expect(setMetaPromise).rejects.toThrow(expectedMessage);
   });
 });
