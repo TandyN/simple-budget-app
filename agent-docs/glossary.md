@@ -142,6 +142,15 @@ in its own topic doc, not here.
     placeholder panels only — functional Budget/Insights/Settings views are
     deferred to Phases 4B/4C. Unit-tested in `happy-dom` (`src/ui/shell.test.ts`).
     [src/ui/shell.ts](../src/ui/shell.ts)
+  - **Playwright smoke E2E harness (`e2e/smoke.spec.ts`, `e2e/fixtures/index.ts`)** —
+    the Phase 4A co-shipped Playwright smoke E2E suite and shared fixtures (#277)
+    running against `vite preview` of `dist/` across `375×667` folded, `829×1194`
+    unfolded, and `390×844` slab viewports on Chromium + WebKit: enforces global
+    zero-external-egress via `context.on("request")`, zero `pageerror` /
+    `console.error` / `console.warning`, `@axe-core/playwright` WCAG 2.2 AA scans
+    (`["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]`) across all tabs and open
+    `<dialog>`, and zero-overflow + `>= 44×44 CSS px` touch-target geometry.
+    [budget-app/testing.md](budget-app/testing.md#phase-1-toolchain-conventions)
   - **origin isolation** — deriving IndexedDB (`DB_NAME`), CacheStorage, and
   `BroadcastChannel` names from `import.meta.env.BASE_URL`
   (`simple-budget-app` / `simple-budget-sync` vs.
