@@ -163,11 +163,12 @@ in its own topic doc, not here.
   [budget-app/frontend.md](budget-app/frontend.md#3c-budget-tab-core-ui--responsive-styles-srcuibudgettabts-srcstylesbudgetcss)
 - **Recurring Rules panel (`src/ui/recurringRules.ts`)** —
   `mountRecurringRules(options): RecurringRulesController` implementing the
-  collapsible `<details>`/`<summary>` Recurring Rules panel inside the Budget
-  tab (list rules, Add Rule form, native `<dialog>` Edit Rule modal,
-  Pause/Resume toggle, and shell `confirm(...)` Delete preserving auto-posted
-  history) via `src/ui/dom.ts`; unit-tested in `happy-dom`
-  (`src/ui/recurringRules.test.ts`).
+  collapsible `<details>`/`<summary>` Recurring Rules panel mounted in both the
+  Budget and Settings tabs (with configurable `idPrefix` for duplicate-ID
+  isolation and injectable `now` clock; list rules, Add Rule form, native
+  `<dialog>` Edit Rule modal, Pause/Resume toggle, and shell `confirm(...)`
+  Delete preserving auto-posted history) via `src/ui/dom.ts`; unit-tested in
+  `happy-dom` (`src/ui/recurringRules.test.ts`).
   [budget-app/frontend.md](budget-app/frontend.md#3d-collapsible-recurring-rules-panel-srcuirecurringrulests)
 - **Insights tab UI (`src/ui/insightsTab.ts`, `src/styles/insights.css`)** —
   `mountInsightsTab(options): InsightsTabController` implementing date-range
