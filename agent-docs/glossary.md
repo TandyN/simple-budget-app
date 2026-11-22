@@ -201,6 +201,15 @@ in its own topic doc, not here.
   integer-cent math, `<dialog>` edit/backdate/tag and delete confirmation +
   non-repost, DOM XSS inert-text immunity, and WCAG 2.2 AA / 3-viewport gates).
   [budget-app/testing.md](budget-app/testing.md#playwright-e2e-harness-e2e)
+- **Insights & Settings Playwright E2E suite (`e2e/insights-settings.spec.ts`)** —
+  the Phase 4C co-shipped Playwright E2E suite (#318) exercising Insights
+  filtering/rollups (including OQ-2 recurring `Activity.period`), Settings
+  durability/backup-nag/recurring-rule sync, hardened JSON export/import
+  (invalid/prototype-polluting/oversized rejections, `<dialog>` confirmation,
+  pre-import safety snapshot, atomic restore across reload), multi-tab
+  `BroadcastChannel` live sync, DOM XSS inert-text immunity, and WCAG 2.2 AA /
+  3-viewport gates.
+  [budget-app/testing.md](budget-app/testing.md#playwright-e2e-harness-e2e)
 - **origin isolation** — deriving IndexedDB (`DB_NAME`), CacheStorage, and
   `BroadcastChannel` names from `import.meta.env.BASE_URL`
   (`simple-budget-app` / `simple-budget-sync` vs.
