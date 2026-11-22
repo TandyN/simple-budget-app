@@ -147,9 +147,9 @@ in its own topic doc, not here.
   [budget-app/frontend.md](budget-app/frontend.md#3-accessible-3-tab-application-shell--dialog-helper-srcuishellts)
 - **display/input formatters (`src/ui/format.ts`)** — zero-dependency `Intl` /
   `Date` / `src/core/validate.ts` boundary helpers (`formatCents`,
-  `parseDecimalInputToCents`, `formatLocalDateTime`, `toDateTimeLocalInputValue`,
-  `fromDateTimeLocalInputValue`, `parseTagsInput`, `formatTagsInput`); unit-tested
-  in `src/ui/format.test.ts`.
+  `formatCentsForInput`, `parseDecimalInputToCents`, `formatLocalDateTime`,
+  `toDateTimeLocalInputValue`, `fromDateTimeLocalInputValue`, `parseTagsInput`,
+  `formatTagsInput`); unit-tested in `src/ui/format.test.ts`.
   [budget-app/frontend.md](budget-app/frontend.md#3b-display-formatting--input-boundary-helpers-srcuiformatts)
 - **Budget tab core UI (`src/ui/budgetTab.ts`, `src/styles/budget.css`)** —
   `mountBudgetTab(options): BudgetTabController` implementing the sticky

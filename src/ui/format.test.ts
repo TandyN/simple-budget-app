@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   formatCents,
+  formatCentsForInput,
   formatLocalDateTime,
   formatTagsInput,
   fromDateTimeLocalInputValue,
@@ -43,6 +44,45 @@ describe("formatCents", () => {
     );
     expect(() => formatCents(100, "usd")).toThrow(/currency/i);
     expect(() => formatCents(100, "US")).toThrow(/currency/i);
+  });
+});
+
+describe("formatCentsForInput", () => {
+  it("formats positive, zero, sub-dollar, and negative integer cents with exact 2 decimals", () => {
+    expect(formatCentsForInput(0)).toBe("0.00");
+    expect(formatCentsForInput(-0)).toBe("0.00");
+    expect(formatCentsForInput(1)).toBe("0.01");
+    expect(formatCentsForInput(5)).toBe("0.05");
+    expect(formatCentsForInput(50)).toBe("0.50");
+    expect(formatCentsForInput(1234)).toBe("12.34");
+    expect(formatCentsForInput(-50)).toBe("-0.50");
+    expect(formatCentsForInput(-1234)).toBe("-12.34");
+  });
+
+  it("preserves exact precision near Number.MAX_SAFE_INTEGER and Number.MIN_SAFE_INTEGER", () => {
+    expect(formatCentsForInput(Number.MAX_SAFE_INTEGER)).toBe(
+      "90071992547409.91",
+    );
+    expect(formatCentsForInput(Number.MAX_SAFE_INTEGER - 1)).toBe(
+      "90071992547409.90",
+    );
+    expect(formatCentsForInput(Number.MIN_SAFE_INTEGER)).toBe(
+      "-90071992547409.91",
+    );
+    expect(
+      parseDecimalInputToCents(formatCentsForInput(Number.MAX_SAFE_INTEGER)),
+    ).toBe(Number.MAX_SAFE_INTEGER);
+  });
+
+  it("rejects non-integer or unsafe-integer inputs", () => {
+    expect(() => formatCentsForInput(12.5)).toThrow(/safe integer/i);
+    expect(() => formatCentsForInput(Number.NaN)).toThrow(/safe integer/i);
+    expect(() => formatCentsForInput(Number.POSITIVE_INFINITY)).toThrow(
+      /safe integer/i,
+    );
+    expect(() => formatCentsForInput(Number.MAX_SAFE_INTEGER + 1)).toThrow(
+      /safe integer/i,
+    );
   });
 });
 
