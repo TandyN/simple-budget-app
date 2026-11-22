@@ -452,6 +452,10 @@ export function mountSettingsTab(
       budget.listActivities(),
     ]);
 
+    if (seq !== refreshSeq) {
+      return;
+    }
+
     if (recurringController !== null) {
       await recurringController.refresh();
     }
@@ -609,7 +613,12 @@ export function mountSettingsTab(
         return;
       }
 
-      setBackupControlsBusy(true);
+      // Set in-flight guard before opening the modal dialog, but keep DOM
+      // controls enabled until confirmed: `showModal()` already makes
+      // background controls inert while open, and keeping `importInput`
+      // enabled allows `shell.ts`'s `close` handler to restore focus to
+      // `invoker: importInput` synchronously on cancel/Escape (WCAG 2.2 AA).
+      backupBusy = true;
       try {
         // Step 2: Explicit confirmation <dialog>
         const confirmed = await confirm({
@@ -624,6 +633,8 @@ export function mountSettingsTab(
           importInput.value = "";
           return;
         }
+
+        setBackupControlsBusy(true);
 
         // Step 3: Automatic pre-import safety snapshot before mutating storage
         try {

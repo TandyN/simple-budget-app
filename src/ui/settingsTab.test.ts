@@ -360,10 +360,13 @@ describe("mountSettingsTab", () => {
     );
   });
 
-  it("aborts import cleanly when confirmation dialog is cancelled without reading or mutating data", async () => {
+  it("aborts import cleanly when confirmation dialog is cancelled without reading or mutating data and restores focus", async () => {
     await setup({
       durabilityAdapter: { getPersisted: async () => true },
     });
+
+    // Activate Settings tab so #panel-settings is visible and importInput is focusable
+    (root.querySelector("#tab-settings") as HTMLButtonElement).click();
 
     await budget.addActivity({
       type: "deposit",
@@ -385,6 +388,7 @@ describe("mountSettingsTab", () => {
     await flushAsync();
 
     expect(shell.dialog.open).toBe(true);
+    expect(importInput.disabled).toBe(false);
     expect(
       shell.dialog.querySelector(".confirm-dialog-message")?.textContent,
     ).toContain("replace all existing local recurring rules and activities");
@@ -397,6 +401,7 @@ describe("mountSettingsTab", () => {
     await flushAsync();
 
     expect(shell.dialog.open).toBe(false);
+    expect(document.activeElement).toBe(importInput);
     expect(textSpy).not.toHaveBeenCalled();
     expect(platform.saveBackup).not.toHaveBeenCalled();
 
