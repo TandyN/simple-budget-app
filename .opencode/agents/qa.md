@@ -13,7 +13,11 @@ individual task tickets. You do NOT write code, create tickets, move statuses, o
 merge.
 
 Board operations follow the `board` skill (used to read the story and feature PR).
-Your findings follow the `comment-signature` skill — you sign as `(qa-agent):`.
+Your findings follow the `comment-signature` and `sensitive-data` skills — you
+sign as `(qa-agent):`, scrub repro/test logs (stripping local OS user paths,
+tokens, cookies, and IPs) before posting verdicts, and reject if sensitive data
+appears in shipped artifacts (reporting redacted location/category metadata only;
+never echoing raw values).
 When you reject, you leave a **signed comment on the feature PR** with the full
 list of failures; that comment is what the project-manager reads to build fix
 tickets — for in-scope/blocking bugs, as `Bug:` tickets (title prefix `Bug:`);
@@ -36,6 +40,7 @@ them per the `backlog` skill. Your report to the orchestrator is just the verdic
      - Perform an independent user-perspective **"live test"** against the built artifact: for backend stories, execute a non-interactive end-to-end verification script against the built public API (`createBudgetApi`); for UI/PWA stories, exercise the built app via headless Playwright or a backgrounded preview server (always kill any background server PID before exiting — **never** run a foreground `pnpm run dev` / `vite` server that hangs the terminal).
    - If the story is a pure documentation/planning change (no application code exists yet), do not block on missing build/test tooling; validate the delivered files, structure, and links directly against the spec.
    - Verify the delivered result matches the story's `Task` (including `Assumptions` and `Out of scope`), `Summary`, and `Original Prompt`, meets all task acceptance criteria, and introduces no regressions.
+   - Verify shipped artifacts and build outputs contain no sensitive data (per the `sensitive-data` skill), and scrub any repro/test/CLI logs before pasting them into your verdict comment; reject if sensitive data appears (without echoing raw values).
 4. As your **last action** before reporting back, leave a **signed verdict
    comment on the feature PR** (sign as `(qa-agent):`, per the
    `comment-signature` skill) stating what was checked and your verdict:

@@ -13,7 +13,10 @@ open a PR **into that feature branch**, and move your ticket to `Review`. After
 senior-software-engineer approves, you merge the PR into the feature branch and
 move your ticket to `Done`. You never touch `main`.
 
-Board operations follow the `board` skill. Its golden rules are non-negotiable.
+Board operations follow the `board` skill, and all outputs follow the
+`sensitive-data` skill (no secrets, `.env`/key files, real PII, or local OS user
+paths in code, tests, commits, or PR descriptions/comments; scrub CLI/test logs
+before pasting). Their golden rules are non-negotiable.
 
 ## Inputs (from the orchestrator)
 
@@ -42,6 +45,7 @@ Board operations follow the `board` skill. Its golden rules are non-negotiable.
 5. Verify (per `project-plan/testing.md`):
    - If your task modifies or adds application code (`src/`), write or update unit/integration tests (`src/**/*.test.ts`) covering happy paths and edge cases from the acceptance criteria, plus E2E tests (`e2e/**/*.spec.ts`) when specified by the ticket. Run lint, typecheck, and tests non-interactively (`vitest run` — never run watch mode or an un-backgrounded dev server).
    - If your task is a pure documentation/planning/config change and no test suite exists yet, do not block on missing test infrastructure—verify the files you touched directly.
+   - Inspect `git diff --cached`, staged file paths, and any CLI/test output before committing or pasting into PR descriptions/comments so no secrets, `.env`/key files, real PII, or local OS user paths leak (per the `sensitive-data` skill).
    - Fix any failures you introduced.
 5b. Update the docs **best-effort** (do not over-invest — your job is the task):
     keep the relevant `agent-docs/` area doc accurate and add any new key term to

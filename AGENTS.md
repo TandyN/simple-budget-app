@@ -18,7 +18,8 @@ Flow (all delegation funnels through the orchestrator, because a subagent cannot
 spawn another subagent):
 
 1. **product-manager** creates the story ticket(s), each with three sections:
-   `Original Prompt` (verbatim), `Summary` (the user's whole ask), and `Task`
+   `Original Prompt` (verbatim, redacting any accidental sensitive data per the
+   `sensitive-data` skill), `Summary` (the user's whole ask), and `Task`
    (this story's specific slice). Together the stories solve the full prompt.
 2. **project-manager** creates or reuses the story **feature branch** on its
    **initial pass** so unblocked tasks can branch immediately, breaks the story
@@ -83,6 +84,17 @@ never has to read another (e.g. frontend).
 ## Committing
 
 Follow the `conventional-commits` skill (`.agents/skills/conventional-commits/SKILL.md`).
+
+## Sensitive Data
+
+Follow the `sensitive-data` skill (`.agents/skills/sensitive-data/SKILL.md`). It is
+mandatory for **every role** across **every output surface** (source code, tests,
+docs, git commits/diffs, GitHub issues/PRs/comments, board items, logs, and
+inter-agent reports). Never commit, paste, echo, or publish raw credentials,
+tokens, private keys, public/residential IPs, PII, or local OS user paths. This
+policy **overrides any verbatim-quoting rule** (including `product-manager`'s
+`Original Prompt` section): redact sensitive values with `<REDACTED:<category>>`,
+note the redaction, and alert the orchestrator/user immediately.
 
 ## Workspace Hygiene
 
