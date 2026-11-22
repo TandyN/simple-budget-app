@@ -58,18 +58,22 @@ function control(
 
 /**
  * The `<dialog>` confirmation helper: a native `<dialog>` with `Confirm`
- * and `Cancel` actions. `open()` shows it modeless-to-modal via
- * `showModal()` (native focus trap + backdrop inert); `close()` returns
- * focus to the invoking tab, satisfying WCAG 2.2 AA focus-return.
+ * and `Cancel` actions. `open()` shows it modal via `showModal()` (native
+ * focus trap + backdrop inert); `confirm(options)` updates the dialog copy
+ * via safe DOM text nodes, opens it modally, and resolves `true` on Confirm
+ * or `false` on Cancel / `Escape` dismissal. On close, focus returns to
+ * `options.invoker` (when provided and connected) or the active tab button,
+ * satisfying WCAG 2.2 AA focus-return.
  *
- * @param getInvoker the tab element that opened the dialog (the focus
+ * @param getActiveTab returns the currently active tab button (fallback focus
  *   return target on close)
- * @returns the open/close handle
+ * @returns the confirm-dialog handle (`dialog`, `open`, `close`, `confirm`)
  */
-function createConfirmDialog(getInvoker: () => HTMLButtonElement): {
+function createConfirmDialog(getActiveTab: () => HTMLButtonElement): {
   readonly dialog: HTMLDialogElement;
   open(): void;
   close(): void;
+  confirm(options: ConfirmOptions): Promise<boolean>;
 } {
   const dialog = el("dialog", { class: "confirm-dialog" }) as HTMLDialogElement;
 
@@ -80,40 +84,66 @@ function createConfirmDialog(getInvoker: () => HTMLButtonElement): {
     text("Do you want to continue?"),
   ]);
 
+  const cancelButton = control(
+    "button",
+    { class: "confirm-dialog-cancel", type: "button" },
+    "Cancel",
+  ) as HTMLButtonElement;
+  const confirmButton = control(
+    "button",
+    { class: "confirm-dialog-confirm", type: "button" },
+    "Confirm",
+  ) as HTMLButtonElement;
+
+  let pendingResolve: ((confirmed: boolean) => void) | null = null;
+  let pendingResult = false;
+  let currentInvoker: HTMLElement | null = null;
+
   const close = (): void => {
     if (!dialog.open) {
       return;
     }
-    // The native `close` event (below) restores focus to the invoker.
+    // The native `close` event (below) resolves any pending prompt and
+    // restores focus to the invoker or active tab.
     dialog.close();
   };
 
-  // Both actions dismiss the dialog and return focus to the invoking tab.
-  // Later phases (4B/4C) will differentiate the resolved choice
-  // (Confirm vs. Cancel) in their own views.
-  const actions = el("div", { class: "confirm-dialog-actions" }, [
-    control(
-      "button",
-      { class: "confirm-dialog-cancel", type: "button" },
-      "Cancel",
-    ),
-    control(
-      "button",
-      { class: "confirm-dialog-confirm", type: "button" },
-      "Confirm",
-    ),
-  ]);
-  (actions as HTMLElement).addEventListener("click", (event) => {
-    if (event.target instanceof HTMLButtonElement) {
-      close();
-    }
+  cancelButton.addEventListener("click", () => {
+    pendingResult = false;
+    close();
   });
 
-  // Native `Escape` dismissal closes the dialog (firing `close`); restore
-  // focus to the invoking tab so focus is never stranded in the closed
-  // dialog (WCAG 2.2 AA focus return).
+  confirmButton.addEventListener("click", () => {
+    pendingResult = true;
+    close();
+  });
+
+  const actions = el("div", { class: "confirm-dialog-actions" }, [
+    cancelButton,
+    confirmButton,
+  ]);
+
+  // Native `Escape` dismissal and programmatic `close()` both fire `close`:
+  // resolve any pending `confirm(...)` promise and restore focus so focus is
+  // never stranded in the closed dialog (WCAG 2.2 AA focus return).
   dialog.addEventListener("close", () => {
-    getInvoker().focus();
+    const resolve = pendingResolve;
+    const result = pendingResult;
+    const invoker = currentInvoker;
+
+    pendingResolve = null;
+    pendingResult = false;
+    currentInvoker = null;
+
+    if (invoker?.isConnected) {
+      invoker.focus();
+    } else {
+      getActiveTab().focus();
+    }
+
+    if (resolve !== null) {
+      resolve(result);
+    }
   });
 
   replaceChildren(dialog, heading, message, actions);
@@ -122,10 +152,36 @@ function createConfirmDialog(getInvoker: () => HTMLButtonElement): {
     dialog,
     open(): void {
       if (!dialog.open) {
+        currentInvoker = null;
+        pendingResult = false;
         dialog.showModal();
       }
     },
     close,
+    confirm(options: ConfirmOptions): Promise<boolean> {
+      if (dialog.open) {
+        pendingResult = false;
+        close();
+      }
+      if (pendingResolve !== null) {
+        const priorResolve = pendingResolve;
+        pendingResolve = null;
+        priorResolve(false);
+      }
+
+      replaceChildren(heading, text(options.title));
+      replaceChildren(message, text(options.message));
+      replaceChildren(cancelButton, text(options.cancelLabel ?? "Cancel"));
+      replaceChildren(confirmButton, text(options.confirmLabel ?? "Confirm"));
+
+      currentInvoker = options.invoker ?? null;
+      pendingResult = false;
+
+      return new Promise<boolean>((resolve) => {
+        pendingResolve = resolve;
+        dialog.showModal();
+      });
+    },
   };
 }
 
@@ -133,25 +189,26 @@ function createConfirmDialog(getInvoker: () => HTMLButtonElement): {
  * Renders the accessible 3-tab shell into `container`.
  *
  * - Builds `<nav role="tablist">` with three `<button role="tab"
- *   aria-selected aria-controls tabindex>` controls, `Budget` selected and
- *   focused by default (roving `tabindex`: selected tab `0`, others `-1`).
+ *   aria-selected aria-controls tabindex>` controls, `Budget` selected by
+ *   default (roving `tabindex`: selected tab `0`, others `-1`).
  * - Builds three `<section role="tabpanel" id="panel-<tab>"
- *   aria-labelledby="tab-<tab>">` placeholders; only the selected panel is
+ *   aria-labelledby="tab-<tab>">` landmarks; only the selected panel is
  *   visible (`hidden` on the rest).
  * - Tab clicks switch panels and update `aria-selected` / `tabindex`.
  * - `ArrowLeft` / `ArrowRight` on the tablist move the selection (wrapping),
  *   per the WAI-ARIA tabs pattern.
- * - Provides a native `<dialog>` confirmation helper (`showModal()` /
- *   `close()` with focus returned to the invoking tab).
+ * - Provides a native `<dialog>` confirmation helper (`open()` / `close()` /
+ *   promise-based `confirm(options)` with focus returned to the invoking
+ *   element or active tab).
  *
  * Every interactive element (tabs and dialog buttons) enforces the
  * `>= 44×44 CSS px` minimum hit target.
  *
  * @param container the element the shell is rendered into (e.g. `#app`)
- * @returns the `ConfirmDialog` handle so later phases can present
- *   confirmation prompts
+ * @returns the `ShellHandle` (backwards-compatible with `ConfirmDialog`)
+ *   exposing panel mount nodes and the native confirmation dialog API
  */
-export function renderShell(container: HTMLElement): ConfirmDialog {
+export function renderShell(container: HTMLElement): ShellHandle {
   const tablist = el("nav", { role: "tablist" }) as HTMLElement;
   const panels = {} as Record<Tab, HTMLElement>;
   const tabs = {} as Record<Tab, HTMLButtonElement>;
@@ -235,15 +292,58 @@ export function renderShell(container: HTMLElement): ConfirmDialog {
     dialogHelper.dialog,
   );
 
-  return dialogHelper;
+  return {
+    dialog: dialogHelper.dialog,
+    open: dialogHelper.open,
+    close: dialogHelper.close,
+    confirm: dialogHelper.confirm,
+    panels: {
+      budget: panels.budget,
+      insights: panels.insights,
+      settings: panels.settings,
+    },
+  };
+}
+
+/** Options for the shell's promise-based native `<dialog>` confirmation prompt. */
+export interface ConfirmOptions {
+  /** Dialog heading text. */
+  readonly title: string;
+  /** Dialog body message text. */
+  readonly message: string;
+  /** Label for the confirm action button (defaults to `"Confirm"`). */
+  readonly confirmLabel?: string;
+  /** Label for the cancel action button (defaults to `"Cancel"`). */
+  readonly cancelLabel?: string;
+  /** Element to restore focus to on close (defaults to the active tab button). */
+  readonly invoker?: HTMLElement | null;
+}
+
+/** Direct references to the three shell tabpanel mount elements. */
+export interface ShellPanels {
+  readonly budget: HTMLElement;
+  readonly insights: HTMLElement;
+  readonly settings: HTMLElement;
 }
 
 /** Handle for the shell's native `<dialog>` confirmation helper. */
 export interface ConfirmDialog {
   /** The underlying native `<dialog>` element. */
   readonly dialog: HTMLDialogElement;
-  /** Opens the dialog modeally (`showModal()`). */
+  /** Opens the dialog modally (`showModal()`). */
   open(): void;
   /** Closes the dialog and returns focus to the invoking tab. */
   close(): void;
+}
+
+/**
+ * Full shell handle returned by `renderShell(container)`.
+ * Extends `ConfirmDialog` for backwards compatibility while exposing direct
+ * tabpanel mount handles and a promise-based `confirm(options)` API.
+ */
+export interface ShellHandle extends ConfirmDialog {
+  /** Direct references to `#panel-budget`, `#panel-insights`, and `#panel-settings`. */
+  readonly panels: ShellPanels;
+  /** Opens the native `<dialog>` with custom copy and resolves `true` on Confirm, `false` on Cancel/Escape. */
+  confirm(options: ConfirmOptions): Promise<boolean>;
 }

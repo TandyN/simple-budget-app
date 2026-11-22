@@ -135,15 +135,22 @@ in its own topic doc, not here.
   `parent.replaceChildren`, enforcing the DOM XSS ban by construction (Gate 4);
   unit-tested in `happy-dom` (`src/ui/dom.test.ts`).
   [budget-app/frontend.md](budget-app/frontend.md#2-safe-dom-helper-layer-srcuidomts)
-- **accessible 3-tab shell (`src/ui/shell.ts`)** — the Phase 4A walking-skeleton
-  app shell: `renderShell(container): ConfirmDialog` mounts `<nav role="tablist">`
-  with three `<button role="tab">` controls (`Budget`/`Insights`/`Settings`)
-  paired with `<section role="tabpanel">` placeholders, roving `tabindex` +
+- **accessible 3-tab shell (`src/ui/shell.ts`)** — the app shell:
+  `renderShell(container): ShellHandle` mounts `<nav role="tablist">` with three
+  `<button role="tab">` controls (`Budget`/`Insights`/`Settings`) paired with
+  `<section role="tabpanel">` landmarks exposed on `panels`, roving `tabindex` +
   wrapping `ArrowLeft`/`ArrowRight` navigation, a native `<dialog class="confirm-dialog">`
-  confirmation helper (`showModal()` / `close()` restoring focus to the invoking
-  tab), and `>= 44×44 CSS px` touch targets (WCAG 2.2 AA), all via `src/ui/dom.ts`
-  and mounted in `src/main.ts`; unit-tested in `happy-dom` (`src/ui/shell.test.ts`).
+  confirmation helper (backwards-compatible `ConfirmDialog` `open()`/`close()` plus
+  promise-based `confirm(options)` restoring focus to `invoker` or the active tab),
+  and `>= 44×44 CSS px` touch targets (WCAG 2.2 AA), all via `src/ui/dom.ts` and
+  mounted in `src/main.ts`; unit-tested in `happy-dom` (`src/ui/shell.test.ts`).
   [budget-app/frontend.md](budget-app/frontend.md#3-accessible-3-tab-application-shell--dialog-helper-srcuishellts)
+- **display/input formatters (`src/ui/format.ts`)** — zero-dependency `Intl` /
+  `Date` / `src/core/validate.ts` boundary helpers (`formatCents`,
+  `parseDecimalInputToCents`, `formatLocalDateTime`, `toDateTimeLocalInputValue`,
+  `fromDateTimeLocalInputValue`, `parseTagsInput`, `formatTagsInput`); unit-tested
+  in `src/ui/format.test.ts`.
+  [budget-app/frontend.md](budget-app/frontend.md#3b-display-formatting--input-boundary-helpers-srcuiformatts)
 - **frame CSS (`src/styles/frame.css`)** — the Phase 4A iPhone-Duo dual-state
   responsive stylesheet linked from `index.html`: system font stack on `:root`,
   `100dvh` with `@supports (height: 100svh)` and `overflow: hidden` on

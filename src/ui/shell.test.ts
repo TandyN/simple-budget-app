@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it } from "vitest";
-import { type ConfirmDialog, renderShell } from "./shell";
+import { type ConfirmDialog, renderShell, type ShellHandle } from "./shell";
 
 /**
  * Behavior tests for the accessible 3-tab shell (`src/ui/shell.ts`).
@@ -14,12 +14,15 @@ import { type ConfirmDialog, renderShell } from "./shell";
  */
 
 let container: HTMLElement;
+let shell: ShellHandle;
 let dialog: ConfirmDialog;
 
 function render() {
   container = document.createElement("div");
   document.body.appendChild(container);
-  dialog = renderShell(container);
+  shell = renderShell(container);
+  // Confirm backwards compatibility with the Phase 4A `ConfirmDialog` contract.
+  dialog = shell;
 }
 
 afterEach(() => {
@@ -175,5 +178,128 @@ describe("renderShell", () => {
       expect(minWidth).toBeGreaterThanOrEqual(44);
       expect(minHeight).toBeGreaterThanOrEqual(44);
     }
+  });
+
+  it("exposes direct panel handles for budget, insights, and settings", () => {
+    render();
+    expect(shell.panels.budget).toBe(container.querySelector("#panel-budget"));
+    expect(shell.panels.insights).toBe(
+      container.querySelector("#panel-insights"),
+    );
+    expect(shell.panels.settings).toBe(
+      container.querySelector("#panel-settings"),
+    );
+  });
+
+  it("confirm() resolves true on Confirm click, renders safe text, and restores focus to invoker", async () => {
+    render();
+    const invoker = document.createElement("button");
+    invoker.id = "delete-btn";
+    shell.panels.budget.appendChild(invoker);
+    invoker.focus();
+
+    const payload = '<img src=x onerror="alert(1)">';
+    const promise = shell.confirm({
+      title: `Delete ${payload}`,
+      message: `Remove ${payload}?`,
+      confirmLabel: "Delete",
+      cancelLabel: "Keep",
+      invoker,
+    });
+
+    expect(shell.dialog.open).toBe(true);
+    expect(
+      shell.dialog.querySelector(".confirm-dialog-title")?.textContent,
+    ).toBe(`Delete ${payload}`);
+    expect(
+      shell.dialog.querySelector(".confirm-dialog-message")?.textContent,
+    ).toBe(`Remove ${payload}?`);
+    expect(shell.dialog.querySelector("img")).toBeNull();
+
+    const confirmBtn = shell.dialog.querySelector(
+      ".confirm-dialog-confirm",
+    ) as HTMLButtonElement;
+    const cancelBtn = shell.dialog.querySelector(
+      ".confirm-dialog-cancel",
+    ) as HTMLButtonElement;
+    expect(confirmBtn.textContent).toBe("Delete");
+    expect(cancelBtn.textContent).toBe("Keep");
+
+    confirmBtn.click();
+    await expect(promise).resolves.toBe(true);
+    expect(shell.dialog.open).toBe(false);
+    expect(document.activeElement).toBe(invoker);
+  });
+
+  it("confirm() resolves false on Cancel click and resets default button labels", async () => {
+    render();
+    const first = shell.confirm({
+      title: "Custom",
+      message: "Custom msg",
+      confirmLabel: "Yes",
+      cancelLabel: "No",
+    });
+    (
+      shell.dialog.querySelector(".confirm-dialog-cancel") as HTMLButtonElement
+    ).click();
+    await expect(first).resolves.toBe(false);
+    expect(document.activeElement?.id).toBe("tab-budget");
+
+    // Next call omits custom labels; defaults must be restored.
+    const second = shell.confirm({
+      title: "Default labels",
+      message: "Proceed?",
+    });
+    expect(
+      shell.dialog.querySelector(".confirm-dialog-confirm")?.textContent,
+    ).toBe("Confirm");
+    expect(
+      shell.dialog.querySelector(".confirm-dialog-cancel")?.textContent,
+    ).toBe("Cancel");
+    (
+      shell.dialog.querySelector(".confirm-dialog-cancel") as HTMLButtonElement
+    ).click();
+    await expect(second).resolves.toBe(false);
+  });
+
+  it("confirm() resolves false on Escape / native close and falls back to active tab when invoker is omitted", async () => {
+    render();
+    (
+      container.querySelector("#tab-settings") as HTMLButtonElement
+    ).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+    const promise = shell.confirm({
+      title: "Discard changes",
+      message: "Unsaved changes will be lost.",
+    });
+    expect(shell.dialog.open).toBe(true);
+
+    // Native Escape closes the modal dialog, firing `close`.
+    shell.dialog.close();
+    await expect(promise).resolves.toBe(false);
+    expect(document.activeElement?.id).toBe("tab-settings");
+  });
+
+  it("confirm() settles any prior pending confirmation as false if re-invoked while open", async () => {
+    render();
+    const first = shell.confirm({
+      title: "First",
+      message: "First prompt",
+    });
+    const second = shell.confirm({
+      title: "Second",
+      message: "Second prompt",
+    });
+
+    await expect(first).resolves.toBe(false);
+    expect(shell.dialog.open).toBe(true);
+    expect(
+      shell.dialog.querySelector(".confirm-dialog-title")?.textContent,
+    ).toBe("Second");
+
+    (
+      shell.dialog.querySelector(".confirm-dialog-confirm") as HTMLButtonElement
+    ).click();
+    await expect(second).resolves.toBe(true);
   });
 });
