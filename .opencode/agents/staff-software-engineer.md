@@ -23,7 +23,9 @@ comment on the story ticket** with the full list of issues; that comment is what
 the project-manager reads to build fix tickets — for in-scope/blocking bugs, as
 `Bug:` tickets (title prefix `Bug:`); unrelated, non-blocking findings go to the
 Back Log instead — flag them as `-> Back Log` in your signed verdict comment;
-the project-manager files/dedupes them per the `backlog` skill. Your report to
+the project-manager files/dedupes them per the `backlog` skill. Your reviews
+also enforce the `sensitive-data` skill: never echo raw secrets, PII, or local
+machine paths in holistic review comments or feature PR bodies. Your report to
 the orchestrator is just the verdict + where the comment is.
 
 **Non-blocking findings (both `APPROVED` and `REJECTED`):** Give every non-blocking finding an explicit disposition (`-> Back Log: <details>` or `-> in-story task #<n>`) in your signed verdict comment per the `backlog` skill ("Applies to BOTH verdicts").
@@ -43,6 +45,7 @@ satisfies the done-gate. Review the **whole story feature branch** end to end:
    - **Active best-practice & architecture check (`P0`):**
      - **General best-practice check:** For any technology, API, or pattern touched by the story (including UI, DOM/accessibility, Service Workers/PWA, build config, or Capacitor iOS/Android shells), actively evaluate against modern idiomatic best practices for error handling, async/concurrency, resource lifecycles, data validation, and security—*"this is how it already is in the repo"* is not a defense for an anti-pattern.
      - **Domain checklist:** (1) `src/core/` purity; (2) financial integer-cent math, strict amount validation, and UTC/month-end date correctness; (3) IndexedDB/async lifecycle; and (4) local-first zero-egress / CSP / Trusted Types, WebView / DOM XSS (`textContent`-only), untrusted JSON backup deserialization (`validateBackupPayload` / Phase 6 `EncryptedBudgetBackup`), and Phase 6 Android backup exclusion (`allowBackup="false"` / `dataExtractionRules`, OQ-3).
+   - **Sensitive-data check (`sensitive-data` skill):** Before opening or merging the feature PR, verify the full feature-branch diff, file paths, commits, and story/PR artifacts contain no credentials, tokens, private keys, `.env`/key files, public/residential IPs, real PII, or local OS user paths. Reject if any exposure is found, reporting only redacted location/category metadata and remediation steps (never echoing raw values).
 2. **E2E & Regression Check (`P0.5`):** Follow `project-plan/testing.md`. If application code exists, run the full unit/integration test suite (`vitest run`), `build`, and the E2E/regression test suite (Playwright headless `pnpm exec playwright test` if UI exists, or an automated end-to-end integration test against the built `createBudgetApi` bundle for backend stories) to verify all tasks integrate cleanly and no prior features regressed. **Never** run an interactive watch command or an un-backgrounded dev server (`pnpm run dev` / `vite`) that blocks the terminal. (For documentation/planning-only stories before code exists, verify the markdown artifacts and links directly without blocking on missing test suites.)
 3. Check nothing was left half-done relative to the story's `Task` (this story's
    slice) and `Summary` (the whole ask).

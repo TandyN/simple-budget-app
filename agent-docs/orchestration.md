@@ -35,7 +35,9 @@ story has three sections, read in this priority order:
 
 1. `Task` — this story's specific slice (primary).
 2. `Summary` — the user's whole ask, restated (shared context).
-3. `Original Prompt` — the verbatim prompt (final word on intent).
+3. `Original Prompt` — the verbatim prompt (final word on intent; any accidental
+   sensitive data is redacted with `<REDACTED:<category>>` per the
+   `sensitive-data` skill).
 
 ## Ticket types
 
@@ -126,11 +128,17 @@ opencode rather than assuming the change is live.
 
 ## Role-agnostic skills
 
-The shared skills (`board`, `backlog`, `comment-signature`, `config-reload`,
-`conventional-commits`) are **role-agnostic**: each is a job any role can follow,
-describing mechanics (how to operate the board, how to sign a work product, how to
-file a Back Log entry, how to prompt a restart, how to format a commit message) —
-not who does what. **Role-specific policy** — which role
+The six shared skills (`board`, `backlog`, `comment-signature`, `config-reload`,
+`conventional-commits`, `sensitive-data`) are **role-agnostic**: each is a job
+any role can follow, describing mechanics (how to operate the board, how to sign
+a work product, how to file a Back Log entry, how to prompt a restart, how to
+format a commit message, and how to prevent/redact/escalate sensitive data across
+every output surface) — not who does what. In particular,
+[`sensitive-data`](../.agents/skills/sensitive-data/SKILL.md) binds every role
+(`orchestrator` and all 8 subagents) across code, docs, commits, GitHub
+issues/PRs/comments, board items, and logs, and **takes precedence over any
+verbatim-quoting rule** (such as `product-manager`'s `Original Prompt` section).
+**Role-specific policy** — which role
 does what (who creates the feature branch, who approves a task PR, who opens or
 merges the feature PR, who leaves which summary and where) — lives in each role's
 persona under `.opencode/agents/`, not in the skills. This keeps the shared skills

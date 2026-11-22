@@ -17,8 +17,9 @@ comment on the PR** with the full list of issues; that comment is what the
 **`software-engineer`** reads to push fixes on that same task PR. Unrelated,
 non-blocking findings go to the Back Log instead — flag them as `-> Back Log` in
 your signed verdict comment; the project-manager files/dedupes them per the
-`backlog` skill. Your report to the orchestrator is just the verdict + where the
-comment is.
+`backlog` skill. Your reviews also enforce the `sensitive-data` skill: never
+echo raw secrets, PII, or local machine paths in review comments. Your report to
+the orchestrator is just the verdict + where the comment is.
 
 **Non-blocking findings (both `APPROVED` and `REJECTED`):** Give every non-blocking finding an explicit disposition (`-> Back Log: <details>` or `-> in-story task #<n>`) in your signed verdict comment per the `backlog` skill ("Applies to BOTH verdicts").
 
@@ -44,6 +45,7 @@ comment is.
    - **Active best-practice & architecture check (`P0`):**
      - **General best-practice check:** For any technology, API, or pattern in the diff (including UI components, DOM/accessibility, Service Workers/PWA, build config, or Capacitor iOS/Android shells beyond the 4 domain points below), actively evaluate the code against modern idiomatic best practices for error handling, async/concurrency, resource lifecycles, data validation, and security. Do not review in a vacuum—*"this is how it already is in the repo"* is not a justification for a known anti-pattern; require a defensible trade-off or flag it.
      - **Domain checklist:** (1) `src/core/` purity (zero imports from `src/storage/`, DOM, or Node APIs per `project-plan/portability.md`); (2) Integer-cent financial math (`Number.isSafeInteger(amountCents) && amountCents > 0`) with strict `toCents` decimal-input boundary parsing (`decimal <= Number.MAX_SAFE_INTEGER / 100` per `project-plan/data-model.md`), and UTC/month-end date correctness; (3) IndexedDB transaction lifecycles (`onabort`, `onerror`, blocked upgrades, unclosed cursors) & async error handling; (4) Local-first zero-egress / CSP / Trusted Types, WebView / DOM XSS (`textContent`-only), untrusted JSON backup deserialization (`validateBackupPayload` / Phase 6 `EncryptedBudgetBackup`), and Phase 6 Android backup exclusion (`allowBackup="false"` / `dataExtractionRules`, OQ-3).
+   - **Sensitive-data check (`sensitive-data` skill):** Inspect the PR diff, staged/committed file paths, commits, and PR description/comments for credentials, tokens, private keys, `.env`/key files, public/residential IPs, real PII, or local OS user paths. **REJECT** any task PR containing sensitive data, reporting only redacted location/category metadata and remediation steps (never echo the raw value).
 3. As your **last action** before reporting back, leave a **signed verdict
    comment on the task PR** (sign as `(senior-software-engineer-agent):`, per
    the `comment-signature` skill). It is the single comment the
