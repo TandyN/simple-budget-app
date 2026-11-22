@@ -651,6 +651,36 @@ describe("IndexedDbAdapter — save / delete / query (#265)", () => {
     ).toEqual([]);
   });
 
+  it('query("activities", { field: "tags", eq }) resolves to [] under strict === without reading the by_tags index (#269)', async () => {
+    const factory = new IDBFactory();
+    const adapter = new IndexedDbAdapter(factory);
+    await adapter.open();
+
+    const activity = makeActivity("act-coffee", "expense");
+    await adapter.save("activities", activity);
+
+    const indexSpy = vi.spyOn(IDBObjectStore.prototype, "index");
+    try {
+      // A fresh `string[]` array literal does not strictly equal (`===`) the
+      // stored `tags` array reference, and a bare tag string (cast through
+      // `unknown`) does not strictly equal a `string[]` array either — both
+      // resolve to `[]` (consistent with `InMemoryAdapter.query`) without
+      // performing a wasted `by_tags` index read.
+      await expect(
+        adapter.query("activities", { field: "tags", eq: ["coffee"] }),
+      ).resolves.toEqual([]);
+      await expect(
+        adapter.query("activities", {
+          field: "tags",
+          eq: "coffee" as unknown as string[],
+        }),
+      ).resolves.toEqual([]);
+      expect(indexSpy).not.toHaveBeenCalled();
+    } finally {
+      indexSpy.mockRestore();
+    }
+  });
+
   it('query("rules", { field: "type" }) resolves via in-memory fallback (no NotFoundError)', async () => {
     const factory = new IDBFactory();
     const adapter = new IndexedDbAdapter(factory);
