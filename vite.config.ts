@@ -1,7 +1,9 @@
 import { defineConfig } from "vite";
+import { viteSwPlugin } from "./scripts/vite-sw-plugin.ts";
 
 export default defineConfig({
   base: process.env.VITE_BASE_PATH ?? "/simple-budget-app/",
+  plugins: [viteSwPlugin()],
   build: {
     // Preserve `dist/budgetApi.es.js` (emitted by the V3 lib build, #259)
     // across the SPA build. Vite defaults `emptyOutDir` to `true` for
