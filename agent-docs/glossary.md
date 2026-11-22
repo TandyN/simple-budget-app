@@ -169,6 +169,14 @@ in its own topic doc, not here.
   history) via `src/ui/dom.ts`; unit-tested in `happy-dom`
   (`src/ui/recurringRules.test.ts`).
   [budget-app/frontend.md](budget-app/frontend.md#3d-collapsible-recurring-rules-panel-srcuirecurringrulests)
+- **Insights tab UI (`src/ui/insightsTab.ts`, `src/styles/insights.css`)** —
+  `mountInsightsTab(options): InsightsTabController` implementing date-range
+  (`since`/`until`), tag, type, and keyword filtering, `budget.summarizeByTag`
+  tag rollups, `summarizeByPeriod` period rollups (honoring `Activity.period`
+  for recurring items, OQ-2), matching activity list, distinct empty states, and
+  `refreshSeq` stale-render guard via `src/ui/dom.ts` and WCAG 2.2 AA dual-state
+  CSS; unit-tested in `happy-dom` (`src/ui/insightsTab.test.ts`).
+  [budget-app/frontend.md](budget-app/frontend.md#3e-insights-tab-ui--responsive-styles-srcuiinsightstabts-srcstylesinsightscss)
 - **frame CSS (`src/styles/frame.css`)** — the Phase 4A iPhone-Duo dual-state
   responsive stylesheet linked from `index.html`: system font stack on `:root`,
   `100dvh` with `@supports (height: 100svh)` and `overflow: hidden` on
