@@ -346,6 +346,10 @@ export function createBudgetApi(options: CreateBudgetApiOptions): BudgetApi {
      * rules, persist the new activities and the advanced `lastPostPeriod`
      * rules, and return the posted activities.
      *
+     * Forwards the API's injected `idFactory` and `now` clock (when `now` is
+     * omitted by the caller) to the core engine so engine-posted activity IDs
+     * and evaluation instants are deterministic in tests (#262).
+     *
      * Idempotent: `runRecurringEngine` checks `(sourceRuleId, period)`
      * against existing activities (`alreadyPosted`) and advances
      * `lastPostPeriod` only for periods actually posted, so a second call at
@@ -355,15 +359,12 @@ export function createBudgetApi(options: CreateBudgetApiOptions): BudgetApi {
       requireInit();
       const rules = await adapter.query("rules");
       const activities = await adapter.query("activities");
-      const engineOptions: {
-        rules: readonly RecurringRule[];
-        activities: readonly Activity[];
-        now?: Date;
-      } = { rules, activities };
-      if (now !== undefined) {
-        engineOptions.now = now;
-      }
-      const result = runRecurringEngine(engineOptions);
+      const result = runRecurringEngine({
+        rules,
+        activities,
+        now: now ?? clock(),
+        idFactory,
+      });
       for (const activity of result.posted) {
         await adapter.save("activities", activity);
       }
@@ -412,22 +413,8 @@ export function createBudgetApi(options: CreateBudgetApiOptions): BudgetApi {
      */
     async getLastBackupAt(): Promise<string | null> {
       requireInit();
-      const value = await adapter.getMeta(LAST_BACKUP_AT_META_KEY);
-      if (typeof value === "string") {
-        return value;
-      }
-      // Tolerate the spec's `{ key, timestamp }` record shape (e.g. written
-      // directly to IndexedDB by a prior writer) in addition to the plain
-      // ISO-string value this API records.
-      if (
-        typeof value === "object" &&
-        value !== null &&
-        "timestamp" in value &&
-        typeof (value as { timestamp: unknown }).timestamp === "string"
-      ) {
-        return (value as { timestamp: string }).timestamp;
-      }
-      return null;
+      const value = await adapter.getMeta<string>(LAST_BACKUP_AT_META_KEY);
+      return typeof value === "string" ? value : null;
     },
 
     /**

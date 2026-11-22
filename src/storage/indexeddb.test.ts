@@ -28,6 +28,9 @@ import {
  * - **#265:** `save` / `delete` / `query` over the real adapter — upsert +
  *   idempotent delete + `{ field, eq }` predicate filtering (indexed and
  *   unindexed fields).
+ * - **#255:** calling `replaceAll` / `save` / `delete` / `query` /
+ *   `getLastBackupAt` / `getMeta` / `setMeta` before `open()` returns a
+ *   rejected `Promise` (never throws synchronously).
  *
  * Uses `fake-indexeddb` (a devDependency) injected via the `idbFactory`
  * constructor argument — no DOM, no Node globals, zero production dependencies.
@@ -124,14 +127,9 @@ describe("IndexedDbAdapter — basic getMeta / setMeta round-trip", () => {
     await adapter.open();
 
     const ts = "2026-11-19T00:00:00.000Z";
-    await adapter.setMeta("lastBackupAt", {
-      key: "lastBackupAt",
-      timestamp: ts,
-    });
-    const back = await adapter.getMeta<{ key: string; timestamp: string }>(
-      "lastBackupAt",
-    );
-    expect(back).toEqual({ key: "lastBackupAt", timestamp: ts });
+    await adapter.setMeta("lastBackupAt", ts);
+    const back = await adapter.getMeta<string>("lastBackupAt");
+    expect(back).toBe(ts);
 
     // Absent keys resolve to null.
     await expect(adapter.getMeta("does-not-exist")).resolves.toBeNull();
@@ -482,13 +480,12 @@ describe("IndexedDbAdapter — best-effort durability API (U3, #253)", () => {
     await adapter.open();
 
     const iso = "2026-01-01T00:00:00.000Z";
-    // Seed the exact record shape #247's exportBackup() will write to the
-    // `"meta"` store (spec: `{ key: "lastBackupAt", timestamp: <iso> }`),
-    // directly through the object store (this slice is read-only for it).
+    // Seed the canonical `{ key: "lastBackupAt", value: <iso> }` record shape
+    // that `exportBackup()` writes to `"meta"` via `setMeta("lastBackupAt", iso)` (#267).
     const seed = await openRaw(factory, DB_NAME);
     await new Promise<void>((resolve, reject) => {
       const tx = seed.transaction("meta", "readwrite");
-      tx.objectStore("meta").put({ key: "lastBackupAt", timestamp: iso });
+      tx.objectStore("meta").put({ key: "lastBackupAt", value: iso });
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
@@ -496,7 +493,7 @@ describe("IndexedDbAdapter — best-effort durability API (U3, #253)", () => {
     await expect(adapter.getLastBackupAt()).resolves.toBe(iso);
   });
 
-  it("getLastBackupAt() also reads the setMeta { key, value } envelope (ISO string value)", async () => {
+  it("getLastBackupAt() reads the setMeta { key, value } envelope (ISO string value) and returns null for non-string values", async () => {
     const factory = new IDBFactory();
     const adapter = new IndexedDbAdapter(factory);
     await adapter.open();
@@ -504,6 +501,9 @@ describe("IndexedDbAdapter — best-effort durability API (U3, #253)", () => {
     const iso = "2026-01-01T00:00:00.000Z";
     await adapter.setMeta("lastBackupAt", iso);
     await expect(adapter.getLastBackupAt()).resolves.toBe(iso);
+
+    await adapter.setMeta("lastBackupAt", { invalid: true });
+    await expect(adapter.getLastBackupAt()).resolves.toBeNull();
   });
 });
 
@@ -651,6 +651,36 @@ describe("IndexedDbAdapter — save / delete / query (#265)", () => {
     ).toEqual([]);
   });
 
+  it('query("activities", { field: "tags", eq }) resolves to [] under strict === without reading the by_tags index (#269)', async () => {
+    const factory = new IDBFactory();
+    const adapter = new IndexedDbAdapter(factory);
+    await adapter.open();
+
+    const activity = makeActivity("act-coffee", "expense");
+    await adapter.save("activities", activity);
+
+    const indexSpy = vi.spyOn(IDBObjectStore.prototype, "index");
+    try {
+      // A fresh `string[]` array literal does not strictly equal (`===`) the
+      // stored `tags` array reference, and a bare tag string (cast through
+      // `unknown`) does not strictly equal a `string[]` array either — both
+      // resolve to `[]` (consistent with `InMemoryAdapter.query`) without
+      // performing a wasted `by_tags` index read.
+      await expect(
+        adapter.query("activities", { field: "tags", eq: ["coffee"] }),
+      ).resolves.toEqual([]);
+      await expect(
+        adapter.query("activities", {
+          field: "tags",
+          eq: "coffee" as unknown as string[],
+        }),
+      ).resolves.toEqual([]);
+      expect(indexSpy).not.toHaveBeenCalled();
+    } finally {
+      indexSpy.mockRestore();
+    }
+  });
+
   it('query("rules", { field: "type" }) resolves via in-memory fallback (no NotFoundError)', async () => {
     const factory = new IDBFactory();
     const adapter = new IndexedDbAdapter(factory);
@@ -685,5 +715,53 @@ describe("IndexedDbAdapter — save / delete / query (#265)", () => {
       eq: "deposit",
     });
     expect(none).toEqual([]);
+  });
+
+  it("rejects with a Promise (does not throw synchronously) when replaceAll / save / delete / query / meta methods are called before open() (#255)", async () => {
+    const factory = new IDBFactory();
+    const adapter = new IndexedDbAdapter(factory);
+    const expectedMessage =
+      "IndexedDbAdapter: call open() before using the adapter";
+
+    // Invoking each method without `await` must return a rejected Promise
+    // rather than throwing synchronously (so callers using `.catch(...)` or
+    // `await expect(adapter.method(...)).rejects.toThrow(...)` never miss a
+    // synchronous exception).
+    const replaceAllPromise = adapter.replaceAll({
+      rules: [],
+      activities: [],
+    });
+    expect(replaceAllPromise).toBeInstanceOf(Promise);
+    await expect(replaceAllPromise).rejects.toThrow(expectedMessage);
+    await expect(() =>
+      adapter.replaceAll({ rules: [], activities: [] }),
+    ).rejects.toThrow(expectedMessage);
+
+    const savePromise = adapter.save("rules", makeRule("rule-1", "salary"));
+    expect(savePromise).toBeInstanceOf(Promise);
+    await expect(savePromise).rejects.toThrow(expectedMessage);
+
+    const deletePromise = adapter.delete("rules", "rule-1");
+    expect(deletePromise).toBeInstanceOf(Promise);
+    await expect(deletePromise).rejects.toThrow(expectedMessage);
+
+    const queryPromise = adapter.query("rules");
+    expect(queryPromise).toBeInstanceOf(Promise);
+    await expect(queryPromise).rejects.toThrow(expectedMessage);
+
+    const getLastBackupAtPromise = adapter.getLastBackupAt();
+    expect(getLastBackupAtPromise).toBeInstanceOf(Promise);
+    await expect(getLastBackupAtPromise).rejects.toThrow(expectedMessage);
+
+    const getMetaPromise = adapter.getMeta("lastBackupAt");
+    expect(getMetaPromise).toBeInstanceOf(Promise);
+    await expect(getMetaPromise).rejects.toThrow(expectedMessage);
+
+    const setMetaPromise = adapter.setMeta(
+      "lastBackupAt",
+      "2026-01-01T00:00:00.000Z",
+    );
+    expect(setMetaPromise).toBeInstanceOf(Promise);
+    await expect(setMetaPromise).rejects.toThrow(expectedMessage);
   });
 });

@@ -25,6 +25,17 @@ export function assertNotFramed(
   }
 }
 
+import { renderShell } from "./ui/shell";
+
 if (typeof window !== "undefined" && typeof document !== "undefined") {
   assertNotFramed(window, document);
+
+  // Phase 4A walking skeleton: render the accessible 3-tab shell into the
+  // `#app` mount. `renderShell` is a DOM-only module (`src/ui/`) and the
+  // shell carries placeholder panels until Phases 4B/4C wire up the
+  // functional Budget/Insights/Settings views.
+  const app = document.getElementById("app");
+  if (app !== null) {
+    renderShell(app);
+  }
 }

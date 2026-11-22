@@ -230,9 +230,9 @@ interface BudgetApi {
 - **`exportBackup()` / `importBackup(json)` / `getLastBackupAt()`** provide local
   JSON backup export, atomic restore, and backup-age inspection. `exportBackup()`
   returns a versioned `BudgetBackup` envelope (`schemaVersion: 1`, `exportedAt`,
-  `rules`, `activities`) and records `{ key: "lastBackupAt", timestamp }` via
-  `StorageAdapter.setMeta`, while `getLastBackupAt()` reads that timestamp back
-  via `StorageAdapter.getMeta` (returning `null` if never backed up) so the
+  `rules`, `activities`) and records `{ key: "lastBackupAt", value: timestamp }` via
+  `StorageAdapter.setMeta("lastBackupAt", timestamp)`, while `getLastBackupAt()` reads that timestamp back
+  via `StorageAdapter.getMeta("lastBackupAt")` (returning `null` if never backed up) so the
   Settings UI never touches IndexedDB directly. `importBackup(json)` validates
   the untrusted JSON string in `src/core/validate.ts` (10 MB ceiling,
   prototype-pollution key rejection, full schema/invariant checks; see

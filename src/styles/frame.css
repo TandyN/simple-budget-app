@@ -1,0 +1,149 @@
+/**
+ * Frame CSS — the iPhone-Duo foldable dual-state responsive frame.
+ *
+ * `project-plan/frontend.md → Responsive viewport — iPhone-Duo foldable
+ * dual-state (req 2)`: the primary viewport target is the iPhone-Duo — a
+ * **foldable** phone with exactly two states. The **folded** (slab) state is the
+ * baseline single-panel 1-page experience (no scroll); the **unfolded**
+ * (dual-panel) state is the enhanced one-screen view (side-by-side panes /
+ * split-pane). The layout is **state-aware** — folded → unfolded, NOT a
+ * mobile → tablet → desktop ladder — and is built on **logical units + safe-area
+ * insets**, not fixed device pixel widths (slab phones ≈ folded are the
+ * secondary target).
+ *
+ * **DOM the frame targets (the `renderShell` output, `src/ui/shell.ts`):**
+ *
+ *   #app
+ *   ├─ nav[role="tablist"]
+ *   │   └─ button[role="tab"]×3
+ *   ├─ section[role="tabpanel"]×3   (exactly one is visible; the rest are hidden)
+ *   └─ dialog.confirm-dialog         (native <dialog>, hidden until .showModal())
+ *
+ * There is **no** `.shell` wrapper and **no** `<main>` element anywhere in the
+ * rendered markup, so this stylesheet drives both states off `#app` directly.
+ *
+ * Load-bearing rules:
+ * - **System font stack** on `:root` — no remote fonts (zero external URLs,
+ *   `project-plan/dependency-strategy.md`; `font-src 'self'` CSP).
+ * - **Viewport-relative full-height** (`100svh` with a `100dvh` fallback) so the
+ *   mobile Safari URL-bar chrome does not break `100vh`, with `overflow: hidden`
+ *   on `html`/`body` so the folded state stays a single non-scrolling page.
+ * - **Safe-area insets** (`env(safe-area-inset-*)`) applied on `#app` padding so
+ *   no shell element — the tablist or any visible tabpanel — can be obscured by
+ *   the notch / Dynamic Island / home indicator / status bar.
+ * - **Unfolded split-pane** at `>= 700px` (the fold↔unfold breakpoint): `#app`
+ *   becomes a **row** — a fixed-width `nav[role="tablist"]` rail plus a flexible
+ *   `section[role="tabpanel"]` pane (side-by-side), distinct from the folded
+ *   column layout.
+ * - **WCAG 2.2 AA touch-target floor** (`>= 44×44 CSS px`) on every `button`,
+ *   matching the `control()` floor already guaranteed by construction in
+ *   `src/ui/shell.ts`.
+ *
+ * Linked from `index.html` (`<link rel="stylesheet">`); built by Vite into
+ * `dist/assets/*.css`. Zero production dependencies, zero remote URLs.
+ */
+
+/*
+ * Contain every flex item: `#app`'s children (`nav[role="tablist"]` +
+ * `section[role="tabpanel"]`) are flex items that would otherwise overflow
+ * their flex line and cause horizontal page scroll at narrow viewports.
+ * `content-box` would re-inflate the `200px` rail width by its padding; `border-box`
+ * keeps the declared width as the outer bound, so the rail is exactly `200px`.
+ */
+#app,
+#app * {
+  box-sizing: border-box;
+}
+
+/* System font stack — no remote fonts (local system fonts only). */
+:root {
+  font-family:
+    system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    sans-serif;
+}
+
+/*
+ * Viewport-relative full-height: `100svh` preferred (avoids the mobile-Safari
+ * URL-bar chrome that breaks `100vh`), `100dvh` fallback for browsers without
+ * `svh`. `overflow: hidden` keeps the folded state a single non-scrolling page
+ * (the folded acceptance criterion: "one page, no scroll"). `margin: 0` resets
+ * the browser's default `body` margin (8px in Chromium) so the shell fills the
+ * viewport edge-to-edge instead of being pushed 8px down and right — which
+ * would otherwise overflow the page by exactly 8px on every side.
+ */
+html,
+body {
+  height: 100dvh;
+  overflow: hidden;
+  margin: 0;
+}
+
+@supports (height: 100svh) {
+  html,
+  body {
+    height: 100svh;
+  }
+}
+
+/*
+ * Folded (slab) state — the baseline single-panel 1-page layout.
+ *
+ * `#app` is the actual shell container: a full-height **column** with the
+ * `nav[role="tablist"]` rail on top and the active `section[role="tabpanel"]`
+ * pane below. Only one tabpanel is ever visible at a time (`hidden` on the
+ * others), so the column shows exactly one content region — "a single panel,
+ * no scroll".
+ *
+ * **Safe-area insets** are applied here on `#app`'s padding (not on a `main`
+ * that does not exist in the rendered markup), so every child — the tablist
+ * and the active tabpanel — is inset by the notch / Dynamic Island / home
+ * indicator / status bar clearance. `padding` on a flex container does not
+ * consume the rail's `200px` or the pane's `flex:1` because both are sized
+ * relative to the *content box*, not the border box, so the inset padding
+ * shrinks the available space rather than the declared sizes.
+ */
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+    env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+/* The active tabpanel is the visible content region: it grows to fill the
+   column below the rail, and any content overflow scrolls *inside* the pane
+   (never at the page level, which stays `overflow: hidden`). */
+#app > section[role="tabpanel"] {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/*
+ * Unfolded (dual-panel) split-pane — the fold↔unfold breakpoint (`>= 700px`).
+ *
+ * Genuinely distinct from the folded column layout: `#app` becomes a **row**
+ * with a fixed-width `nav[role="tablist"]` rail on the left and the active
+ * `section[role="tabpanel"]` pane on the right — the side-by-side / split-pane
+ * arrangement that takes advantage of the dual-panel spread (enhanced, not a
+ * stretched fold). This is the layout `project-plan/frontend.md` (req 2)
+ * calls for in the unfolded state: "split-pane", "state-aware, not just wider".
+ */
+@media (min-width: 700px) {
+  #app {
+    flex-direction: row;
+  }
+  #app > nav[role="tablist"] {
+    flex: 0 0 auto;
+    width: 200px;
+  }
+  #app > section[role="tabpanel"] {
+    flex: 1 1 0;
+  }
+}
+
+/* WCAG 2.2 AA touch-target floor on every interactive `button`. */
+button {
+  min-width: 44px;
+  min-height: 44px;
+}

@@ -549,6 +549,7 @@ describe("createBudgetApi — runRecurringEngine", () => {
     const now = new Date("2026-11-20T00:00:00.000Z");
     const { posted } = await api.runRecurringEngine(now);
     expect(posted).toHaveLength(1);
+    expect(posted[0]?.id).toBe("id-2");
     expect(posted[0]?.source).toBe("recurring");
     expect(posted[0]?.sourceRuleId).toBe(rule.id);
     expect(posted[0]?.period).toBe("2026-11");
@@ -558,7 +559,56 @@ describe("createBudgetApi — runRecurringEngine", () => {
     expect(rules[0]?.lastPostPeriod).toBe("2026-11");
     const activities = await api.listActivities();
     expect(activities).toHaveLength(1);
+    expect(activities[0]?.id).toBe("id-2");
     expect(activities[0]?.sourceRuleId).toBe(rule.id);
+  });
+
+  it("forwards injected idFactory and now clock to the core engine for deterministic posted activity IDs (#262)", async () => {
+    const adapter = new InMemoryAdapter();
+    let seq = 0;
+    const idFactory = () => {
+      seq += 1;
+      return `det-id-${seq}`;
+    };
+    const clock = makeClock("2026-11-20T00:00:00.000Z");
+    const api = createBudgetApi({ adapter, idFactory, now: clock });
+    await api.init();
+
+    const rule = await api.addRule({
+      name: "Salary",
+      type: "income",
+      amountCents: 500_000,
+      schedule: { cadence: "monthly", dayOfMonth: 1 },
+    });
+    expect(rule.id).toBe("det-id-1");
+
+    // Calling runRecurringEngine() without `now` forwards the injected `clock`
+    // (`2026-11-20T00:00:02.000Z`) and `idFactory` (`"det-id-2"`).
+    const firstRun = await api.runRecurringEngine();
+    expect(firstRun.posted).toHaveLength(1);
+    expect(firstRun.posted[0]?.id).toBe("det-id-2");
+    expect(firstRun.posted[0]?.period).toBe("2026-11");
+    expect(firstRun.posted[0]?.createdAt).toBe("2026-11-20T00:00:02.000Z");
+    expect(firstRun.posted[0]?.updatedAt).toBe("2026-11-20T00:00:02.000Z");
+
+    // Calling runRecurringEngine(explicitNow) across two due months uses the
+    // explicit `now` and assigns deterministic IDs ("det-id-3", "det-id-4").
+    const secondRun = await api.runRecurringEngine(
+      new Date("2027-01-20T00:00:00.000Z"),
+    );
+    expect(
+      secondRun.posted.map((a) => ({ id: a.id, period: a.period })),
+    ).toEqual([
+      { id: "det-id-3", period: "2026-12" },
+      { id: "det-id-4", period: "2027-01" },
+    ]);
+
+    const storedActivities = await api.listActivities();
+    expect(storedActivities.map((a) => a.id)).toEqual([
+      "det-id-2",
+      "det-id-3",
+      "det-id-4",
+    ]);
   });
 
   it("is idempotent: a second call at the same now posts nothing new", async () => {

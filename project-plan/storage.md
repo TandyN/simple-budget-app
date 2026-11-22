@@ -119,7 +119,7 @@ To guarantee deterministic persistence in v1 and zero-data-loss migrations as po
   - If any step inside `onupgradeneeded` throws, IndexedDB automatically aborts the `versionchange` transaction and leaves the prior database version untouched.
 - **Object stores and secondary indexes created in v1 (`DB_VERSION = 1`):**
   1. **`"meta"`** (`{ keyPath: "key" }`):
-     - Stores database-level metadata, initialized on upgrade with `{ key: "schema", schemaVersion: 1, updatedAt: new Date().toISOString() }`, and tracks user backup metadata such as `{ key: "lastBackupAt", timestamp: ISO-8601 }` for the Settings backup-age indicator.
+     - Stores database-level metadata, initialized on upgrade with `{ key: "schema", schemaVersion: 1, updatedAt: new Date().toISOString() }`, and tracks user backup metadata such as `{ key: "lastBackupAt", value: ISO-8601 }` (written via `setMeta("lastBackupAt", timestamp)`) for the Settings backup-age indicator.
   2. **`"rules"`** (`{ keyPath: "id" }`):
      - No secondary index on `active` (`by_active` was removed because booleans are not valid IndexedDB keys per the W3C IndexedDB specification — valid key types are `number`, `string`, `Date`, binary, and `Array`; indexing a boolean field silently omits records and causes index queries to return empty results). Because the recurring rules list is small, active vs. paused rules are filtered in memory after reading `"rules"`.
   3. **`"activities"`** (`{ keyPath: "id" }`):
@@ -197,7 +197,7 @@ Local-first browser and WebView storage is subject to user-agent storage pressur
     ```
 - **Settings durability status (`navigator.storage.persisted()`) & N-day backup nag:**
   1. **Persisted status readout:** Settings queries `await navigator.storage?.persisted?.()` (falling back to `false` when unsupported) and displays the live storage persistence status (e.g., *"Persistent storage granted"* vs. *"Best-effort browser storage — export regular backups"*), updating immediately after the first-action `persist()` call.
-  2. **Last-backup date & N-day backup reminder:** Every successful `budget.exportBackup()` writes `{ key: "lastBackupAt", timestamp: new Date().toISOString() }` to the `"meta"` object store. Settings displays the **last-backup date** (or *"Never backed up"*) and shows a non-blocking **N-day backup nag** (default `N = 30` days since `lastBackupAt`, or once user data exists with no backup) prompting a one-tap JSON backup export to Files / iCloud Drive / Google Drive.
+  2. **Last-backup date & N-day backup reminder:** Every successful `budget.exportBackup()` writes `{ key: "lastBackupAt", value: new Date().toISOString() }` to the `"meta"` object store via `setMeta("lastBackupAt", exportedAt)`. Settings displays the **last-backup date** (or *"Never backed up"*) and shows a non-blocking **N-day backup nag** (default `N = 30` days since `lastBackupAt`, or once user data exists with no backup) prompting a one-tap JSON backup export to Files / iCloud Drive / Google Drive.
   3. **Periodic JSON backup exports & pre-import safety:** Combining one-tap JSON export, the N-day backup nag, and the pre-import safety snapshot before `replaceAll` ensures users always hold a portable, human-readable recovery copy.
 
 ## Security properties

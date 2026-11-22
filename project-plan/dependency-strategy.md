@@ -127,12 +127,13 @@ time and live in **`devDependencies`**.
 | E2E / browser testing | **Playwright (`@playwright/test`)** | **Active & current:** very active repo, regular releases. **First-party / tool-maintainer:** maintained by Microsoft (the browser-automation vendor). **Industry-standard:** the current standard for fast, reliable headless browser E2E across Chromium and WebKit. |
 | Accessibility testing | **`@axe-core/playwright`** | **Active & current:** actively maintained, regular releases. **First-party / tool-maintainer:** maintained by Deque Systems (the `axe-core` maintainers) and officially recommended in Playwright's accessibility testing docs. **Industry-standard:** the standard automated WCAG 2.2 AA accessibility scanner for Playwright E2E tests. |
 | IndexedDB test polyfill | **`fake-indexeddb`** | **Active & current:** maintained with releases; **First-party / tool-maintainer:** maintained by its dedicated author (a stable, single-maintainer project, not a fork); **Industry-standard:** the de-facto in-memory IndexedDB implementation so `src/storage/indexeddb.ts` can be unit-tested in Vitest (Node). *(Category: test-support, not a runtime framework.)* |
+| DOM test environment | **`happy-dom`** | **Active & current:** actively maintained with frequent releases. **First-party / tool-maintainer:** maintained by its upstream author (`capricorn86/happy-dom`) and built in as a first-class Vitest test environment (`// @vitest-environment happy-dom`). **Industry-standard:** the standard fast, lightweight DOM implementation for Vitest unit testing of colocated browser/DOM modules (`src/ui/`, `src/platform/`) in Node without launching a full browser. *(Category: test-support, not a runtime framework; zero bytes in `dist/`.)* |
 | Lint + format | **Biome** | **Active & current:** actively maintained, regular releases. **First-party / tool-maintainer:** maintained by the Biome project (Rust-based, first-party). **Industry-standard:** the current best-practice single lint + format tool (sub-ms, no plugin config). (ESLint 9 + Prettier is the fallback if a plugin ecosystem is later needed.) |
 | Type check | **tsc** (TypeScript) | **Active & current:** the TypeScript compiler itself — the most actively maintained project in the JS/TS ecosystem, regular releases. **First-party / tool-maintainer:** maintained by Microsoft (the language owner). **Industry-standard:** `tsc --noEmit` runs in CI. |
 | Node.js type definitions | **`@types/node`** | **Active & current:** continuously updated in lockstep with Active-LTS Node.js releases. **First-party / tool-maintainer:** maintained by DefinitelyTyped / the Microsoft TypeScript team, and declared as a peer dependency by Vite and Vitest (also referenced by `playwright-core` `.d.ts` files). **Industry-standard:** the sole canonical Node.js type definitions package; strictly `devDependencies` (zero bytes in `dist/`) and isolated to `tsconfig.node.json` so `src/` never sees Node globals. |
 
 **The full `devDependencies` set:** `vite`, `vitest`, `@vitest/coverage-v8`,
-`fake-indexeddb`, `@playwright/test`, `@axe-core/playwright`, `@biomejs/biome`,
+`fake-indexeddb`, `happy-dom`, `@playwright/test`, `@axe-core/playwright`, `@biomejs/biome`,
 `typescript`, `@types/node`. **No framework runtime deps** — `dependencies` (production) MUST
 remain completely empty. **pnpm** is the *package manager* that installs these —
 it is **provisioned** (via the `packageManager` field and `pnpm/action-setup` in
@@ -143,7 +144,7 @@ actions** below are likewise provisioned, not installed as packages.
 hardcoding potentially stale tool version numbers. The Phase 1 bootstrap task
 MUST verify and install the current stable major versions of every allowed
 `devDependencies` package (Vite, Vitest, `@vitest/coverage-v8`, `fake-indexeddb`,
-`@playwright/test`, `@axe-core/playwright`, Biome, TypeScript, `@types/node`) along with the
+`happy-dom`, `@playwright/test`, `@axe-core/playwright`, Biome, TypeScript, `@types/node`) along with the
 current Active-LTS even Node.js release (from `nodejs.org`) and a modern pnpm
 release (10+, supporting npm's bulk audit endpoint), pinned via `pnpm-workspace.yaml`
 `saveExact: true` (and `.npmrc` `save-exact=true` for npm fallback). Dependabot (`.github/dependabot.yml`) keeps both `npm`

@@ -120,7 +120,43 @@ in its own topic doc, not here.
   injection sink can receive raw strings, while allowlisting a single
   `createScriptURL`-only `sw-register` policy for `navigator.serviceWorker.register`
   (layering on top of the CI-enforced DOM XSS ban).
-  [project-plan/frontend.md](../project-plan/frontend.md#1-strict-content-security-policy-indexhtml)
+  [budget-app/frontend.md](budget-app/frontend.md#1-entry-point-csp-baseline--clickjacking-guard-indexhtml-srcmaints-srcenvdts)
+- **safe-DOM helper layer (`src/ui/dom.ts`)** — the small, framework-free, DOM-only
+  primitive layer every UI task builds on: `el(tag, attrs?, children?)`
+  (`children?: readonly ElChild[]`), `text(value)`, `setAttrs(target, attrs)`
+  (`null` removes an attribute via `removeAttribute`), and
+  `replaceChildren(parent, ...children)` (`null` children dropped). Uses
+  **exclusively** `document.createElement`, `document.createTextNode`,
+  `element.setAttribute`, `element.removeAttribute`, and
+  `parent.replaceChildren`, enforcing the DOM XSS ban by construction (Gate 4);
+  unit-tested in `happy-dom` (`src/ui/dom.test.ts`).
+  [budget-app/frontend.md](budget-app/frontend.md#2-safe-dom-helper-layer-srcuidomts)
+- **accessible 3-tab shell (`src/ui/shell.ts`)** — the Phase 4A walking-skeleton
+  app shell: `renderShell(container): ConfirmDialog` mounts `<nav role="tablist">`
+  with three `<button role="tab">` controls (`Budget`/`Insights`/`Settings`)
+  paired with `<section role="tabpanel">` placeholders, roving `tabindex` +
+  wrapping `ArrowLeft`/`ArrowRight` navigation, a native `<dialog class="confirm-dialog">`
+  confirmation helper (`showModal()` / `close()` restoring focus to the invoking
+  tab), and `>= 44×44 CSS px` touch targets (WCAG 2.2 AA), all via `src/ui/dom.ts`
+  and mounted in `src/main.ts`; unit-tested in `happy-dom` (`src/ui/shell.test.ts`).
+  [budget-app/frontend.md](budget-app/frontend.md#3-accessible-3-tab-application-shell--dialog-helper-srcuishellts)
+- **frame CSS (`src/styles/frame.css`)** — the Phase 4A iPhone-Duo dual-state
+  responsive stylesheet linked from `index.html`: system font stack on `:root`,
+  `100dvh` with `@supports (height: 100svh)` and `overflow: hidden` on
+  `html, body`, `env(safe-area-inset-*)` padding directly on `#app`, folded
+  (`< 700px`) single-panel `column` layout vs. unfolded (`>= 700px`) split-pane
+  `row` layout with a fixed `200px` `nav[role="tablist"]` rail, and `>= 44×44 CSS px`
+  buttons.
+  [budget-app/frontend.md](budget-app/frontend.md#4-iphone-duo-dual-state-css-frame-srcstylesframecss)
+- **Playwright smoke E2E harness (`e2e/smoke.spec.ts`, `e2e/fixtures/index.ts`)** —
+  the Phase 4A co-shipped Playwright smoke E2E suite and shared fixtures (#277)
+  running against `vite preview` of `dist/` across `375×667` folded, `829×1194`
+  unfolded, and `390×844` slab viewports on Chromium + WebKit: enforces global
+  zero-external-egress via `context.on("request")`, zero `pageerror` /
+  `console.error` / `console.warning`, `@axe-core/playwright` WCAG 2.2 AA scans
+  (`["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]`) across all tabs and open
+  `<dialog>`, and zero-overflow + `>= 44×44 CSS px` touch-target geometry.
+  [budget-app/testing.md](budget-app/testing.md#playwright-e2e-harness-e2e)
 - **origin isolation** — deriving IndexedDB (`DB_NAME`), CacheStorage, and
   `BroadcastChannel` names from `import.meta.env.BASE_URL`
   (`simple-budget-app` / `simple-budget-sync` vs.
@@ -142,11 +178,14 @@ in its own topic doc, not here.
   starting from `NSPrivacyAccessedAPICategoryUserDefaults` / `CA92.1`, preventing
   App Store Connect error `ITMS-91053`).
   [project-plan/portability.md](../project-plan/portability.md#2-ios-required-reason-api-privacy-manifest-nativeiosappappprivacyinfoxcprivacy)
-- **`PlatformServices`** — the tiny runtime interface (`saveBackup`, `shareBackup`,
-  `isNative`) resolved via `window.Capacitor` feature detection so the zero-prod-dep
+- **`PlatformServices` (`src/platform/services.ts`)** — the tiny runtime interface (`saveBackup`, `shareBackup`,
+  `isNative`) built by `createPlatformServices(win?)` via `window.Capacitor` feature detection (ambient types in `src/env.d.ts`) so the zero-prod-dep
   web bundle (`dist/`) stays identical and never imports `@capacitor/*`, while native
-  shell wrappers live in the isolated `native/` workspace package.
-  [project-plan/portability.md](../project-plan/portability.md#package-boundary--platformservices-seam)
+  shell wrappers live in the isolated `native/` workspace package; on web/PWA, `shareBackup`
+  uses `navigator.share` when supported (resolving silently on user-cancelled `AbortError`
+  and falling back to `saveBackup` when `navigator.share` is unavailable or rejects with a
+  non-`AbortError` failure, #281; unit-tested in `happy-dom` in `src/platform/services.test.ts`).
+  [budget-app/frontend.md](budget-app/frontend.md#5-platformservices-runtime-seam-srcplatformservicests)
 - **`BudgetBackup` (atomic JSON export/import & validation)** — the versioned
   (`schemaVersion: 1`) JSON backup envelope validated by `validateBackupPayload`
   (10 MB byte ceiling, `__proto__` / `constructor` / `prototype` key rejection,
@@ -211,7 +250,7 @@ in its own topic doc, not here.
   the `Entity`/`EntityKey`/`EntityField`/`QueryPredicate` contract lets the store be
   swapped (IndexedDB → durable native, OQ-4) without touching `src/core/` or the front-end.
   [budget-app/backend.md](budget-app/backend.md#6-storageadapter-contract-srcstorageadapterts)
-- **`IndexedDbAdapter` (T-A + U1 + U2 + U3 + #265, `src/storage/indexeddb.ts`)** — the production `StorageAdapter` (Phase 3): `deriveDbName`/`DB_NAME` origin isolation (OQ-1), `DB_VERSION = 1` + `onupgradeneeded` (meta/rules/activities stores + `by_dateTime`/`by_type`/`by_tags`(multi)/`by_rule_period` indexes, no boolean `active` index), idempotent `open()` (with defensive non-destructive `VersionError` → `VersionMismatchError`, #252), basic `getMeta`/`setMeta`, the atomic `replaceAll` (#249) that clears + re-writes `"rules"`+`"activities"` in one `readwrite` transaction with automatic rollback on failure, the best-effort durability API (#253): `requestPersistenceAfterFirstAction()` (first-action `navigator.storage?.persist?.()`, never throws), `getPersisted()` (live `persisted()` status), and `getLastBackupAt()` (ISO-8601 `"lastBackupAt"` meta read, or `null`), and the CRUD surface (#265): `save` (upsert via `put` in a `readwrite` transaction), `delete` (idempotent remove by `id`), and `query(store, where?)` (`getAll()` or index-backed read with the `{ field, eq }` strict-equality predicate).
+- **`IndexedDbAdapter` (T-A + U1 + U2 + U3 + #265, `src/storage/indexeddb.ts`)** — the production `StorageAdapter` (Phase 3): `deriveDbName`/`DB_NAME` origin isolation (OQ-1), `DB_VERSION = 1` + `onupgradeneeded` (meta/rules/activities stores + `by_dateTime`/`by_type`/`by_tags`(multi)/`by_rule_period` indexes, no boolean `active` index), idempotent `open()` (non-destructive `VersionError` → `VersionMismatchError`, #252; pre-`open()` calls reject asynchronously, #255), `getMeta`/`setMeta`, atomic `replaceAll` (#249), durability API (#253, #267: `requestPersistenceAfterFirstAction()`, `getPersisted()`, `getLastBackupAt()` delegating to `getMeta("lastBackupAt")`), and CRUD (#265, #269: `save`, idempotent `delete`, and `query(store, where?)` with store-scoped scalar `FIELD_INDEX` excluding `tags`).
   [budget-app/backend.md](budget-app/backend.md#8-indexeddbadapter--t-a--u1--u2--u3-srcstorageindexeddbts)
 - **`InMemoryAdapter` (`src/storage/memory.ts`)** — the deterministic, zero-dependency
   `StorageAdapter` for unit/integration tests: `replaceAll` validates the full payload
@@ -274,8 +313,8 @@ in its own topic doc, not here.
 - **responsive viewport (folded/unfolded)** — the state-aware layout model built on **logical units + safe-area insets**, not fixed pixel widths; breakpoint is **folded → unfolded** (NOT mobile → tablet → desktop); **slab phones (≈ folded) are the secondary target**. [project-plan/frontend.md](../project-plan/frontend.md#responsive-viewport--iphone-duo-foldable-dual-state-req-2)
 - **safe-area inset** — `env(safe-area-inset-*)` used in padding/margin/position so content is never obscured by the notch, Dynamic Island, home indicator, or status bar; the iPhone-Duo layout relies on it rather than hard-pixel viewports. [project-plan/frontend.md](../project-plan/frontend.md#responsive-viewport--iphone-duo-foldable-dual-state-req-2)
 - **base path (configurable)** — the Vite `base` / `VITE_BASE_PATH` build-time input (read from `import.meta.env.BASE_URL` at runtime) that rewrites asset URLs; production = `/simple-budget-app/`, PR preview = `/simple-budget-app/pr-<PR#>/`; an explicit, non-hardcoded build decision. [project-plan/frontend.md](../project-plan/frontend.md#base-path-configurable-explicit-build-decision)
-- **gh-pages preview (mode a)** — the mode-(a) same-site sub-path PR-preview architecture (`tandyn.github.io/simple-budget-app/pr-<PR#>/`) published via plain `git` to the `gh-pages` branch using `GITHUB_TOKEN` (no third-party Pages action; OQ-5, flagged to the user for confirmation), serialized via `concurrency: { group: "pages-deploy", cancel-in-progress: false }`, guaranteeing **production root untouched** on PR deploys and **PR sub-path pruned on merge/close**. [project-plan/testing.md](../project-plan/testing.md#ci-workflow-mechanics-gh-pages-branch-publishing--prune-on-merge--production-unchanged)
-- **well-maintained criterion** — the governing rule for **any** dev dependency (local package *or* CI action): must be **Active & current**, **First-party / tool-maintainer**, and **Industry-standard** in its category; the curated dev-dep set (pnpm, Vite, Vitest, `@vitest/coverage-v8`, Playwright, `@axe-core/playwright`, `fake-indexeddb`, Biome, tsc) and the SHA-pinned CI actions all pass it. [project-plan/dependency-strategy.md](../project-plan/dependency-strategy.md#the-well-maintained-criterion-the-governing-rule-for-any-dev-dependency)
+- **gh-pages preview (mode a, `.github/workflows/deploy-pages.yml`)** — the mode-(a) same-site sub-path PR-preview architecture (`tandyn.github.io/simple-budget-app/pr-<PR#>/`) published via plain `git` to the `gh-pages` branch using `GITHUB_TOKEN` (no third-party Pages action; OQ-5 confirmed, #278), serialized via `concurrency: { group: "pages-deploy", cancel-in-progress: false }` with a retry/rebase-on-push loop, guaranteeing **production root untouched** on PR deploys and **PR sub-path pruned on merge/close** (`git rm -rf --ignore-unmatch pr-<PR#>/`), unit-tested against a bare git remote in `scripts/deploy-pages-workflow.test.mjs`. [budget-app/testing.md](budget-app/testing.md#ci--supply-chain-workflows)
+- **well-maintained criterion** — the governing rule for **any** dev dependency (local package *or* CI action): must be **Active & current**, **First-party / tool-maintainer**, and **Industry-standard** in its category; the curated dev-dep set (pnpm, Vite, Vitest, `@vitest/coverage-v8`, Playwright, `@axe-core/playwright`, `fake-indexeddb`, `happy-dom`, Biome, tsc, `@types/node`) and the SHA-pinned CI actions all pass it. [project-plan/dependency-strategy.md](../project-plan/dependency-strategy.md#the-well-maintained-criterion-the-governing-rule-for-any-dev-dependency)
 - **credential-gated build** — the Android/iOS native build jobs are **skip-not-fail** gated at job level by `if: ${{ vars.NATIVE_BUILDS_ENABLED == 'true' }}` with signing secrets mapped to step-level `env:` (disabled/absent → **skipped, not failed**); the always-run Web/PWA build is **not** credential-gated. Build-only, no store upload. [project-plan/testing.md](../project-plan/testing.md#android--ios-test-build-pipeline-credential-skip-build-only)
 - **release automation (`.github/workflows/release.yml`)** — manual SemVer in root `package.json` + annotated `vX.Y.Z` git tags on `main` triggering `.github/workflows/release.yml` (SHA-pinned first-party actions, zero extra third-party release bots) to verify CI, attach an immutable `dist/` archive + SHA-256 checksum, and publish a Conventional Commits GitHub Release. [project-plan/testing.md](../project-plan/testing.md#release-versioning--rollback--roll-forward-pipeline)
 - **Roll-Forward** — the mandatory forward-only recovery strategy when binary or schema downgrade is impossible (post-`DB_VERSION`-bump IndexedDB migrations at `N + 1`, Emergency No-Op/Kill-Switch `sw.js` recovery, and Phase 6 iOS/Android monotonic hotfix releases after pausing/halting a rollout); same-schema PWA releases (`DB_VERSION` unchanged) may roll back via `workflow_dispatch` tag re-deploy. [project-plan/testing.md](../project-plan/testing.md#release-versioning--rollback--roll-forward-pipeline)
@@ -283,7 +322,7 @@ in its own topic doc, not here.
 - **`updateViaCache`** — Service Worker registration option set to `{ updateViaCache: "none" }` so the browser always revalidates `sw.js` directly against the network, bypassing GitHub Pages' default 10-minute `Cache-Control` window for immediate update and rollback detection. [project-plan/frontend.md](../project-plan/frontend.md#service-worker-design-pwa-offline-scoping--update-lifecycle)
 - **`VersionError`** — W3C IndexedDB error thrown when `indexedDB.open(name, version)` requests a lower `DB_VERSION` than the on-disk database; handled defensively with a non-destructive "Update required" banner (calling `indexedDB.deleteDatabase()` is strictly forbidden) and avoided via expand-and-contract roll-forward migrations (`DB_VERSION = N + 1`). [project-plan/storage.md](../project-plan/storage.md#indexeddb-schema-rollback-safety-versionerror--expand-and-contract)
 - **`VersionMismatchError`** — the typed, **non-destructive** rejection `IndexedDbAdapter.open()` raises (exported from `src/storage/indexeddb.ts`) when the on-disk database version is **higher** than `DB_VERSION` (a W3C `VersionError`): a named class (`err.name === "VersionMismatchError"`, carrying `expectedVersion`) the UI branches on to render an accessible "Update required" banner. `open()` **never** calls `indexedDB.deleteDatabase()` in response — deleting local-first financial data is irreversible loss with no remote copy to re-sync from. Added in U2 (#252). [budget-app/backend.md](budget-app/backend.md#8-indexeddbadapter--t-a--u1--u2--u3-srcstorageindexeddbts)
-- **`assertNotFramed`** — dependency-injected `top !== self` clickjacking frame-buster guard exported by `src/main.ts` (clears `documentElement` via `replaceChildren()` and throws `"Framing is not permitted"` when framed; unit-tested in `src/main.test.ts`). [budget-app.md](budget-app.md#key-decisions)
+- **`assertNotFramed`** — dependency-injected `top !== self` clickjacking frame-buster guard exported by `src/main.ts` (clears `documentElement` via `replaceChildren()` and throws `"Framing is not permitted"` when framed; unit-tested in `src/main.test.ts`). [budget-app/frontend.md](budget-app/frontend.md#1-entry-point-csp-baseline--clickjacking-guard-indexhtml-srcmaints-srcenvdts)
 - **`verify:gates` (`scripts/verify-build-gates.mjs`)** — zero-dependency Node ESM post-build security & privacy gate script (unit-tested in `scripts/verify-build-gates.test.mjs`) enforcing empty `dependencies`/`optionalDependencies` + exact `devDependencies` + zero `@capacitor/*` in `src/`, strict CSP + Trusted Types + `no-referrer` (and no `frame-ancestors`) in `dist/index.html` with linear comment stripping (`stripHtmlComments`) and fail-closed HTML5 comment-end checks, zero external `http(s)://` URLs in `dist/` (outside W3C XML namespaces), and zero banned DOM XSS / eval sinks in non-test `src/` files. [budget-app/testing.md](budget-app/testing.md#phase-1-toolchain-conventions)
 - **split `tsconfig` (`tsconfig.json` / `tsconfig.node.json`)** — strict browser/app TypeScript config (`types: ["vite/client"]`, `include: ["src"]`, `skipLibCheck: false`) paired with `tsconfig.node.json` (`types: ["node"]`, isolating `@types/node` to Vite/Vitest/Playwright configs and `e2e/`). [budget-app/testing.md](budget-app/testing.md#phase-1-toolchain-conventions)
 - **post-merge repo hardening** — the three `gh api` commands (`vulnerability-alerts`, `actions/permissions` `sha_pinning_required=true`, and `branches/main/protection` requiring the `ci` check with `enforce_admins: true`) run by `staff-software-engineer` immediately upon merging Story #216 to `main`. [budget-app/testing.md](budget-app/testing.md#post-merge-repository-hardening-commands)

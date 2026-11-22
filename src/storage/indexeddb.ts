@@ -80,20 +80,20 @@ export const DB_VERSION = 1;
  * store that actually has one — the `"rules"` store gets **no** index-backed
  * read and always falls back to `getAll()` + in-memory filtering.
  *
- * Only `activities` has single-field secondary indexes (see `handleUpgrade`):
- * `by_type` (`type`), `by_tags` (`tags`, `multiEntry`), and `by_dateTime`
- * (`dateTime`). The compound `by_rule_period` index is intentionally
- * **excluded** — it is keyed by `[sourceRuleId, period]` and cannot be
- * addressed by a single-field `{ field, eq }` predicate (a bare `sourceRuleId`
- * value is not a valid key into the compound index), so those predicates
- * filter in memory over `getAll()`.
- *
- * NOTE: the `tags → by_tags` entry is effectively dead weight — the blanket
- * strict-equality (`===`) re-filter applied to every indexed read cannot match
- * a `string[]` array field, so a `tags` predicate still resolves to `[]`
- * (consistent with `InMemoryAdapter` and the documented `===` contract). It is
- * kept only for symmetry with the index set; removing it would avoid one
- * wasted index read.
+ * Only `activities` scalar single-field secondary indexes are included (see
+ * `handleUpgrade`): `by_type` (`type`) and `by_dateTime` (`dateTime`).
+ * - The multi-entry `by_tags` (`tags`) index is intentionally **excluded**
+ *   (#269): `QueryPredicate` uses strict scalar/reference equality (`===`),
+ *   which cannot match a `string[]` array field against a tag string or fresh
+ *   array literal, so routing `tags` predicates through `by_tags` would perform
+ *   a wasted index read that the strict `===` re-filter always discards to
+ *   `[]`. (The `by_tags` schema index itself remains in `DB_VERSION = 1` for
+ *   future range/cursor consumers without requiring a schema migration.)
+ * - The compound `by_rule_period` index is intentionally **excluded**: it is
+ *   keyed by `[sourceRuleId, period]` and cannot be addressed by a
+ *   single-field `{ field, eq }` predicate (a bare `sourceRuleId` value is not
+ *   a valid key into the compound index), so those predicates filter in memory
+ *   over `getAll()`.
  */
 const FIELD_INDEX: Record<EntityKey, Record<string, string>> = {
   // The `rules` store has no secondary indexes (only the `id` keyPath), so
@@ -101,7 +101,6 @@ const FIELD_INDEX: Record<EntityKey, Record<string, string>> = {
   rules: {},
   activities: {
     type: "by_type",
-    tags: "by_tags",
     dateTime: "by_dateTime",
   },
 };
@@ -248,8 +247,8 @@ export class IndexedDbAdapter implements StorageAdapter {
    * **No** `indexedDB.deleteDatabase()` is ever called on the failure path
    * (`project-plan/storage.md` → "deleteDatabase() forbidden").
    */
-  save<K extends EntityKey>(store: K, value: Entity[K]): Promise<void> {
-    const db = this.requireDb();
+  async save<K extends EntityKey>(store: K, value: Entity[K]): Promise<void> {
+    const db = await this.requireDb();
     return new Promise<void>((resolve, reject) => {
       const tx = db.transaction(store, "readwrite");
       tx.oncomplete = () => resolve();
@@ -279,8 +278,8 @@ export class IndexedDbAdapter implements StorageAdapter {
    * **No** `indexedDB.deleteDatabase()` is ever called on the failure path
    * (`project-plan/storage.md` → "deleteDatabase() forbidden").
    */
-  delete(store: EntityKey, id: string): Promise<void> {
-    const db = this.requireDb();
+  async delete(store: EntityKey, id: string): Promise<void> {
+    const db = await this.requireDb();
     return new Promise<void>((resolve, reject) => {
       const tx = db.transaction(store, "readwrite");
       tx.oncomplete = () => resolve();
@@ -302,20 +301,20 @@ export class IndexedDbAdapter implements StorageAdapter {
    *
    * Runs in its own `readonly` transaction. With no `where` predicate the
    * whole store is read via `getAll()`. When a `{ field, eq }` predicate names
-   * a field covered by `FIELD_INDEX[store]` (the `"activities"` `by_type`,
-   * `by_tags`, and `by_dateTime` indexes), the read goes through
+   * a field covered by `FIELD_INDEX[store]` (the `"activities"` `by_type` and
+   * `by_dateTime` scalar indexes), the read goes through
    * `index.getAll(predicate.eq)`; any other field — including **every**
    * `"rules"` field, since the `"rules"` store has no secondary indexes, plus
-   * `activities` fields like `id` and `sourceRuleId` — reads via `getAll()`
-   * and is filtered in memory (strict `===`) — the same predicate semantics
-   * as `InMemoryAdapter.query`. Resolves on `request.onsuccess`, rejects on
-   * `request.onerror`.
+   * `activities` fields like `id`, `sourceRuleId`, and `tags` — reads via
+   * `getAll()` and is filtered in memory (strict `===`) — the same predicate
+   * semantics as `InMemoryAdapter.query`. Resolves on `request.onsuccess`,
+   * rejects on `request.onerror`.
    */
-  query<K extends EntityKey>(
+  async query<K extends EntityKey>(
     store: K,
     where?: QueryPredicate<K>,
   ): Promise<Entity[K][]> {
-    const db = this.requireDb();
+    const db = await this.requireDb();
     return new Promise<Entity[K][]>((resolve, reject) => {
       const tx = db.transaction(store, "readonly");
       const objectStore = tx.objectStore(store);
@@ -365,11 +364,11 @@ export class IndexedDbAdapter implements StorageAdapter {
    * **No** `indexedDB.deleteDatabase()` is ever called on the failure path
    * (`project-plan/storage.md` → "deleteDatabase() forbidden").
    */
-  replaceAll(data: {
+  async replaceAll(data: {
     rules: RecurringRule[];
     activities: Activity[];
   }): Promise<void> {
-    const db = this.requireDb();
+    const db = await this.requireDb();
     return new Promise<void>((resolve, reject) => {
       const tx = db.transaction(["rules", "activities"], "readwrite");
       // Attach the terminal handlers *before* queueing any work so the promise
@@ -462,60 +461,30 @@ export class IndexedDbAdapter implements StorageAdapter {
   /**
    * Read the last-backup timestamp from the `"meta"` store (the Settings
    * "last-backup date" / N-day backup nag input). **Read-only** here — the
-   * write is #247's `exportBackup` scope, which records
-   * `{ key: "lastBackupAt", timestamp }`.
+   * write is `budget.exportBackup()` (`setMeta("lastBackupAt", exportedAt)`),
+   * which stores the canonical `{ key: "lastBackupAt", value: <ISOTimestamp> }`
+   * envelope (#267).
    *
-   * Reads the **raw** `"meta"` store record (not through `getMeta`, whose
-   * `{ key, value }` envelope would drop the `timestamp` field): the spec's
-   * `{ key: "lastBackupAt", timestamp }` record shape carries no `value`
-   * field. Resolves to `null` when no `lastBackupAt` meta exists (never
-   * backed up) or carries no readable timestamp; otherwise the recorded
-   * ISO-8601 timestamp string. A `setMeta` `{ key, value }` envelope with an
-   * ISO-string value is also accepted.
+   * Delegates to `getMeta("lastBackupAt")` and resolves to `null` when no
+   * `lastBackupAt` meta exists (never backed up) or when the stored value is
+   * not a string; otherwise the recorded ISO-8601 timestamp string.
    *
    * Requires `open()` to have run (same precondition as `getMeta`).
    *
    * `project-plan/storage.md` → Storage Durability & WebKit Eviction
    * Mitigation: "Last-backup date & N-day backup reminder".
    */
-  getLastBackupAt(): Promise<string | null> {
-    const db = this.requireDb();
-    return new Promise<string | null>((resolve, reject) => {
-      const tx = db.transaction("meta", "readonly");
-      const request = tx.objectStore("meta").get("lastBackupAt");
-      request.onsuccess = () => {
-        const record = request.result as
-          | { timestamp?: unknown; value?: unknown }
-          | string
-          | undefined;
-        if (record === undefined) {
-          resolve(null);
-          return;
-        }
-        if (typeof record === "string") {
-          resolve(record);
-          return;
-        }
-        if (typeof record.timestamp === "string") {
-          resolve(record.timestamp);
-          return;
-        }
-        if (typeof record.value === "string") {
-          resolve(record.value);
-          return;
-        }
-        resolve(null);
-      };
-      request.onerror = () => reject(request.error);
-    });
+  async getLastBackupAt(): Promise<string | null> {
+    const value = await this.getMeta<unknown>("lastBackupAt");
+    return typeof value === "string" ? value : null;
   }
 
   /**
    * Read a metadata record by key from the `"meta"` store, or `null` if the
    * key is absent. Runs in its own `readonly` transaction.
    */
-  getMeta<T>(key: string): Promise<T | null> {
-    const db = this.requireDb();
+  async getMeta<T>(key: string): Promise<T | null> {
+    const db = await this.requireDb();
     return new Promise<T | null>((resolve, reject) => {
       const tx = db.transaction("meta", "readonly");
       const request = tx.objectStore("meta").get(key);
@@ -533,8 +502,8 @@ export class IndexedDbAdapter implements StorageAdapter {
    * value type. Runs in its own `readwrite` transaction and resolves on
    * `oncomplete`.
    */
-  setMeta<T>(key: string, value: T): Promise<void> {
-    const db = this.requireDb();
+  async setMeta<T>(key: string, value: T): Promise<void> {
+    const db = await this.requireDb();
     return new Promise<void>((resolve, reject) => {
       const tx = db.transaction("meta", "readwrite");
       tx.objectStore("meta").put({ key, value });
@@ -544,12 +513,19 @@ export class IndexedDbAdapter implements StorageAdapter {
     });
   }
 
-  /** Return the open database handle, throwing if `open()` has not run yet. */
-  private requireDb(): IDBDatabase {
+  /**
+   * Return a Promise resolving to the open database handle, or rejecting with
+   * an `Error` if `open()` has not run yet (honoring the async
+   * `Promise`-returning `StorageAdapter` contract rather than throwing
+   * synchronously).
+   */
+  private requireDb(): Promise<IDBDatabase> {
     if (this.db === undefined) {
-      throw new Error("IndexedDbAdapter: call open() before using the adapter");
+      return Promise.reject(
+        new Error("IndexedDbAdapter: call open() before using the adapter"),
+      );
     }
-    return this.db;
+    return Promise.resolve(this.db);
   }
 }
 
