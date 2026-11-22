@@ -462,16 +462,13 @@ export class IndexedDbAdapter implements StorageAdapter {
   /**
    * Read the last-backup timestamp from the `"meta"` store (the Settings
    * "last-backup date" / N-day backup nag input). **Read-only** here — the
-   * write is #247's `exportBackup` scope, which records
-   * `{ key: "lastBackupAt", timestamp }`.
+   * write is `budget.exportBackup()` (`setMeta("lastBackupAt", exportedAt)`),
+   * which stores the canonical `{ key: "lastBackupAt", value: <ISOTimestamp> }`
+   * envelope (#267).
    *
-   * Reads the **raw** `"meta"` store record (not through `getMeta`, whose
-   * `{ key, value }` envelope would drop the `timestamp` field): the spec's
-   * `{ key: "lastBackupAt", timestamp }` record shape carries no `value`
-   * field. Resolves to `null` when no `lastBackupAt` meta exists (never
-   * backed up) or carries no readable timestamp; otherwise the recorded
-   * ISO-8601 timestamp string. A `setMeta` `{ key, value }` envelope with an
-   * ISO-string value is also accepted.
+   * Delegates to `getMeta("lastBackupAt")` and resolves to `null` when no
+   * `lastBackupAt` meta exists (never backed up) or when the stored value is
+   * not a string; otherwise the recorded ISO-8601 timestamp string.
    *
    * Requires `open()` to have run (same precondition as `getMeta`).
    *
@@ -479,35 +476,8 @@ export class IndexedDbAdapter implements StorageAdapter {
    * Mitigation: "Last-backup date & N-day backup reminder".
    */
   async getLastBackupAt(): Promise<string | null> {
-    const db = await this.requireDb();
-    return new Promise<string | null>((resolve, reject) => {
-      const tx = db.transaction("meta", "readonly");
-      const request = tx.objectStore("meta").get("lastBackupAt");
-      request.onsuccess = () => {
-        const record = request.result as
-          | { timestamp?: unknown; value?: unknown }
-          | string
-          | undefined;
-        if (record === undefined) {
-          resolve(null);
-          return;
-        }
-        if (typeof record === "string") {
-          resolve(record);
-          return;
-        }
-        if (typeof record.timestamp === "string") {
-          resolve(record.timestamp);
-          return;
-        }
-        if (typeof record.value === "string") {
-          resolve(record.value);
-          return;
-        }
-        resolve(null);
-      };
-      request.onerror = () => reject(request.error);
-    });
+    const value = await this.getMeta<unknown>("lastBackupAt");
+    return typeof value === "string" ? value : null;
   }
 
   /**

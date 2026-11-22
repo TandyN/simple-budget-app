@@ -88,7 +88,7 @@ To guarantee mathematical accuracy, storage durability, and security/privacy com
   - Seeds existing rules and activities in IndexedDB, attempts `budget.importBackup(...)` with malformed, corrupt, schema-invalid, or prototype-polluting JSON (as well as simulated mid-transaction write failure), and asserts that the call rejects cleanly while all pre-existing IndexedDB records and `getAvailableFunds()` remain **100% intact**.
 - **Storage durability persistence (`persist()` / `persisted()`) & backup metadata:**
   - Verifies `budget.init()` does **not** invoke `navigator.storage?.persist?.()` prematurely; verifies `navigator.storage?.persist?.()` is invoked best-effort after the first user write/action and returns cleanly without throwing when `navigator.storage` is absent or returns `false`.
-  - Verifies `navigator.storage?.persisted?.()` status is surfaced cleanly and `budget.exportBackup()` records `{ key: "lastBackupAt", timestamp }` in `"meta"` to drive the Settings backup-age display and N-day backup nag.
+  - Verifies `navigator.storage?.persisted?.()` status is surfaced cleanly and `budget.exportBackup()` records `{ key: "lastBackupAt", value: timestamp }` in `"meta"` via `setMeta("lastBackupAt", timestamp)` to drive the Settings backup-age display and N-day backup nag.
 - **Defensive non-destructive `VersionError` handling:**
   - Simulates an on-disk database with a higher version than `DB_VERSION` and verifies `IndexedDbAdapter.open()` rejects with a typed, non-destructive `VersionError` without calling `indexedDB.deleteDatabase()` or modifying existing records (see [storage.md → IndexedDB Schema Rollback Safety](storage.md#indexeddb-schema-rollback-safety-versionerror--expand-and-contract)).
 
