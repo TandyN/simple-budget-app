@@ -27,16 +27,28 @@ All files here obey the zero-production-dependency boundary (`dependencies: {}`)
 
 ## 3. Accessible 3-Tab Application Shell & `<dialog>` Helper (`src/ui/shell.ts`)
 
-- **Exports:** `renderShell(container: HTMLElement): ConfirmDialog` and `interface ConfirmDialog { readonly dialog: HTMLDialogElement; open(): void; close(): void }`.
+- **Exports:** `renderShell(container: HTMLElement): ShellHandle`, `interface ConfirmDialog { readonly dialog: HTMLDialogElement; open(): void; close(): void }`, `interface ConfirmOptions`, `interface ShellPanels`, and `interface ShellHandle extends ConfirmDialog { readonly panels: ShellPanels; confirm(options: ConfirmOptions): Promise<boolean> }`.
 - **Markup & WAI-ARIA tabs pattern:** built exclusively via `src/ui/dom.ts`:
   - `<nav role="tablist">` with three `<button role="tab" type="button" id="tab-<tab>" aria-selected aria-controls="panel-<tab>" tabindex>` controls in fixed order (`Budget`, `Insights`, `Settings`; `Budget` active by default).
-  - Three paired `<section role="tabpanel" id="panel-<tab>" aria-labelledby="tab-<tab>">` placeholder landmarks (`hidden="true"` on inactive panels; functional Budget / Insights / Settings views ship in Phases 4B–4C).
+  - Three paired `<section role="tabpanel" id="panel-<tab>" aria-labelledby="tab-<tab>">` landmarks (`hidden="true"` on inactive panels), exposed directly on `ShellHandle.panels` (`budget`, `insights`, `settings`) so Phase 4B/4C views mount directly into each panel.
   - Roving `tabindex` (`0` on active tab, `-1` on others), click selection, and wrapping `ArrowRight` / `ArrowLeft` keyboard navigation on the tablist.
 - **Native `<dialog>` confirmation helper (`dialog.confirm-dialog`):**
   - Opens modally via `dialog.showModal()` (native focus trap, backdrop inertness, `Escape` dismissal) with `Cancel` and `Confirm` buttons.
-  - Restores focus to the currently active invoking tab on the native `close` event (covering button clicks and `Escape` dismissal).
+  - `confirm(options)` updates the heading, message, and optional button labels via safe DOM `text(...)` nodes, opens modally, resolves `true` on Confirm click and `false` on Cancel click or `Escape` dismissal, and restores focus to `options.invoker` (when provided and connected) or the active tab button on close.
+  - Preserves full backwards compatibility with `ConfirmDialog` (`dialog`, `open()`, `close()`).
 - **Touch-target floor:** every interactive button sets `min-width: 44px; min-height: 44px` by construction in `control()` (mirrored in `src/styles/frame.css`), satisfying WCAG 2.2 AA (`>= 44×44 CSS px`).
-- **Tests (`src/ui/shell.test.ts`):** Vitest unit tests (`// @vitest-environment happy-dom`) covering tab selection, roving `tabindex`, wrapping arrow keys, `<dialog>` modal open/close, focus return, and `>= 44×44` target sizing.
+- **Tests (`src/ui/shell.test.ts`):** Vitest unit tests (`// @vitest-environment happy-dom`) covering tab selection, roving `tabindex`, wrapping arrow keys, `panels` handles, `<dialog>` modal open/close, promise-based `confirm(...)` resolution/XSS safety/re-invocation, focus return, and `>= 44×44` target sizing.
+
+## 3b. Display Formatting & Input-Boundary Helpers (`src/ui/format.ts`)
+
+- **Purpose:** Zero-dependency display/input boundary helpers using built-in `Intl` / `Date` APIs and canonical validators from `src/core/validate.ts`.
+- **Exports:**
+  - `formatCents(amountCents, currency = "USD", locale?)`: formats positive, zero, or negative integer cents via `Intl.NumberFormat` strictly at the display boundary (no floating-point business math).
+  - `parseDecimalInputToCents(raw)`: trims and validates a positive decimal string (at most 2 fractional digits) and delegates to `toCents` in `src/core/validate.ts` for canonical safe-integer bounds.
+  - `formatLocalDateTime(isoUtc, locale?)`: renders a stored ISO-8601 UTC timestamp in the user's local timezone via `Intl.DateTimeFormat` without mutating the UTC instant.
+  - `toDateTimeLocalInputValue(isoUtc)` / `fromDateTimeLocalInputValue(localValue)`: round-trips between ISO-8601 UTC timestamps and `<input type="datetime-local">` (`YYYY-MM-DDTHH:mm`) local values.
+  - `parseTagsInput(raw)` / `formatTagsInput(tags)`: splits/joins comma-separated free-form tags with trimming, empty-entry removal, and order-preserving deduplication.
+- **Tests (`src/ui/format.test.ts`):** Vitest unit tests covering positive/zero/negative cents, currency/locale formatting, decimal input bounds/rejections, UTC ↔ local datetime round-trips, and tag parsing/formatting.
 
 ## 4. iPhone-Duo Dual-State CSS Frame (`src/styles/frame.css`)
 
