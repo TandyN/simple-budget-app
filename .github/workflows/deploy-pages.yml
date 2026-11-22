@@ -1,0 +1,216 @@
+name: Deploy GitHub Pages
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "pages-deploy"
+  cancel-in-progress: false
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, closed]
+  push:
+    branches: [main]
+
+jobs:
+  publish:
+    name: Publish to gh-pages
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'push' ||
+      (github.event_name == 'pull_request' &&
+       github.event.pull_request.head.repo.full_name == github.repository)
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup pnpm
+        if: github.event_name != 'pull_request' || github.event.action != 'closed'
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - name: Setup Node.js
+        if: github.event_name != 'pull_request' || github.event.action != 'closed'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: ".nvmrc"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        if: github.event_name != 'pull_request' || github.event.action != 'closed'
+        run: pnpm install --frozen-lockfile
+
+      - name: Build bundle with mode-(a) base path
+        if: github.event_name != 'pull_request' || github.event.action != 'closed'
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            if [[ ! "$PR_NUMBER" =~ ^[0-9]+$ ]]; then
+              echo "::error::Invalid PR_NUMBER: ${PR_NUMBER}" >&2
+              exit 1
+            fi
+            export VITE_BASE_PATH="/simple-budget-app/pr-${PR_NUMBER}/"
+          else
+            export VITE_BASE_PATH="/simple-budget-app/"
+          fi
+          echo "Building with VITE_BASE_PATH=${VITE_BASE_PATH}"
+          pnpm run build
+          pnpm run verify:gates
+
+      - name: Publish or prune gh-pages site tree
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ACTION: ${{ github.event.action }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          WORKSPACE_DIR="${GITHUB_WORKSPACE:-$(pwd)}"
+
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            if [[ ! "$PR_NUMBER" =~ ^[0-9]+$ ]]; then
+              echo "::error::Invalid PR_NUMBER: ${PR_NUMBER}" >&2
+              exit 1
+            fi
+          fi
+
+          PAGES_DIR="$(mktemp -d)"
+          cleanup() {
+            git worktree remove --force "$PAGES_DIR" >/dev/null 2>&1 || rm -rf "$PAGES_DIR"
+          }
+          trap cleanup EXIT
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git worktree add --detach "$PAGES_DIR"
+
+          prepare_gh_pages_worktree() {
+            if git ls-remote --exit-code --heads origin gh-pages >/dev/null 2>&1; then
+              git fetch --no-tags origin +refs/heads/gh-pages:refs/remotes/origin/gh-pages
+              git -C "$PAGES_DIR" checkout -B gh-pages refs/remotes/origin/gh-pages
+              git -C "$PAGES_DIR" clean -fdx
+            else
+              if [ "$EVENT_NAME" = "pull_request" ] && [ "$EVENT_ACTION" = "closed" ]; then
+                return 1
+              fi
+              git -C "$PAGES_DIR" checkout --orphan gh-pages
+              git -C "$PAGES_DIR" rm -rf --ignore-unmatch .
+              git -C "$PAGES_DIR" clean -fdx
+            fi
+            return 0
+          }
+
+          apply_site_mutation() {
+            if [ "$EVENT_NAME" = "pull_request" ] && [ "$EVENT_ACTION" = "closed" ]; then
+              TARGET_DIR="pr-${PR_NUMBER}"
+              (
+                cd "$PAGES_DIR"
+                git rm -rf --ignore-unmatch "${TARGET_DIR}/"
+                rm -rf "${TARGET_DIR}"
+              )
+              COMMIT_MSG="ci(pages): prune preview for PR #${PR_NUMBER}"
+            elif [ "$EVENT_NAME" = "pull_request" ]; then
+              TARGET_DIR="pr-${PR_NUMBER}"
+              (
+                cd "$PAGES_DIR"
+                git rm -rf --ignore-unmatch "${TARGET_DIR}/"
+                rm -rf "${TARGET_DIR}"
+                mkdir -p "${TARGET_DIR}"
+                cp -R "${WORKSPACE_DIR}/dist/." "${TARGET_DIR}/"
+                git add -A -- "${TARGET_DIR}"
+              )
+              COMMIT_MSG="ci(pages): deploy preview for PR #${PR_NUMBER} (${COMMIT_SHA:0:7})"
+            elif [ "$EVENT_NAME" = "push" ]; then
+              find "$PAGES_DIR" -mindepth 1 -maxdepth 1 ! -name '.git' ! -name 'pr-*' -exec rm -rf {} +
+              cp -R "${WORKSPACE_DIR}/dist/." "${PAGES_DIR}/"
+              git -C "$PAGES_DIR" add -A
+              COMMIT_MSG="ci(pages): deploy production root (${COMMIT_SHA:0:7})"
+            else
+              echo "::error::Unsupported event: ${EVENT_NAME} (${EVENT_ACTION})" >&2
+              exit 1
+            fi
+          }
+
+          verify_paths() {
+            local changed_paths="$1"
+            if [ -z "$changed_paths" ]; then
+              return 0
+            fi
+            if [ "$EVENT_NAME" = "pull_request" ]; then
+              local invalid_pr_paths
+              invalid_pr_paths="$(printf '%s\n' "$changed_paths" | grep -v "^pr-${PR_NUMBER}/" || true)"
+              if [ -n "$invalid_pr_paths" ]; then
+                echo "::error::PR job modified paths outside pr-${PR_NUMBER}/:" >&2
+                echo "$invalid_pr_paths" >&2
+                exit 1
+              fi
+            elif [ "$EVENT_NAME" = "push" ]; then
+              local invalid_root_paths
+              invalid_root_paths="$(printf '%s\n' "$changed_paths" | grep "^pr-" || true)"
+              if [ -n "$invalid_root_paths" ]; then
+                echo "::error::Production deploy modified pr-*/ preview paths:" >&2
+                echo "$invalid_root_paths" >&2
+                exit 1
+              fi
+            fi
+          }
+
+          if ! prepare_gh_pages_worktree; then
+            echo "gh-pages branch does not exist on origin; nothing to prune."
+            exit 0
+          fi
+
+          apply_site_mutation
+          verify_paths "$(git -C "$PAGES_DIR" diff --cached --name-only)"
+
+          if git -C "$PAGES_DIR" diff --cached --quiet; then
+            echo "No changes to publish to gh-pages."
+            exit 0
+          fi
+
+          git -C "$PAGES_DIR" commit -m "$COMMIT_MSG"
+
+          MAX_ATTEMPTS=3
+          PUBLISHED=false
+          for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
+            if git -C "$PAGES_DIR" push origin HEAD:refs/heads/gh-pages; then
+              echo "Successfully pushed to gh-pages on attempt ${attempt}."
+              PUBLISHED=true
+              break
+            fi
+            echo "Push failed on attempt ${attempt}/${MAX_ATTEMPTS}; rebasing onto latest origin/gh-pages..."
+            if [ "$attempt" -lt "$MAX_ATTEMPTS" ]; then
+              git fetch --no-tags origin +refs/heads/gh-pages:refs/remotes/origin/gh-pages
+              if git -C "$PAGES_DIR" rebase refs/remotes/origin/gh-pages; then
+                verify_paths "$(git -C "$PAGES_DIR" show --pretty="" --name-only HEAD)"
+              else
+                git -C "$PAGES_DIR" rebase --abort >/dev/null 2>&1 || true
+                git -C "$PAGES_DIR" checkout -B gh-pages refs/remotes/origin/gh-pages
+                git -C "$PAGES_DIR" clean -fdx
+                apply_site_mutation
+                verify_paths "$(git -C "$PAGES_DIR" diff --cached --name-only)"
+                if git -C "$PAGES_DIR" diff --cached --quiet; then
+                  echo "No remaining changes after refreshing origin/gh-pages."
+                  PUBLISHED=true
+                  break
+                fi
+                git -C "$PAGES_DIR" commit -m "$COMMIT_MSG"
+              fi
+            fi
+          done
+
+          if [ "$PUBLISHED" != "true" ]; then
+            echo "::error::Failed to push to gh-pages after ${MAX_ATTEMPTS} attempts." >&2
+            exit 1
+          fi
