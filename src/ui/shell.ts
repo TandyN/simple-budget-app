@@ -126,7 +126,14 @@ function createConfirmDialog(getActiveTab: () => HTMLButtonElement): {
   // Native `Escape` dismissal and programmatic `close()` both fire `close`:
   // resolve any pending `confirm(...)` promise and restore focus so focus is
   // never stranded in the closed dialog (WCAG 2.2 AA focus return).
+  // Per the HTML Living Standard, `dialog.close()` queues `close`
+  // asynchronously — ignore stale `close` events that arrive after the dialog
+  // has already been re-opened (`dialog.open === true`).
   dialog.addEventListener("close", () => {
+    if (dialog.open) {
+      return;
+    }
+
     const resolve = pendingResolve;
     const result = pendingResult;
     const invoker = currentInvoker;

@@ -302,4 +302,46 @@ describe("renderShell", () => {
     ).click();
     await expect(second).resolves.toBe(true);
   });
+
+  it("confirm() ignores stale async close events dispatched while the dialog is still open", async () => {
+    render();
+    const invoker = document.createElement("button");
+    invoker.id = "stale-close-invoker";
+    shell.panels.budget.appendChild(invoker);
+    invoker.focus();
+
+    let settled = false;
+    const promise = shell
+      .confirm({
+        title: "Active prompt",
+        message: "Still open",
+        invoker,
+      })
+      .then((value) => {
+        settled = true;
+        return value;
+      });
+
+    expect(shell.dialog.open).toBe(true);
+    const confirmBtn = shell.dialog.querySelector(
+      ".confirm-dialog-confirm",
+    ) as HTMLButtonElement;
+    confirmBtn.focus();
+    expect(document.activeElement).toBe(confirmBtn);
+
+    // Simulate a queued `close` event from a prior `dialog.close()` firing on
+    // a later macrotask while the re-opened dialog is still open.
+    shell.dialog.dispatchEvent(new Event("close"));
+    await Promise.resolve();
+
+    expect(settled).toBe(false);
+    expect(shell.dialog.open).toBe(true);
+    expect(document.activeElement).toBe(confirmBtn);
+
+    confirmBtn.click();
+    await expect(promise).resolves.toBe(true);
+    expect(settled).toBe(true);
+    expect(shell.dialog.open).toBe(false);
+    expect(document.activeElement).toBe(invoker);
+  });
 });
