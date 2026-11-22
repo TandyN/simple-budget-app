@@ -198,14 +198,8 @@ describe("InMemoryAdapter — meta", () => {
   it("setMeta() then getMeta() round-trips a value", async () => {
     const adapter = new InMemoryAdapter();
     const ts = "2026-11-19T00:00:00.000Z";
-    await adapter.setMeta("lastBackupAt", {
-      key: "lastBackupAt",
-      timestamp: ts,
-    });
-    await expect(adapter.getMeta("lastBackupAt")).resolves.toEqual({
-      key: "lastBackupAt",
-      timestamp: ts,
-    });
+    await adapter.setMeta("lastBackupAt", ts);
+    await expect(adapter.getMeta("lastBackupAt")).resolves.toBe(ts);
   });
 
   it("setMeta() upserts: a later write to the same key replaces the value", async () => {

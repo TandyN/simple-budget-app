@@ -127,14 +127,9 @@ describe("IndexedDbAdapter — basic getMeta / setMeta round-trip", () => {
     await adapter.open();
 
     const ts = "2026-11-19T00:00:00.000Z";
-    await adapter.setMeta("lastBackupAt", {
-      key: "lastBackupAt",
-      timestamp: ts,
-    });
-    const back = await adapter.getMeta<{ key: string; timestamp: string }>(
-      "lastBackupAt",
-    );
-    expect(back).toEqual({ key: "lastBackupAt", timestamp: ts });
+    await adapter.setMeta("lastBackupAt", ts);
+    const back = await adapter.getMeta<string>("lastBackupAt");
+    expect(back).toBe(ts);
 
     // Absent keys resolve to null.
     await expect(adapter.getMeta("does-not-exist")).resolves.toBeNull();
@@ -485,13 +480,12 @@ describe("IndexedDbAdapter — best-effort durability API (U3, #253)", () => {
     await adapter.open();
 
     const iso = "2026-01-01T00:00:00.000Z";
-    // Seed the exact record shape #247's exportBackup() will write to the
-    // `"meta"` store (spec: `{ key: "lastBackupAt", timestamp: <iso> }`),
-    // directly through the object store (this slice is read-only for it).
+    // Seed the canonical `{ key: "lastBackupAt", value: <iso> }` record shape
+    // that `exportBackup()` writes to `"meta"` via `setMeta("lastBackupAt", iso)` (#267).
     const seed = await openRaw(factory, DB_NAME);
     await new Promise<void>((resolve, reject) => {
       const tx = seed.transaction("meta", "readwrite");
-      tx.objectStore("meta").put({ key: "lastBackupAt", timestamp: iso });
+      tx.objectStore("meta").put({ key: "lastBackupAt", value: iso });
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
@@ -499,7 +493,7 @@ describe("IndexedDbAdapter — best-effort durability API (U3, #253)", () => {
     await expect(adapter.getLastBackupAt()).resolves.toBe(iso);
   });
 
-  it("getLastBackupAt() also reads the setMeta { key, value } envelope (ISO string value)", async () => {
+  it("getLastBackupAt() reads the setMeta { key, value } envelope (ISO string value) and returns null for non-string values", async () => {
     const factory = new IDBFactory();
     const adapter = new IndexedDbAdapter(factory);
     await adapter.open();
@@ -507,6 +501,9 @@ describe("IndexedDbAdapter — best-effort durability API (U3, #253)", () => {
     const iso = "2026-01-01T00:00:00.000Z";
     await adapter.setMeta("lastBackupAt", iso);
     await expect(adapter.getLastBackupAt()).resolves.toBe(iso);
+
+    await adapter.setMeta("lastBackupAt", { invalid: true });
+    await expect(adapter.getLastBackupAt()).resolves.toBeNull();
   });
 });
 

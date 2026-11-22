@@ -413,22 +413,8 @@ export function createBudgetApi(options: CreateBudgetApiOptions): BudgetApi {
      */
     async getLastBackupAt(): Promise<string | null> {
       requireInit();
-      const value = await adapter.getMeta(LAST_BACKUP_AT_META_KEY);
-      if (typeof value === "string") {
-        return value;
-      }
-      // Tolerate the spec's `{ key, timestamp }` record shape (e.g. written
-      // directly to IndexedDB by a prior writer) in addition to the plain
-      // ISO-string value this API records.
-      if (
-        typeof value === "object" &&
-        value !== null &&
-        "timestamp" in value &&
-        typeof (value as { timestamp: unknown }).timestamp === "string"
-      ) {
-        return (value as { timestamp: string }).timestamp;
-      }
-      return null;
+      const value = await adapter.getMeta<string>(LAST_BACKUP_AT_META_KEY);
+      return typeof value === "string" ? value : null;
     },
 
     /**
