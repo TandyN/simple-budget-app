@@ -31,26 +31,16 @@ import { IndexedDbAdapter } from "./storage/indexeddb";
  * read-back goes through the real IndexedDB object stores (not a JS Map).
  */
 
-interface TestClock {
-  (): Date;
-  /** The ISO-8601 UTC timestamp the next `clock()` call will produce. */
-  readonly next: string;
-}
-
 /**
  * Deterministic clock: starts at `startIso` and advances one second per call,
  * so `createdAt` and a subsequent `updatedAt` are distinct and ordered.
  */
-function makeClock(startIso: string): TestClock {
+function makeClock(startIso: string): () => Date {
   let ms = Date.parse(startIso);
-  const clock = (() => {
+  return () => {
     ms += 1_000;
     return new Date(ms);
-  }) as unknown as TestClock;
-  Object.defineProperty(clock, "next", {
-    get: () => new Date(ms + 1_000).toISOString(),
-  });
-  return clock;
+  };
 }
 
 /**
