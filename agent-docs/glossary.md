@@ -211,6 +211,15 @@ in its own topic doc, not here.
   `BroadcastChannel` live sync, DOM XSS inert-text immunity, and WCAG 2.2 AA /
   3-viewport gates.
   [budget-app/testing.md](budget-app/testing.md#playwright-e2e-harness-e2e)
+- **Offline PWA Playwright E2E suite (`e2e/pwa-offline.spec.ts`)** —
+  the Phase 4D co-shipped Playwright E2E suite (#328) verifying Web App Manifest
+  & self-hosted icons, Capacitor native-shell SW skip guard, Service Worker
+  registration (`updateViaCache: "none"`) & offline reload with IndexedDB
+  persistence, production SW `pr-*` sub-path bypass, OQ-1 PR-preview
+  IndexedDB/CacheStorage isolation, and user-accepted `"Update available"`
+  banner activation + cache cleanup under WCAG 2.2 AA / 3-viewport / zero-egress
+  gates.
+  [budget-app/testing.md](budget-app/testing.md#playwright-e2e-harness-e2e)
 - **origin isolation** — deriving IndexedDB (`DB_NAME`), CacheStorage, and
   `BroadcastChannel` names from `import.meta.env.BASE_URL`
   (`simple-budget-app` / `simple-budget-sync` vs.

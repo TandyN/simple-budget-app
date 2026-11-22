@@ -248,8 +248,8 @@ self.addEventListener("fetch", (event) => {
       fetch(event.request).catch(async () => {
         const cache = await caches.open(ACTIVE_CACHE);
         const cached =
-          (await cache.match(BASE_URL + "index.html")) ||
-          (await cache.match(BASE_URL));
+          (await cache.match(BASE_URL + "index.html", { ignoreVary: true })) ||
+          (await cache.match(BASE_URL, { ignoreVary: true }));
         return (
           cached ||
           new Response("Offline", {
@@ -265,7 +265,7 @@ self.addEventListener("fetch", (event) => {
 
   event.respondWith(
     caches.open(ACTIVE_CACHE).then(async (cache) => {
-      const cached = await cache.match(event.request);
+      const cached = await cache.match(event.request, { ignoreVary: true });
       if (cached) {
         return cached;
       }
