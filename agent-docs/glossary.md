@@ -151,6 +151,15 @@ in its own topic doc, not here.
   `fromDateTimeLocalInputValue`, `parseTagsInput`, `formatTagsInput`); unit-tested
   in `src/ui/format.test.ts`.
   [budget-app/frontend.md](budget-app/frontend.md#3b-display-formatting--input-boundary-helpers-srcuiformatts)
+- **Budget tab core UI (`src/ui/budgetTab.ts`, `src/styles/budget.css`)** —
+  `mountBudgetTab(options): BudgetTabController` implementing the sticky
+  Available Funds header (`aria-live="polite"`), Quick-Add manual form
+  (`expense`/`income`/`deposit`, CSP `form-action 'none'`), Recurring Rules
+  mount slot, reverse-chronological Activity Feed, native `<dialog>` Edit/Backdate/Tag
+  modal, and shell `confirm(...)` Delete flow using `src/ui/dom.ts` safe DOM
+  helpers and WCAG 2.2 AA dual-state responsive CSS; unit-tested in `happy-dom`
+  (`src/ui/budgetTab.test.ts`).
+  [budget-app/frontend.md](budget-app/frontend.md#3c-budget-tab-core-ui--responsive-styles-srcuibudgettabts-srcstylesbudgetcss)
 - **frame CSS (`src/styles/frame.css`)** — the Phase 4A iPhone-Duo dual-state
   responsive stylesheet linked from `index.html`: system font stack on `:root`,
   `100dvh` with `@supports (height: 100svh)` and `overflow: hidden` on
