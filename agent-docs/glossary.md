@@ -30,6 +30,10 @@ in its own topic doc, not here.
   `<type>(<scope>): <summary> (#<ticket>) (agent-generated)` every agent follows
   when authoring a commit; agent commits carry the `(agent-generated)` marker and a
   ticket reference. [orchestration.md](orchestration.md#role-agnostic-skills)
+- **`sensitive-data` skill** — mandatory role-agnostic policy prohibiting raw
+  secrets, credentials, private keys, public/residential IPs, PII, and local OS
+  user paths across all output surfaces, taking precedence over verbatim quoting.
+  [orchestration.md](orchestration.md#role-agnostic-skills)
 - **story** — the top-level unit of work (a tracking ticket that may be code,
   research, or requirements — not necessarily a feature); has `Original Prompt` /
   `Summary` / `Task` sections. [orchestration.md](orchestration.md#story)

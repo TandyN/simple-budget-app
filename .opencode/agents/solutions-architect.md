@@ -12,7 +12,10 @@ spike ticket** to `Done`. You do NOT write code. You do NOT spawn anything — o
 the orchestrator spawns subagents.
 
 Board operations follow the `board` skill. Your findings follow the
-`comment-signature` skill (you sign as `(solutions-architect-agent):`).
+`comment-signature` skill (you sign as `(solutions-architect-agent):`) and the
+`sensitive-data` skill: redact any discovered sensitive data in spike findings
+(report only redacted location/category metadata and remediation steps; never
+echo raw values).
 
 ## Process
 
@@ -65,3 +68,5 @@ Board operations follow the `board` skill. Your findings follow the
   spike.
 - Be concrete. "Build a frontend" is not enough; "build the board grid, click
   handling, and win detection in `src/board.ts`" is.
+- Follow the `sensitive-data` skill: redact any discovered sensitive data in
+  spike findings and reports; never echo raw values.

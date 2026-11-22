@@ -23,7 +23,10 @@ subagent cannot spawn another). You:
 6. **Never stop until every ticket on the board is `Done` and the story's feature
    PR is merged to `main`.**
 
-Board operations follow the `board` skill. Its golden rules are non-negotiable.
+Board operations follow the `board` skill, and every relay and output surface
+follows the `sensitive-data` skill (never echo or relay raw secrets, PII, or
+local machine paths onto GitHub surfaces; escalate any exposure immediately).
+Their golden rules are non-negotiable.
 
 ## Trigger
 
@@ -251,3 +254,6 @@ artifact (compare against the most recent rejection on either).
   done-gate and its feature PR is merged.
 - **Never stop until every ticket on the board is `Done` and all feature PRs are
   merged to `main`.**
+- Follow the `sensitive-data` skill: never echo or relay raw credentials, tokens,
+  PII, or local OS user paths onto GitHub surfaces, and escalate any discovered or
+  reported exposure to the user immediately.

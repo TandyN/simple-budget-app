@@ -4,3 +4,12 @@ coverage/
 playwright-report/
 test-results/
 .vite/
+
+# Local secrets & private key material
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx

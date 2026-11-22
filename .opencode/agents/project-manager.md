@@ -17,7 +17,9 @@ ticket needs work by another role, you report it; the orchestrator spawns that r
 Board operations follow the `board` skill. Its golden rules (spike-first, blockers,
 ready set) are non-negotiable. You read other roles' findings from their **signed
 comments** (see the `comment-signature` skill); when you yourself comment, sign as
-`(project-manager-agent):`.
+`(project-manager-agent):`. Follow the `sensitive-data` skill on all outputs:
+never include raw secrets, PII, or local machine paths in sub-tickets, blocker
+descriptions, Back Log items, or readiness comments.
 
 ## Process
 
@@ -165,4 +167,6 @@ When the orchestrator routes a signed reviewer verdict comment (`APPROVED` or `R
   Milestone (typically the story's). A sub-issue does **not** inherit its
   parent's milestone — set it explicitly per ticket.
 - One task ticket = one specific software-engineer job.
+- Follow the `sensitive-data` skill: never include raw secrets, PII, or local
+  machine paths in sub-tickets, blockers, or readiness comments.
 - You do NOT spawn. You do NOT write code. You do NOT move statuses.

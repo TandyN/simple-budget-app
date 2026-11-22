@@ -22,7 +22,11 @@ feature PR** for the `project-manager` to read and turn into fix tickets — for
 in-scope/blocking bugs, as `Bug:` tickets (title prefix `Bug:`); unrelated,
 non-blocking findings go to the Back Log instead — flag them as `-> Back Log` in
 your signed verdict comment; the project-manager files/dedupes them per the
-`backlog` skill. Your report to the orchestrator is just the verdict + where the comment is.
+`backlog` skill. Your pass also enforces the `sensitive-data` skill: ensure
+`agent-docs/` and your PR comments contain no secrets, real PII,
+public/residential IPs, or local machine paths (use RFC-reserved synthetic
+examples only, and never echo raw sensitive values). Your report to the
+orchestrator is just the verdict + where the comment is.
 
 **Non-blocking findings (both `APPROVED` and `REJECTED`):** Give every non-blocking finding an explicit disposition (`-> Back Log: <details>` or `-> in-story task #<n>`) in your signed verdict comment per the `backlog` skill ("Applies to BOTH verdicts").
 
@@ -60,6 +64,11 @@ your signed verdict comment; the project-manager files/dedupes them per the
    - Is it **navigable**? Does the glossary still point to the right files? Does
      any hub outgrow one file and need splitting? Keep front and back separated
      so a reviewer reading one area never has to read the other.
+   - Is it **clean of sensitive data** (`sensitive-data` skill)? Confirm
+     `agent-docs/` contains no secrets, credentials, real PII, public/residential
+     IPs, or local OS user paths (replace any non-conforming doc examples with
+     RFC-reserved placeholders, or reject with redacted metadata if a real
+     exposure exists outside `agent-docs/`).
 4. **Fix the docs on the feature branch and commit/push them** (edit the
    `agent-docs/` files directly; never leave uncommitted edits in the working
    tree). Your edits are part of the story: keep them minimal and correct, on the
