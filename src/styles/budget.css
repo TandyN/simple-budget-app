@@ -235,18 +235,193 @@
 
 /* Visible Focus Rings */
 .budget-btn:focus-visible,
-.budget-input:focus-visible {
+.budget-input:focus-visible,
+.budget-checkbox:focus-visible,
+.budget-recurring-summary:focus-visible {
   outline: 2px solid var(--budget-focus);
   outline-offset: 2px;
 }
 
-/* Recurring Rules Slot */
+/* Recurring Rules Slot & Collapsible Panel */
 .budget-recurring-slot {
   min-width: 0;
 }
 
 .budget-recurring-slot:empty {
   display: none;
+}
+
+.budget-recurring-details {
+  padding: 0;
+  overflow: hidden;
+}
+
+.budget-recurring-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0.625rem 0.875rem;
+  cursor: pointer;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: var(--budget-text);
+  list-style: none;
+}
+
+.budget-recurring-summary::-webkit-details-marker {
+  display: none;
+}
+
+.budget-recurring-summary-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.budget-recurring-summary-label::before {
+  content: "▸";
+  display: inline-block;
+  font-size: 0.875rem;
+  color: var(--budget-text-muted);
+}
+
+.budget-recurring-details[open] .budget-recurring-summary-label::before {
+  content: "▾";
+}
+
+.budget-recurring-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  background-color: var(--budget-source-bg);
+  color: var(--budget-source-text);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.budget-recurring-body {
+  border-top: 1px solid var(--budget-border-subtle);
+  padding: 0.875rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  min-width: 0;
+}
+
+.budget-recurring-empty {
+  margin: 0;
+  color: var(--budget-text-muted);
+  font-size: 0.9375rem;
+}
+
+.budget-recurring-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  min-width: 0;
+}
+
+.budget-recurring-item {
+  background-color: var(--budget-surface-muted);
+  border: 1px solid var(--budget-border-subtle);
+  border-radius: 0.375rem;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.budget-recurring-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.budget-recurring-name {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--budget-text);
+  overflow-wrap: anywhere;
+}
+
+.budget-recurring-amount {
+  font-size: 1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.budget-recurring-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.budget-recurring-schedule {
+  font-size: 0.8125rem;
+  color: var(--budget-text-muted);
+}
+
+.budget-badge--status-active {
+  background-color: var(--budget-income-bg);
+  color: var(--budget-income-text);
+}
+
+.budget-badge--status-paused {
+  background-color: var(--budget-source-bg);
+  color: var(--budget-source-text);
+}
+
+.budget-recurring-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.budget-subsection-title {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--budget-text);
+}
+
+.budget-recurring-add-form {
+  border-top: 1px solid var(--budget-border-subtle);
+  padding-top: 0.75rem;
+}
+
+.budget-checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  cursor: pointer;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--budget-text);
+}
+
+.budget-checkbox {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0;
+  accent-color: var(--budget-primary);
+  cursor: pointer;
 }
 
 /* Activity Feed */
@@ -402,8 +577,9 @@
   margin-top: 0.25rem;
 }
 
-/* Native <dialog> Edit Modal */
-.budget-edit-dialog {
+/* Native <dialog> Edit Modals */
+.budget-edit-dialog,
+.budget-rule-edit-dialog {
   width: min(28rem, calc(100vw - 1.5rem));
   max-width: 100%;
   max-height: calc(100dvh - 2rem);
@@ -415,7 +591,8 @@
   color: var(--budget-text);
 }
 
-.budget-edit-dialog::backdrop {
+.budget-edit-dialog::backdrop,
+.budget-rule-edit-dialog::backdrop {
   background-color: rgb(17 24 39 / 0.5);
 }
 
