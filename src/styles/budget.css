@@ -1,0 +1,687 @@
+/**
+ * Budget tab responsive stylesheet (`src/styles/budget.css`).
+ *
+ * Designed for the iPhone-Duo dual-state foldable model
+ * (`project-plan/frontend.md → Responsive viewport`):
+ * - Folded (`< 700px`, baseline ~375×667 & slab ~390×844): single-column flow
+ *   scrolling strictly inside `#panel-budget` with a sticky Available Funds
+ *   header. Zero page-level overflow (`scrollHeight <= innerHeight`,
+ *   `scrollWidth <= innerWidth`).
+ * - Unfolded (`>= 700px`, ~829×1194): state-aware dual-column split-pane inside
+ *   `#panel-budget` — left pane (sticky Available Funds + Quick-Add + Recurring
+ *   Rules slot) and right pane (independently scrollable Activity Feed).
+ *
+ * WCAG 2.2 AA compliance:
+ * - Text contrast >= 4.5:1; interactive control/border contrast >= 3:1.
+ * - Visible keyboard focus rings (`:focus-visible`).
+ * - `>= 44×44 CSS px` (`2.75rem`) minimum touch targets on all interactive
+ *   controls.
+ * - Tabular numerals (`font-variant-numeric: tabular-nums`) on currency amounts.
+ * - Zero remote fonts or external URLs.
+ */
+
+:root {
+  --budget-surface: #ffffff;
+  --budget-surface-muted: #f4f6f8;
+  --budget-text: #111827;
+  --budget-text-muted: #4b5563;
+  --budget-border: #6b7280;
+  --budget-border-subtle: #d1d5db;
+  --budget-primary: #1d4ed8;
+  --budget-primary-hover: #1e40af;
+  --budget-primary-contrast: #ffffff;
+  --budget-danger: #b91c1c;
+  --budget-danger-hover: #991b1b;
+  --budget-danger-bg: #fef2f2;
+  --budget-danger-text: #991b1b;
+  --budget-income-bg: #f0fdf4;
+  --budget-income-text: #166534;
+  --budget-deposit-bg: #eff6ff;
+  --budget-deposit-text: #1e40af;
+  --budget-source-bg: #f3f4f6;
+  --budget-source-text: #374151;
+  --budget-focus: #1d4ed8;
+}
+
+/* Ensure `#panel-budget` scrolls internally without horizontal overflow. */
+#panel-budget:not([hidden]) {
+  background-color: var(--budget-surface-muted);
+  color: var(--budget-text);
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+/* Folded (< 700px): single-column flow inside `#panel-budget`. */
+.budget-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  min-width: 0;
+  padding: 0 0.75rem 1rem;
+}
+
+/*
+ * In folded mode, flatten `.budget-primary-pane` so `.budget-funds-header`
+ * sticks across the entire `#panel-budget` vertical scroll.
+ */
+.budget-primary-pane {
+  display: contents;
+}
+
+/* Sticky Available Funds Hero Header */
+.budget-funds-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: var(--budget-surface);
+  border-bottom: 1px solid var(--budget-border-subtle);
+  margin: 0 -0.75rem;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.budget-funds-label {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--budget-text-muted);
+}
+
+.budget-funds-amount {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--budget-text);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.budget-funds-amount--negative {
+  color: var(--budget-danger-text);
+}
+
+/* Cards & Sections */
+.budget-card {
+  background-color: var(--budget-surface);
+  border: 1px solid var(--budget-border-subtle);
+  border-radius: 0.5rem;
+  padding: 0.875rem;
+  min-width: 0;
+}
+
+.budget-section-title {
+  margin: 0 0 0.75rem;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: var(--budget-text);
+}
+
+/* Forms */
+.budget-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  min-width: 0;
+}
+
+.budget-form-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.625rem;
+  min-width: 0;
+}
+
+.budget-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.budget-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--budget-text);
+}
+
+.budget-input {
+  width: 100%;
+  min-width: 0;
+  min-height: 2.75rem;
+  padding: 0.5rem 0.625rem;
+  font: inherit;
+  font-size: 1rem;
+  color: var(--budget-text);
+  background-color: var(--budget-surface);
+  border: 1px solid var(--budget-border);
+  border-radius: 0.375rem;
+}
+
+.budget-input[aria-invalid="true"] {
+  border-color: var(--budget-danger);
+  border-width: 2px;
+}
+
+.budget-form-error {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--budget-danger-text);
+  background-color: var(--budget-danger-bg);
+  border: 1px solid var(--budget-danger);
+  border-radius: 0.375rem;
+}
+
+.budget-form-actions,
+.budget-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+/* Buttons (WCAG 2.2 AA >= 44x44 CSS px floor) */
+.budget-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0.5rem 0.875rem;
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  border-radius: 0.375rem;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.budget-btn-primary {
+  background-color: var(--budget-primary);
+  color: var(--budget-primary-contrast);
+  border-color: var(--budget-primary);
+}
+
+.budget-btn-primary:hover {
+  background-color: var(--budget-primary-hover);
+  border-color: var(--budget-primary-hover);
+}
+
+.budget-btn-secondary {
+  background-color: var(--budget-surface);
+  color: var(--budget-text);
+  border-color: var(--budget-border);
+}
+
+.budget-btn-secondary:hover {
+  background-color: var(--budget-surface-muted);
+}
+
+.budget-btn-danger {
+  background-color: var(--budget-danger);
+  color: var(--budget-primary-contrast);
+  border-color: var(--budget-danger);
+}
+
+.budget-btn-danger:hover {
+  background-color: var(--budget-danger-hover);
+  border-color: var(--budget-danger-hover);
+}
+
+/* Visible Focus Rings */
+.budget-btn:focus-visible,
+.budget-input:focus-visible,
+.budget-checkbox:focus-visible,
+.budget-recurring-summary:focus-visible {
+  outline: 2px solid var(--budget-focus);
+  outline-offset: 2px;
+}
+
+/* Recurring Rules Slot & Collapsible Panel */
+.budget-recurring-slot {
+  min-width: 0;
+}
+
+.budget-recurring-slot:empty {
+  display: none;
+}
+
+.budget-recurring-details {
+  padding: 0;
+  overflow: hidden;
+}
+
+.budget-recurring-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0.625rem 0.875rem;
+  cursor: pointer;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: var(--budget-text);
+  list-style: none;
+}
+
+.budget-recurring-summary::-webkit-details-marker {
+  display: none;
+}
+
+.budget-recurring-summary-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.budget-recurring-summary-label::before {
+  content: "▸";
+  display: inline-block;
+  font-size: 0.875rem;
+  color: var(--budget-text-muted);
+}
+
+.budget-recurring-details[open] .budget-recurring-summary-label::before {
+  content: "▾";
+}
+
+.budget-recurring-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  background-color: var(--budget-source-bg);
+  color: var(--budget-source-text);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.budget-recurring-body {
+  border-top: 1px solid var(--budget-border-subtle);
+  padding: 0.875rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  min-width: 0;
+}
+
+.budget-recurring-empty {
+  margin: 0;
+  color: var(--budget-text-muted);
+  font-size: 0.9375rem;
+}
+
+.budget-recurring-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  min-width: 0;
+}
+
+.budget-recurring-item {
+  background-color: var(--budget-surface-muted);
+  border: 1px solid var(--budget-border-subtle);
+  border-radius: 0.375rem;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.budget-recurring-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.budget-recurring-name {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--budget-text);
+  overflow-wrap: anywhere;
+}
+
+.budget-recurring-amount {
+  font-size: 1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.budget-recurring-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.budget-recurring-schedule {
+  font-size: 0.8125rem;
+  color: var(--budget-text-muted);
+}
+
+.budget-badge--status-active {
+  background-color: var(--budget-income-bg);
+  color: var(--budget-income-text);
+}
+
+.budget-badge--status-paused {
+  background-color: var(--budget-source-bg);
+  color: var(--budget-source-text);
+}
+
+.budget-recurring-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.budget-subsection-title {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--budget-text);
+}
+
+.budget-recurring-add-form {
+  border-top: 1px solid var(--budget-border-subtle);
+  padding-top: 0.75rem;
+}
+
+.budget-checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  cursor: pointer;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--budget-text);
+}
+
+.budget-checkbox {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0;
+  accent-color: var(--budget-primary);
+  cursor: pointer;
+}
+
+/* Activity Feed */
+.budget-feed-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  min-width: 0;
+}
+
+.budget-feed-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.budget-feed-header .budget-section-title {
+  margin-bottom: 0;
+}
+
+.budget-feed-empty {
+  margin: 0;
+  padding: 1rem;
+  background-color: var(--budget-surface);
+  border: 1px solid var(--budget-border-subtle);
+  border-radius: 0.5rem;
+  color: var(--budget-text-muted);
+  font-size: 0.9375rem;
+}
+
+.budget-feed-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  min-width: 0;
+}
+
+.budget-feed-item {
+  background-color: var(--budget-surface);
+  border: 1px solid var(--budget-border-subtle);
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+.budget-feed-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.budget-feed-badges {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  flex-wrap: wrap;
+}
+
+.budget-badge {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.budget-badge--expense {
+  background-color: var(--budget-danger-bg);
+  color: var(--budget-danger-text);
+}
+
+.budget-badge--income {
+  background-color: var(--budget-income-bg);
+  color: var(--budget-income-text);
+}
+
+.budget-badge--deposit {
+  background-color: var(--budget-deposit-bg);
+  color: var(--budget-deposit-text);
+}
+
+.budget-badge--source-manual,
+.budget-badge--source-recurring,
+.budget-badge--source-file-import,
+.budget-badge--source-bank-sync {
+  background-color: var(--budget-source-bg);
+  color: var(--budget-source-text);
+}
+
+.budget-feed-amount {
+  font-size: 1.0625rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.budget-feed-amount--expense {
+  color: var(--budget-danger-text);
+}
+
+.budget-feed-amount--income {
+  color: var(--budget-income-text);
+}
+
+.budget-feed-amount--deposit {
+  color: var(--budget-deposit-text);
+}
+
+.budget-feed-time {
+  font-size: 0.8125rem;
+  color: var(--budget-text-muted);
+}
+
+.budget-feed-memo {
+  margin: 0;
+  font-size: 0.9375rem;
+  color: var(--budget-text);
+  overflow-wrap: anywhere;
+}
+
+.budget-tag-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.budget-tag-chip {
+  padding: 0.125rem 0.5rem;
+  border-radius: 0.25rem;
+  background-color: var(--budget-source-bg);
+  color: var(--budget-text);
+  border: 1px solid var(--budget-border-subtle);
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+
+.budget-feed-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+/* Native <dialog> Edit Modals */
+.budget-edit-dialog,
+.budget-rule-edit-dialog {
+  width: min(28rem, calc(100vw - 1.5rem));
+  max-width: 100%;
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  padding: 1rem;
+  border: 1px solid var(--budget-border);
+  border-radius: 0.5rem;
+  background-color: var(--budget-surface);
+  color: var(--budget-text);
+}
+
+.budget-edit-dialog::backdrop,
+.budget-rule-edit-dialog::backdrop {
+  background-color: rgb(17 24 39 / 0.5);
+}
+
+.budget-dialog-title {
+  margin: 0 0 0.75rem;
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--budget-text);
+}
+
+/* Non-destructive startup recovery / storage error banner */
+.budget-alert-banner {
+  margin: 1rem;
+  padding: 1rem;
+  background-color: var(--budget-danger-bg);
+  color: var(--budget-danger-text);
+  border: 2px solid var(--budget-danger);
+  border-radius: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  max-width: 36rem;
+}
+
+.budget-alert-title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--budget-danger-text);
+}
+
+.budget-alert-message {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  color: var(--budget-text);
+}
+
+.budget-alert-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+/*
+ * Unfolded (>= 700px): state-aware dual-column split-pane inside `#panel-budget`.
+ * Left pane: Available Funds + Quick-Add + Recurring Rules slot (internal scroll).
+ * Right pane: Activity Feed (independent internal scroll).
+ */
+@media (min-width: 700px) {
+  #panel-budget:not([hidden]) {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .budget-layout {
+    flex: 1 1 0;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+    overflow: hidden;
+  }
+
+  .budget-primary-pane {
+    display: flex;
+    flex-direction: column;
+    gap: 0.875rem;
+    min-width: 0;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding-right: 0.25rem;
+  }
+
+  .budget-funds-header {
+    margin: 0;
+    border: 1px solid var(--budget-border-subtle);
+    border-radius: 0.5rem;
+  }
+
+  .budget-feed-pane {
+    min-width: 0;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding-right: 0.25rem;
+  }
+}

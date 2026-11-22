@@ -135,15 +135,40 @@ in its own topic doc, not here.
   `parent.replaceChildren`, enforcing the DOM XSS ban by construction (Gate 4);
   unit-tested in `happy-dom` (`src/ui/dom.test.ts`).
   [budget-app/frontend.md](budget-app/frontend.md#2-safe-dom-helper-layer-srcuidomts)
-- **accessible 3-tab shell (`src/ui/shell.ts`)** — the Phase 4A walking-skeleton
-  app shell: `renderShell(container): ConfirmDialog` mounts `<nav role="tablist">`
-  with three `<button role="tab">` controls (`Budget`/`Insights`/`Settings`)
-  paired with `<section role="tabpanel">` placeholders, roving `tabindex` +
+- **accessible 3-tab shell (`src/ui/shell.ts`)** — the app shell:
+  `renderShell(container): ShellHandle` mounts `<nav role="tablist">` with three
+  `<button role="tab">` controls (`Budget`/`Insights`/`Settings`) paired with
+  `<section role="tabpanel">` landmarks exposed on `panels`, roving `tabindex` +
   wrapping `ArrowLeft`/`ArrowRight` navigation, a native `<dialog class="confirm-dialog">`
-  confirmation helper (`showModal()` / `close()` restoring focus to the invoking
-  tab), and `>= 44×44 CSS px` touch targets (WCAG 2.2 AA), all via `src/ui/dom.ts`
-  and mounted in `src/main.ts`; unit-tested in `happy-dom` (`src/ui/shell.test.ts`).
+  confirmation helper (backwards-compatible `ConfirmDialog` `open()`/`close()` plus
+  promise-based `confirm(options)` restoring focus to `invoker` or the active tab),
+  and `>= 44×44 CSS px` touch targets (WCAG 2.2 AA), all via `src/ui/dom.ts` and
+  mounted in `src/main.ts`; unit-tested in `happy-dom` (`src/ui/shell.test.ts`).
   [budget-app/frontend.md](budget-app/frontend.md#3-accessible-3-tab-application-shell--dialog-helper-srcuishellts)
+- **display/input formatters (`src/ui/format.ts`)** — zero-dependency `Intl` /
+  `Date` / `src/core/validate.ts` boundary helpers (`formatCents`,
+  `parseDecimalInputToCents`, `formatLocalDateTime`, `toDateTimeLocalInputValue`,
+  `fromDateTimeLocalInputValue`, `parseTagsInput`, `formatTagsInput`); unit-tested
+  in `src/ui/format.test.ts`.
+  [budget-app/frontend.md](budget-app/frontend.md#3b-display-formatting--input-boundary-helpers-srcuiformatts)
+- **Budget tab core UI (`src/ui/budgetTab.ts`, `src/styles/budget.css`)** —
+  `mountBudgetTab(options): BudgetTabController` implementing the sticky
+  Available Funds header (`aria-live="polite"`), Quick-Add manual form
+  (`expense`/`income`/`deposit`, CSP `form-action 'none'`), Recurring Rules
+  mount slot (wiring `mountRecurringRules` by default), reverse-chronological
+  Activity Feed, native `<dialog>` Edit/Backdate/Tag modal, and shell
+  `confirm(...)` Delete flow using `src/ui/dom.ts` safe DOM helpers and WCAG
+  2.2 AA dual-state responsive CSS; unit-tested in `happy-dom`
+  (`src/ui/budgetTab.test.ts`).
+  [budget-app/frontend.md](budget-app/frontend.md#3c-budget-tab-core-ui--responsive-styles-srcuibudgettabts-srcstylesbudgetcss)
+- **Recurring Rules panel (`src/ui/recurringRules.ts`)** —
+  `mountRecurringRules(options): RecurringRulesController` implementing the
+  collapsible `<details>`/`<summary>` Recurring Rules panel inside the Budget
+  tab (list rules, Add Rule form, native `<dialog>` Edit Rule modal,
+  Pause/Resume toggle, and shell `confirm(...)` Delete preserving auto-posted
+  history) via `src/ui/dom.ts`; unit-tested in `happy-dom`
+  (`src/ui/recurringRules.test.ts`).
+  [budget-app/frontend.md](budget-app/frontend.md#3d-collapsible-recurring-rules-panel-srcuirecurringrulests)
 - **frame CSS (`src/styles/frame.css`)** — the Phase 4A iPhone-Duo dual-state
   responsive stylesheet linked from `index.html`: system font stack on `:root`,
   `100dvh` with `@supports (height: 100svh)` and `overflow: hidden` on
@@ -160,6 +185,13 @@ in its own topic doc, not here.
   `console.error` / `console.warning`, `@axe-core/playwright` WCAG 2.2 AA scans
   (`["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]`) across all tabs and open
   `<dialog>`, and zero-overflow + `>= 44×44 CSS px` touch-target geometry.
+  [budget-app/testing.md](budget-app/testing.md#playwright-e2e-harness-e2e)
+- **Budget tab Playwright E2E suite (`e2e/budget.spec.ts`)** —
+  the Phase 4B co-shipped Playwright E2E suite (#307) exercising the full Budget
+  tab vertical slice against real IndexedDB in `dist/` (cold start, Recurring
+  Rules CRUD + auto-post + reload idempotency, manual deposit/income/expense
+  integer-cent math, `<dialog>` edit/backdate/tag and delete confirmation +
+  non-repost, DOM XSS inert-text immunity, and WCAG 2.2 AA / 3-viewport gates).
   [budget-app/testing.md](budget-app/testing.md#playwright-e2e-harness-e2e)
 - **origin isolation** — deriving IndexedDB (`DB_NAME`), CacheStorage, and
   `BroadcastChannel` names from `import.meta.env.BASE_URL`
@@ -327,6 +359,7 @@ in its own topic doc, not here.
 - **`VersionError`** — W3C IndexedDB error thrown when `indexedDB.open(name, version)` requests a lower `DB_VERSION` than the on-disk database; handled defensively with a non-destructive "Update required" banner (calling `indexedDB.deleteDatabase()` is strictly forbidden) and avoided via expand-and-contract roll-forward migrations (`DB_VERSION = N + 1`). [project-plan/storage.md](../project-plan/storage.md#indexeddb-schema-rollback-safety-versionerror--expand-and-contract)
 - **`VersionMismatchError`** — the typed, **non-destructive** rejection `IndexedDbAdapter.open()` raises (exported from `src/storage/indexeddb.ts`) when the on-disk database version is **higher** than `DB_VERSION` (a W3C `VersionError`): a named class (`err.name === "VersionMismatchError"`, carrying `expectedVersion`) the UI branches on to render an accessible "Update required" banner. `open()` **never** calls `indexedDB.deleteDatabase()` in response — deleting local-first financial data is irreversible loss with no remote copy to re-sync from. Added in U2 (#252). [budget-app/backend.md](budget-app/backend.md#8-indexeddbadapter--t-a--u1--u2--u3-srcstorageindexeddbts)
 - **`assertNotFramed`** — dependency-injected `top !== self` clickjacking frame-buster guard exported by `src/main.ts` (clears `documentElement` via `replaceChildren()` and throws `"Framing is not permitted"` when framed; unit-tested in `src/main.test.ts`). [budget-app/frontend.md](budget-app/frontend.md#1-entry-point-csp-baseline--clickjacking-guard-indexhtml-srcmaints-srcenvdts)
+- **`bootstrapApp` (`src/main.ts`)** — dependency-injected app bootstrapper rendering `renderShell`, opening `IndexedDbAdapter` + `BudgetApi` (with non-destructive `role="alert"` recovery on `VersionMismatchError`/storage errors), running startup & serialized `focus`/`visibilitychange` recurring passes, wiring one-shot `onUserWrite` → `requestPersistenceAfterFirstAction()`, mounting `mountBudgetTab`, and returning a `dispose()` cleanup hook; unit-tested in `src/main.test.ts`. [budget-app/frontend.md](budget-app/frontend.md#1-entry-point-csp-baseline--clickjacking-guard-indexhtml-srcmaints-srcenvdts)
 - **`verify:gates` (`scripts/verify-build-gates.mjs`)** — zero-dependency Node ESM post-build security & privacy gate script (unit-tested in `scripts/verify-build-gates.test.mjs`) enforcing empty `dependencies`/`optionalDependencies` + exact `devDependencies` + zero `@capacitor/*` in `src/`, strict CSP + Trusted Types + `no-referrer` (and no `frame-ancestors`) in `dist/index.html` with linear comment stripping (`stripHtmlComments`) and fail-closed HTML5 comment-end checks, zero external `http(s)://` URLs in `dist/` (outside W3C XML namespaces), and zero banned DOM XSS / eval sinks in non-test `src/` files. [budget-app/testing.md](budget-app/testing.md#phase-1-toolchain-conventions)
 - **split `tsconfig` (`tsconfig.json` / `tsconfig.node.json`)** — strict browser/app TypeScript config (`types: ["vite/client"]`, `include: ["src"]`, `skipLibCheck: false`) paired with `tsconfig.node.json` (`types: ["node"]`, isolating `@types/node` to Vite/Vitest/Playwright configs and `e2e/`). [budget-app/testing.md](budget-app/testing.md#phase-1-toolchain-conventions)
 - **post-merge repo hardening** — the three `gh api` commands (`vulnerability-alerts`, `actions/permissions` `sha_pinning_required=true`, and `branches/main/protection` requiring the `ci` check with `enforce_admins: true`) run by `staff-software-engineer` immediately upon merging Story #216 to `main`. [budget-app/testing.md](budget-app/testing.md#post-merge-repository-hardening-commands)
