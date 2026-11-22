@@ -164,6 +164,10 @@
   gap: 0.625rem;
 }
 
+.settings-nag-banner[hidden] {
+  display: none;
+}
+
 .settings-nag-message {
   margin: 0;
   font-size: 0.875rem;
