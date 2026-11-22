@@ -16,9 +16,11 @@
  * - **Web / PWA (`isNative === false`):** `saveBackup` writes the JSON via the
  *   File System Access API (`showSaveFilePicker`) when available, else a
  *   temporary `<a download>` against a `Blob` URL; `shareBackup` uses
- *   `navigator.share` when supported, else falls back to `saveBackup`
- *   (iOS WKWebView does not honour `<a download>`, so the fallback keeps a
- *   working save path everywhere).
+ *   `navigator.share` when supported (resolving silently on user-cancelled
+ *   `AbortError` and falling back to `saveBackup` on any non-`AbortError`
+ *   rejection or when `navigator.share` is absent — iOS WKWebView does not
+ *   honour `<a download>`, so the fallback keeps a working save path
+ *   everywhere).
  * - **Native shell (`isNative === true`):** both methods delegate to the
  *   `BackupService` plugin registered on `window.Capacitor.Plugins`.
  *
@@ -46,8 +48,10 @@ export interface PlatformServices {
   readonly isNative: boolean;
   /** Save `json` (a backup payload) to a local file named `filename`. */
   saveBackup(filename: string, json: string): Promise<void>;
-  /** Share `json` (a backup payload) via the OS share sheet; falls back to
-   *  `saveBackup` on platforms without `navigator.share`. */
+  /** Share `json` (a backup payload) via the OS share sheet; resolves silently
+   *  on user cancel (`AbortError`) and falls back to `saveBackup` on platforms
+   *  without `navigator.share` or when `navigator.share` rejects with a
+   *  non-`AbortError` failure. */
   shareBackup(filename: string, json: string): Promise<void>;
 }
 
@@ -103,7 +107,11 @@ export function createPlatformServices(win?: Window): PlatformServices {
             .share({
               files: [new File([json], filename, { type: "application/json" })],
             })
-            .catch(() => undefined) // user cancelled the share sheet
+            .catch((err: unknown) =>
+              err instanceof Error && err.name === "AbortError"
+                ? undefined // user cancelled the share sheet
+                : services.saveBackup(filename, json),
+            )
         : services.saveBackup(filename, json),
   };
   return services;

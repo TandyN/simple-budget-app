@@ -15,8 +15,9 @@ import { createPlatformServices } from "./services";
  *   `window.Capacitor.Plugins`.
  * - **Web path** (`window.Capacitor` absent, or `isNativePlatform() ===
  *   false`): `isNative` is `false`, `saveBackup` does **not** touch the
- *   Capacitor plugin, and `shareBackup` falls back to `saveBackup` when
- *   `navigator.share` is absent.
+ *   Capacitor plugin, and `shareBackup` resolves silently on user-cancelled
+ *   `AbortError` while falling back to `saveBackup` when `navigator.share` is
+ *   absent or rejects with a non-`AbortError` failure.
  *
  * Per the task brief, the tests deliberately do **not** mock real Blob
  * downloads or `<a>` clicks; they assert the delegation/fallback code path.
@@ -121,6 +122,84 @@ describe("createPlatformServices — web (window.Capacitor absent or non-native)
       // Fallback routed through saveBackup.
       expect(saveSpy).toHaveBeenCalledTimes(1);
       expect(saveSpy).toHaveBeenCalledWith("share.json", '{"x":3}');
+    } finally {
+      nav.share = realShare;
+    }
+  });
+
+  it("shareBackup resolves silently without falling back to saveBackup when navigator.share rejects with AbortError", async () => {
+    const services = createPlatformServices();
+    const nav = navigator as unknown as { share?: unknown };
+    const realShare = nav.share;
+    const saveSpy = vi
+      .spyOn(services, "saveBackup")
+      .mockResolvedValue(undefined);
+
+    try {
+      // 1. Standard W3C DOMException("...", "AbortError")
+      const shareMock = vi
+        .fn<(data?: ShareData) => Promise<void>>()
+        .mockRejectedValueOnce(
+          new DOMException("User cancelled share sheet", "AbortError"),
+        );
+      nav.share = shareMock;
+
+      await expect(
+        services.shareBackup("share.json", '{"x":4}'),
+      ).resolves.toBeUndefined();
+      expect(shareMock).toHaveBeenCalledTimes(1);
+      expect(saveSpy).not.toHaveBeenCalled();
+
+      // 2. Plain Error instance with name = "AbortError"
+      const abortErr = new Error("Share aborted by user");
+      abortErr.name = "AbortError";
+      shareMock.mockRejectedValueOnce(abortErr);
+
+      await expect(
+        services.shareBackup("share.json", '{"x":5}'),
+      ).resolves.toBeUndefined();
+      expect(shareMock).toHaveBeenCalledTimes(2);
+      expect(saveSpy).not.toHaveBeenCalled();
+    } finally {
+      nav.share = realShare;
+    }
+  });
+
+  it("shareBackup falls back to saveBackup when navigator.share rejects with a non-AbortError failure", async () => {
+    const services = createPlatformServices();
+    const nav = navigator as unknown as { share?: unknown };
+    const realShare = nav.share;
+    const saveSpy = vi
+      .spyOn(services, "saveBackup")
+      .mockResolvedValue(undefined);
+
+    try {
+      // 1. Non-AbortError DOMException (e.g. NotAllowedError / DataError)
+      const shareMock = vi
+        .fn<(data?: ShareData) => Promise<void>>()
+        .mockRejectedValueOnce(
+          new DOMException("Permission denied", "NotAllowedError"),
+        );
+      nav.share = shareMock;
+
+      await expect(
+        services.shareBackup("share.json", '{"x":6}'),
+      ).resolves.toBeUndefined();
+      expect(shareMock).toHaveBeenCalledTimes(1);
+      expect(saveSpy).toHaveBeenCalledTimes(1);
+      expect(saveSpy).toHaveBeenCalledWith("share.json", '{"x":6}');
+
+      // 2. Generic Error (e.g. TypeError when file sharing is unsupported)
+      shareMock.mockRejectedValueOnce(
+        new TypeError("File sharing is not supported"),
+      );
+
+      await expect(
+        services.shareBackup("share-2.json", '{"x":7}'),
+      ).resolves.toBeUndefined();
+      expect(shareMock).toHaveBeenCalledTimes(2);
+      expect(saveSpy).toHaveBeenCalledTimes(2);
+      expect(saveSpy).toHaveBeenLastCalledWith("share-2.json", '{"x":7}');
     } finally {
       nav.share = realShare;
     }
