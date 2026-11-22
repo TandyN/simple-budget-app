@@ -603,6 +603,41 @@
   color: var(--budget-text);
 }
 
+/* Non-destructive startup recovery / storage error banner */
+.budget-alert-banner {
+  margin: 1rem;
+  padding: 1rem;
+  background-color: var(--budget-danger-bg);
+  color: var(--budget-danger-text);
+  border: 2px solid var(--budget-danger);
+  border-radius: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  max-width: 36rem;
+}
+
+.budget-alert-title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--budget-danger-text);
+}
+
+.budget-alert-message {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  color: var(--budget-text);
+}
+
+.budget-alert-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
 /*
  * Unfolded (>= 700px): state-aware dual-column split-pane inside `#panel-budget`.
  * Left pane: Available Funds + Quick-Add + Recurring Rules slot (internal scroll).
