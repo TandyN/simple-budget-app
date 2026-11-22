@@ -9,7 +9,7 @@ All files here obey the zero-production-dependency boundary (`dependencies: {}`)
 - **Strict CSP & privacy meta tags (`index.html`):**
   - `<meta http-equiv="Content-Security-Policy">` enforces `default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'; worker-src 'self'; manifest-src 'self'; require-trusted-types-for 'script'; trusted-types sw-register` (omits `frame-ancestors`, which is ignored in `<meta>`).
   - `<meta name="referrer" content="no-referrer">` and `<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">`.
-  - Links `./src/styles/frame.css` and mounts `<div id="app"></div>` + `<script type="module" src="/src/main.ts"></script>`.
+  - Links `./src/styles/frame.css` and `./src/styles/budget.css` and mounts `<div id="app"></div>` + `<script type="module" src="/src/main.ts"></script>`.
 - **Clickjacking frame-buster & bootstrap (`src/main.ts`):**
   - Exports dependency-injected `assertNotFramed(win, doc)` (with `FrameGuardWindow` / `FrameGuardDocument`): detects `win.top !== win.self` (treating cross-origin access throws as framed), clears `doc.documentElement.replaceChildren()`, and throws `Error("Framing is not permitted")`; unit-tested in `src/main.test.ts`.
   - In a browser context (`window` and `document` defined), runs `assertNotFramed(window, document)` and mounts `renderShell(app)` into `#app`.
@@ -49,6 +49,18 @@ All files here obey the zero-production-dependency boundary (`dependencies: {}`)
   - `toDateTimeLocalInputValue(isoUtc)` / `fromDateTimeLocalInputValue(localValue)`: round-trips between ISO-8601 UTC timestamps and `<input type="datetime-local">` (`YYYY-MM-DDTHH:mm`) local values.
   - `parseTagsInput(raw)` / `formatTagsInput(tags)`: splits/joins comma-separated free-form tags with trimming, empty-entry removal, and order-preserving deduplication.
 - **Tests (`src/ui/format.test.ts`):** Vitest unit tests covering positive/zero/negative cents, currency/locale formatting, decimal input bounds/rejections, UTC ↔ local datetime round-trips, and tag parsing/formatting.
+
+## 3c. Budget Tab Core UI & Responsive Styles (`src/ui/budgetTab.ts`, `src/styles/budget.css`)
+
+- **Exports (`src/ui/budgetTab.ts`):** `mountBudgetTab(options: MountBudgetTabOptions): BudgetTabController` (`{ refresh(): Promise<void> }`), built exclusively via `src/ui/dom.ts` safe DOM helpers (zero `innerHTML` / XSS sinks).
+- **Sections & workflows:**
+  - **Sticky Available Funds header (`#budget-available-funds`):** displays `budget.getAvailableFunds()` formatted via `formatCents(...)` inside an `aria-live="polite"` / `aria-atomic="true"` region with `font-variant-numeric: tabular-nums`.
+  - **Quick-Add manual transaction form:** `type` (`expense` | `income` | `deposit`), decimal `amount` → `parseDecimalInputToCents`, `datetime-local` → UTC ISO-8601, optional `memo`, and comma-separated `tags`; calls `event.preventDefault()` (CSP `form-action 'none'`), validates with inline `role="alert"` errors, calls `budget.addActivity(...)`, invokes `onUserWrite?.()`, resets, and refreshes.
+  - **Recurring Rules slot (`[data-slot="recurring-rules"]`):** dedicated mount container inside the Budget primary pane with an optional `renderRecurringSlot(slot, onChanged)` callback.
+  - **Reverse-chronological Activity Feed:** renders manual and recurring-posted activities sorted newest-first (`dateTime`, deterministic tie-break by `createdAt`/`id`) with local-timezone formatting (`formatLocalDateTime`), tag chips, empty state, and `>= 44×44 CSS px` Edit/Delete actions.
+  - **Edit / Delete `<dialog>` flows:** Edit opens a native `<dialog class="budget-edit-dialog">` (`showModal()`) exposing only editable fields (`type`, `amount`, `dateTime`, `memo`, `tags` — never provenance fields), validates and calls `budget.editActivity(id, patch)`, and restores focus on close; Delete invokes the shell's native `confirm(...)` `<dialog>` before calling `budget.deleteActivity(id)`.
+- **Responsive stylesheet (`src/styles/budget.css`, linked from `index.html`):** folded (`< 700px`) single-column flow scrolling inside `#panel-budget` with sticky Available Funds header; unfolded (`>= 700px`) dual-column split-pane (left: Available Funds + Quick-Add + Recurring Rules slot; right: independently scrollable Activity Feed); WCAG 2.2 AA contrast (`>= 4.5:1` text, `>= 3:1` controls), visible `:focus-visible` rings, `>= 44×44 CSS px` (`2.75rem`) touch targets, zero page-level overflow, zero remote fonts/URLs.
+- **Tests (`src/ui/budgetTab.test.ts`):** Vitest unit/controller tests (`// @vitest-environment happy-dom`) using `InMemoryAdapter` + `createBudgetApi` covering initial state, Quick-Add, recurring activity rendering, invalid amount validation, Edit/Backdate/Tag modal + focus return, Delete confirmation cancel/confirm, DOM XSS payloads as inert text, and Recurring Rules slot callback.
 
 ## 4. iPhone-Duo Dual-State CSS Frame (`src/styles/frame.css`)
 
