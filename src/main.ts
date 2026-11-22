@@ -1,8 +1,15 @@
 import { type BudgetApi, createBudgetApi } from "./budgetApi";
+import {
+  createPlatformServices,
+  type PlatformServices,
+} from "./platform/services";
+import { createSyncChannel, type SyncChannel } from "./platform/sync";
 import type { StorageAdapter } from "./storage/adapter";
 import { IndexedDbAdapter, VersionMismatchError } from "./storage/indexeddb";
 import { type BudgetTabController, mountBudgetTab } from "./ui/budgetTab";
 import { el, replaceChildren, text } from "./ui/dom";
+import { type InsightsTabController, mountInsightsTab } from "./ui/insightsTab";
+import { mountSettingsTab, type SettingsTabController } from "./ui/settingsTab";
 import { renderShell, type ShellHandle } from "./ui/shell";
 
 export interface FrameGuardWindow {
@@ -34,10 +41,12 @@ export function assertNotFramed(
 
 /**
  * Storage adapter contract accepted by `bootstrapApp`, optionally exposing the
- * first-write durability hook (`IndexedDbAdapter.requestPersistenceAfterFirstAction`).
+ * first-write durability hook (`IndexedDbAdapter.requestPersistenceAfterFirstAction`)
+ * and live persistence readout (`IndexedDbAdapter.getPersisted`).
  */
 export interface PersistableStorageAdapter extends StorageAdapter {
   requestPersistenceAfterFirstAction?(): Promise<boolean>;
+  getPersisted?(): Promise<boolean>;
 }
 
 /** Minimal window event/location surface for deterministic `bootstrapApp` testing. */
@@ -62,9 +71,13 @@ export interface BootstrapAppOptions {
   readonly adapter?: PersistableStorageAdapter;
   /** Optional `BudgetApi` instance override (defaults to `createBudgetApi({ adapter })`). */
   readonly budget?: BudgetApi;
+  /** Optional `PlatformServices` override (defaults to `createPlatformServices()`). */
+  readonly platform?: PlatformServices;
+  /** Optional base-path-scoped `SyncChannel` override (defaults to `createSyncChannel()`). */
+  readonly syncChannel?: SyncChannel;
   /** Optional ID factory forwarded to `createBudgetApi` (injectable for tests). */
   readonly idFactory?: () => string;
-  /** Optional clock forwarded to `createBudgetApi` and `mountBudgetTab` (injectable for tests). */
+  /** Optional clock forwarded to `createBudgetApi`, `mountBudgetTab`, and `mountSettingsTab` (injectable for tests). */
   readonly now?: () => Date;
   /** Window event target for `focus` recurring triggers; defaults to `window`. */
   readonly win?: BootstrapWindow;
@@ -77,6 +90,8 @@ export interface BootstrapAppHandle {
   readonly shell: ShellHandle;
   readonly budget: BudgetApi;
   readonly budgetTab: BudgetTabController | null;
+  readonly insightsTab: InsightsTabController | null;
+  readonly settingsTab: SettingsTabController | null;
   dispose(): void;
 }
 
@@ -132,14 +147,20 @@ function renderInitErrorBanner(
  * 2. Opens storage via `budget.init()`, rendering a non-destructive
  *    `role="alert"` banner on `VersionMismatchError` or unexpected init errors
  *    (never calling `indexedDB.deleteDatabase()`).
- * 3. Runs `budget.runRecurringEngine()` on startup.
+ * 3. Instantiates `PlatformServices` and base-path-scoped `BroadcastChannel`
+ *    sync (`createSyncChannel`), then runs `budget.runRecurringEngine()` on
+ *    startup (broadcasting if new recurring items posted).
  * 4. Wires a one-shot `onUserWrite` durability callback that triggers
  *    `adapter.requestPersistenceAfterFirstAction?.()` only after the first
  *    user write/action (never during cold `init()`).
- * 5. Mounts `mountBudgetTab` into `shell.panels.budget` and awaits initial render.
+ * 5. Mounts `mountBudgetTab`, `mountInsightsTab`, and `mountSettingsTab` into
+ *    their respective shell panels, coordinates sibling tab refreshes +
+ *    `syncChannel.notifyMutated()` on local mutations, and refreshes all 3
+ *    tabs on incoming peer `"budget-mutated"` messages without re-broadcasting.
  * 6. Registers serialized `window` `focus` and `document` `visibilitychange`
- *    listeners to re-run `budget.runRecurringEngine()` and refresh the Budget
- *    tab whenever new activities post, returning a `dispose()` cleanup hook.
+ *    listeners to re-run `budget.runRecurringEngine()` and refresh all tabs +
+ *    broadcast whenever new activities post, returning a `dispose()` cleanup
+ *    hook that removes listeners and closes the sync channel.
  */
 export async function bootstrapApp(
   options: BootstrapAppOptions,
@@ -169,14 +190,23 @@ export async function bootstrapApp(
       shell,
       budget,
       budgetTab: null,
+      insightsTab: null,
+      settingsTab: null,
       dispose(): void {},
     };
   }
 
+  const platform: PlatformServices =
+    options.platform ?? createPlatformServices();
+  const syncChannel: SyncChannel = options.syncChannel ?? createSyncChannel();
+
   try {
-    await budget.runRecurringEngine();
+    const { posted } = await budget.runRecurringEngine();
+    if (posted.length > 0) {
+      syncChannel.notifyMutated();
+    }
   } catch {
-    // Best-effort startup recurring pass; do not block mounting the Budget tab
+    // Best-effort startup recurring pass; do not block mounting the tabs
     // or emit an unhandled promise rejection.
   }
 
@@ -198,17 +228,75 @@ export async function bootstrapApp(
     }
   };
 
-  const budgetTab = mountBudgetTab({
+  let disposed = false;
+
+  const insightsTab = mountInsightsTab({
+    container: shell.panels.insights,
+    budget,
+  });
+
+  // Forward-referenced so Budget and Settings mutation callbacks can refresh
+  // each other cleanly after both controllers are mounted synchronously below.
+  let budgetTab!: BudgetTabController;
+  let settingsTab!: SettingsTabController;
+
+  const refreshAllTabs = async (): Promise<void> => {
+    if (disposed) {
+      return;
+    }
+    await Promise.allSettled([
+      budgetTab.refresh(),
+      insightsTab.refresh(),
+      settingsTab.refresh(),
+    ]);
+  };
+
+  const handleLocalMutation = async (
+    source: "budget" | "settings",
+  ): Promise<void> => {
+    if (disposed) {
+      return;
+    }
+    syncChannel.notifyMutated();
+    const siblingRefreshes: Promise<void>[] = [insightsTab.refresh()];
+    if (source === "budget") {
+      siblingRefreshes.push(settingsTab.refresh());
+    } else {
+      siblingRefreshes.push(budgetTab.refresh());
+    }
+    await Promise.allSettled(siblingRefreshes);
+  };
+
+  budgetTab = mountBudgetTab({
     container: shell.panels.budget,
     budget,
     confirm: shell.confirm,
     onUserWrite,
+    onDataMutated: () => handleLocalMutation("budget"),
     ...(options.now !== undefined ? { now: options.now } : {}),
   });
 
-  await budgetTab.refresh();
+  settingsTab = mountSettingsTab({
+    container: shell.panels.settings,
+    budget,
+    platform,
+    confirm: shell.confirm,
+    adapter,
+    onUserWrite,
+    onDataMutated: () => handleLocalMutation("settings"),
+    ...(options.now !== undefined ? { now: options.now } : {}),
+  });
 
-  let disposed = false;
+  await Promise.all([
+    budgetTab.refresh(),
+    insightsTab.refresh(),
+    settingsTab.refresh(),
+  ]);
+
+  const unsubscribeSync = syncChannel.subscribe(() => {
+    void refreshAllTabs();
+  });
+
   let recurringInFlight: Promise<void> | null = null;
   let rerunRequested = false;
 
@@ -226,7 +314,8 @@ export async function bootstrapApp(
           rerunRequested = false;
           const { posted } = await budget.runRecurringEngine();
           if (!disposed && posted.length > 0) {
-            await budgetTab.refresh();
+            syncChannel.notifyMutated();
+            await refreshAllTabs();
           }
         } while (rerunRequested && !disposed);
       } catch {
@@ -257,12 +346,16 @@ export async function bootstrapApp(
     disposed = true;
     targetWin.removeEventListener("focus", handleFocus);
     targetDoc.removeEventListener("visibilitychange", handleVisibilityChange);
+    unsubscribeSync();
+    syncChannel.close();
   };
 
   return {
     shell,
     budget,
     budgetTab,
+    insightsTab,
+    settingsTab,
     dispose,
   };
 }

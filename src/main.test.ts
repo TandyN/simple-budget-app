@@ -11,6 +11,8 @@ import {
   type FrameGuardWindow,
   type PersistableStorageAdapter,
 } from "./main";
+import type { PlatformServices } from "./platform/services";
+import type { BudgetMutatedMessage, SyncChannel } from "./platform/sync";
 import { IndexedDbAdapter } from "./storage/indexeddb";
 import { InMemoryAdapter } from "./storage/memory";
 
@@ -89,6 +91,76 @@ function createFakeWinDoc(): {
   };
 
   return { win, doc };
+}
+
+function createFakeSyncChannel(): {
+  readonly channel: SyncChannel;
+  readonly notifyMutated: ReturnType<typeof vi.fn<() => void>>;
+  readonly close: ReturnType<typeof vi.fn<() => void>>;
+  emitPeerMutation(timestamp?: number): void;
+} {
+  const listeners = new Set<(msg: BudgetMutatedMessage) => void>();
+  let closed = false;
+  const notifyMutated = vi.fn<() => void>();
+  const close = vi.fn<() => void>(() => {
+    closed = true;
+    listeners.clear();
+  });
+
+  const channel: SyncChannel = {
+    channelName: "simple-budget-sync",
+    supported: true,
+    notifyMutated,
+    subscribe(onMutated: (msg: BudgetMutatedMessage) => void): () => void {
+      if (closed) {
+        return () => {};
+      }
+      listeners.add(onMutated);
+      return () => {
+        listeners.delete(onMutated);
+      };
+    },
+    close,
+  };
+
+  return {
+    channel,
+    notifyMutated,
+    close,
+    emitPeerMutation(timestamp = Date.now()): void {
+      if (closed) {
+        return;
+      }
+      const payload: BudgetMutatedMessage = {
+        type: "budget-mutated",
+        timestamp,
+      };
+      for (const listener of [...listeners]) {
+        listener(payload);
+      }
+    },
+  };
+}
+
+function createFakePlatform(): PlatformServices & {
+  readonly saveBackup: ReturnType<
+    typeof vi.fn<(filename: string, json: string) => Promise<void>>
+  >;
+  readonly shareBackup: ReturnType<
+    typeof vi.fn<(filename: string, json: string) => Promise<void>>
+  >;
+} {
+  const saveBackup = vi
+    .fn<(filename: string, json: string) => Promise<void>>()
+    .mockResolvedValue(undefined);
+  const shareBackup = vi
+    .fn<(filename: string, json: string) => Promise<void>>()
+    .mockResolvedValue(undefined);
+  return {
+    isNative: false,
+    saveBackup,
+    shareBackup,
+  };
 }
 
 async function flushAsync(): Promise<void> {
@@ -210,6 +282,8 @@ describe("bootstrapApp", () => {
     });
 
     expect(handle.budgetTab).not.toBeNull();
+    expect(handle.insightsTab).not.toBeNull();
+    expect(handle.settingsTab).not.toBeNull();
     expect(requestPersistenceAfterFirstAction).not.toHaveBeenCalled();
 
     const funds = container.querySelector("#budget-available-funds");
@@ -221,6 +295,23 @@ describe("bootstrapApp", () => {
     expect(
       container.querySelector('[data-slot="recurring-rules"]'),
     ).not.toBeNull();
+
+    // Insights and Settings tabs are mounted and populated on startup.
+    expect(container.querySelector("#insights-summary-in")?.textContent).toBe(
+      "$2,500.00",
+    );
+    expect(
+      container.querySelectorAll("#insights-activity-list > li"),
+    ).toHaveLength(1);
+    expect(
+      container.querySelector("#settings-durability-status")?.textContent,
+    ).toBe("Best-effort browser storage");
+    expect(container.querySelector("#settings-last-backup")?.textContent).toBe(
+      "Never backed up",
+    );
+    expect(
+      container.querySelector("#settings-backup-nag")?.hasAttribute("hidden"),
+    ).toBe(false);
   });
 
   it("calls requestPersistenceAfterFirstAction once after the first user write and swallows rejections", async () => {
@@ -451,10 +542,246 @@ describe("bootstrapApp", () => {
     });
 
     expect(handle.budgetTab).toBeNull();
+    expect(handle.insightsTab).toBeNull();
+    expect(handle.settingsTab).toBeNull();
     const alert = container.querySelector('#panel-budget [role="alert"]');
     expect(alert).not.toBeNull();
     expect(alert?.getAttribute("data-error-kind")).toBe("storage");
     expect(alert?.textContent).toContain("Storage unavailable");
     expect(alert?.textContent).toContain("has not been deleted");
+  });
+
+  it("refreshes sibling tabs and emits budget-mutated on local Budget writes and Settings backup imports", async () => {
+    const container = createRoot();
+    const memory = new InMemoryAdapter();
+    const { win, doc } = createFakeWinDoc();
+    const sync = createFakeSyncChannel();
+    const platform = createFakePlatform();
+    let idSeq = 0;
+
+    handle = await bootstrapApp({
+      container,
+      adapter: memory,
+      platform,
+      syncChannel: sync.channel,
+      idFactory: () => `id-${++idSeq}`,
+      now: () => new Date("2026-06-15T12:00:00.000Z"),
+      win,
+      doc,
+    });
+
+    // Cold startup with empty DB does not broadcast.
+    expect(sync.notifyMutated).not.toHaveBeenCalled();
+    expect(
+      container.querySelector("#settings-backup-nag")?.hasAttribute("hidden"),
+    ).toBe(true);
+
+    // 1. Local Quick-Add in Budget tab updates Insights + Settings nag and broadcasts.
+    const quickForm = container.querySelector(
+      ".budget-quick-add form",
+    ) as HTMLFormElement;
+    const typeSelect = container.querySelector(
+      "#quick-add-type",
+    ) as HTMLSelectElement;
+    const amountInput = container.querySelector(
+      "#quick-add-amount",
+    ) as HTMLInputElement;
+    const tagsInput = container.querySelector(
+      "#quick-add-tags",
+    ) as HTMLInputElement;
+
+    typeSelect.value = "deposit";
+    amountInput.value = "150.00";
+    tagsInput.value = "savings";
+    submitForm(quickForm);
+    await flushAsync();
+
+    expect(sync.notifyMutated).toHaveBeenCalledTimes(1);
+    expect(container.querySelector("#insights-summary-in")?.textContent).toBe(
+      "$150.00",
+    );
+    expect(
+      container.querySelectorAll("#insights-activity-list > li"),
+    ).toHaveLength(1);
+    expect(
+      container.querySelector("#settings-backup-nag")?.hasAttribute("hidden"),
+    ).toBe(false);
+
+    // 2. Settings JSON import updates Budget + Insights tabs and broadcasts.
+    const backupPayload = JSON.stringify({
+      schemaVersion: 1,
+      exportedAt: "2026-06-15T12:00:00.000Z",
+      rules: [],
+      activities: [
+        {
+          id: "imported-1",
+          type: "expense",
+          amountCents: 4500,
+          currency: "USD",
+          dateTime: "2026-06-10T10:00:00.000Z",
+          source: "manual",
+          tags: ["groceries"],
+          memo: "Imported market run",
+          createdAt: "2026-06-10T10:00:00.000Z",
+          updatedAt: "2026-06-10T10:00:00.000Z",
+        },
+      ],
+    });
+    const file = new File([backupPayload], "backup.json", {
+      type: "application/json",
+    });
+    const importInput = container.querySelector(
+      "#settings-import-file",
+    ) as HTMLInputElement;
+    Object.defineProperty(importInput, "files", {
+      value: [file],
+      configurable: true,
+    });
+    importInput.dispatchEvent(new Event("change", { bubbles: true }));
+    await flushAsync();
+
+    // Confirm import in the shell's native <dialog>.
+    const confirmBtn = container.querySelector(
+      "dialog.confirm-dialog .confirm-dialog-confirm",
+    ) as HTMLButtonElement;
+    confirmBtn.click();
+    await flushAsync();
+    await flushAsync();
+
+    expect(platform.saveBackup).toHaveBeenCalledTimes(1);
+    expect(sync.notifyMutated).toHaveBeenCalledTimes(2);
+    expect(
+      container.querySelector("#budget-available-funds")?.textContent,
+    ).toBe("-$45.00");
+    expect(container.querySelector("#insights-summary-out")?.textContent).toBe(
+      "$45.00",
+    );
+  });
+
+  it("refreshes all 3 tabs on incoming peer budget-mutated messages without re-broadcasting, and closes channel on dispose()", async () => {
+    const container = createRoot();
+    const memory = new InMemoryAdapter();
+    const { win, doc } = createFakeWinDoc();
+    const sync = createFakeSyncChannel();
+    const platform = createFakePlatform();
+    let idSeq = 0;
+
+    handle = await bootstrapApp({
+      container,
+      adapter: memory,
+      platform,
+      syncChannel: sync.channel,
+      idFactory: () => `id-${++idSeq}`,
+      now: () => new Date("2026-06-15T12:00:00.000Z"),
+      win,
+      doc,
+    });
+
+    expect(sync.notifyMutated).not.toHaveBeenCalled();
+
+    // Simulate a peer tab writing directly to the shared storage adapter.
+    await memory.save("activities", {
+      id: "peer-act-1",
+      type: "income",
+      amountCents: 32000,
+      currency: "USD",
+      dateTime: "2026-06-15T11:00:00.000Z",
+      source: "manual",
+      tags: ["freelance"],
+      memo: "Peer tab invoice",
+      createdAt: "2026-06-15T11:00:00.000Z",
+      updatedAt: "2026-06-15T11:00:00.000Z",
+    });
+
+    sync.emitPeerMutation(1_700_000_000_000);
+    await flushAsync();
+
+    // All 3 tabs reflect the peer mutation without re-emitting (zero echo loops).
+    expect(
+      container.querySelector("#budget-available-funds")?.textContent,
+    ).toBe("$320.00");
+    expect(container.querySelector("#insights-summary-in")?.textContent).toBe(
+      "$320.00",
+    );
+    expect(
+      container.querySelector("#settings-backup-nag")?.hasAttribute("hidden"),
+    ).toBe(false);
+    expect(sync.notifyMutated).not.toHaveBeenCalled();
+
+    // Disposing closes the sync channel and stops responding to peer messages.
+    handle.dispose();
+    expect(sync.close).toHaveBeenCalledTimes(1);
+
+    await memory.save("activities", {
+      id: "peer-act-2",
+      type: "expense",
+      amountCents: 10000,
+      currency: "USD",
+      dateTime: "2026-06-15T12:00:00.000Z",
+      source: "manual",
+      tags: ["food"],
+      createdAt: "2026-06-15T12:00:00.000Z",
+      updatedAt: "2026-06-15T12:00:00.000Z",
+    });
+    sync.emitPeerMutation(1_700_000_000_100);
+    await flushAsync();
+
+    expect(
+      container.querySelector("#budget-available-funds")?.textContent,
+    ).toBe("$320.00");
+  });
+
+  it("broadcasts and refreshes all 3 tabs when focus/visibility recurring pass posts new items", async () => {
+    const container = createRoot();
+    const memory = new InMemoryAdapter();
+    await memory.open();
+    await memory.save("rules", {
+      id: "rule-bonus",
+      name: "Monthly Bonus",
+      type: "income",
+      amountCents: 50000,
+      currency: "USD",
+      schedule: { cadence: "monthly", dayOfMonth: 1 },
+      active: true,
+      lastPostPeriod: null,
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+    });
+
+    let currentNow = new Date("2026-06-15T12:00:00.000Z");
+    let idSeq = 0;
+    const { win, doc } = createFakeWinDoc();
+    const sync = createFakeSyncChannel();
+    const platform = createFakePlatform();
+
+    handle = await bootstrapApp({
+      container,
+      adapter: memory,
+      platform,
+      syncChannel: sync.channel,
+      idFactory: () => `id-${++idSeq}`,
+      now: () => currentNow,
+      win,
+      doc,
+    });
+
+    // Startup posted June -> 1 broadcast.
+    expect(sync.notifyMutated).toHaveBeenCalledTimes(1);
+    expect(container.querySelector("#insights-summary-in")?.textContent).toBe(
+      "$500.00",
+    );
+
+    // Advance into July and emit focus -> posts July, broadcasts again, refreshes Insights.
+    currentNow = new Date("2026-07-02T12:00:00.000Z");
+    win.emitFocus();
+    await flushAsync();
+
+    expect(sync.notifyMutated).toHaveBeenCalledTimes(2);
+    expect(
+      container.querySelector("#budget-available-funds")?.textContent,
+    ).toBe("$1,000.00");
+    expect(container.querySelector("#insights-summary-in")?.textContent).toBe(
+      "$1,000.00",
+    );
   });
 });
