@@ -157,10 +157,35 @@ jobs:
           tar --sort=name --owner=0 --group=0 --numeric-owner --mtime='UTC 2020-01-01' -czf "${ART}" dist
           sha256sum "${ART}" > "${ART}.sha256"
 
-      - name: Set up gh CLI
-        uses: github/gh-cli@e1219499a578b69e3437adaa31cd60614e23c802 # v2.105.0
-        with:
-          version: "2.105.0"
+      - name: "Install gh CLI (official release artifact, checksum-verified)"
+        shell: bash
+        env:
+          GH_VERSION: "2.105.0"
+        run: |
+          set -euo pipefail
+          # First-party: the official `cli/cli` release artifact — exact
+          # version + SHA-256 verified against the release's own checksums
+          # file (no third-party action; the `cli/cli` repo defines no
+          # root action, so no `uses:` reference is involved at all).
+          # The install dir is appended to GITHUB_PATH, so in every later
+          # step the pinned binary shadows the runner's preinstalled `gh`.
+          ASSET="gh_${GH_VERSION}_linux_amd64.tar.gz"
+          CHECKSUMS="gh_${GH_VERSION}_checksums.txt"
+          WORKDIR="$(mktemp -d)"
+          curl --fail --location --silent --show-error \
+            -o "${WORKDIR}/${ASSET}" \
+            "https://github.com/cli/cli/releases/download/v${GH_VERSION}/${ASSET}"
+          curl --fail --location --silent --show-error \
+            -o "${WORKDIR}/${CHECKSUMS}" \
+            "https://github.com/cli/cli/releases/download/v${GH_VERSION}/${CHECKSUMS}"
+          ( cd "${WORKDIR}" && awk -v a="${ASSET}" '$2 == a' "${CHECKSUMS}" | sha256sum -c - )
+          mkdir -p "${WORKDIR}/bin"
+          tar -xzf "${WORKDIR}/${ASSET}" -C "${WORKDIR}"
+          mv "${WORKDIR}/gh_${GH_VERSION}_linux_amd64/bin/gh" "${WORKDIR}/bin/gh"
+          chmod +x "${WORKDIR}/bin/gh"
+          rm -f "${WORKDIR}/${ASSET}" "${WORKDIR}/${CHECKSUMS}"
+          echo "${WORKDIR}/bin" >> "${GITHUB_PATH}"
+          "${WORKDIR}/bin/gh" --version
 
       - name: Publish GitHub Release (idempotent)
         shell: bash
