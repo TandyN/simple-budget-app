@@ -106,9 +106,18 @@ describe(".github/workflows/deploy-pages.yml static security & spec invariants",
     );
   });
 
-  it("triggers only on pull_request targeting main (opened, synchronize, reopened, closed) and push to main", () => {
+  it("triggers on pull_request targeting main (opened, synchronize, reopened, closed), push to main, and workflow_dispatch with a required ref input", () => {
     expect(workflow).toMatch(
       /^on:\n {2}pull_request:\n {4}branches: \[main\]\n {4}types: \[opened, synchronize, reopened, closed\]\n {2}push:\n {4}branches: \[main\]\n/m,
+    );
+    expect(workflow).toMatch(
+      /^ {2}workflow_dispatch:\n {4}inputs:\n {6}ref:\n {8}description: "Same-schema SemVer tag to re-deploy to the production root \(vX\.Y\.Z\)"\n {8}required: true\n {8}default: "main"\n/m,
+    );
+  });
+
+  it("gates the publish job on push, workflow_dispatch, or same-repo pull_request (skipping fork PRs)", () => {
+    expect(workflow).toMatch(
+      /if: >-\n {6}github\.event_name == 'push' \|\|\n {6}github\.event_name == 'workflow_dispatch' \|\|/,
     );
   });
 
@@ -166,9 +175,71 @@ describe(".github/workflows/deploy-pages.yml static security & spec invariants",
       workflow,
       "Publish or prune gh-pages site tree",
     );
+    const validateScript = extractStepRunScript(
+      workflow,
+      "Validate re-deploy tag ref (untrusted input)",
+    );
     const exprPrefix = "$" + "{{";
     expect(buildScript).not.toContain(exprPrefix);
     expect(publishScript).not.toContain(exprPrefix);
+    expect(validateScript).not.toContain(exprPrefix);
+  });
+
+  it("validates the untrusted workflow_dispatch ref (strict SemVer regex, remote tag existence, main-ancestor) before checkout and publish", () => {
+    const validateScript = extractStepRunScript(
+      workflow,
+      "Validate re-deploy tag ref (untrusted input)",
+    );
+    expect(validateScript).toContain(
+      'if [[ ! "$REF" =~ ^v[0-9]+\\.[0-9]+\\.[0-9]+$ ]]; then',
+    );
+    expect(validateScript).toContain(
+      'git ls-remote --exit-code --tags origin "refs/tags/$' + '{REF}"',
+    );
+    expect(validateScript).toContain(
+      'git merge-base --is-ancestor "$' +
+        '{TAG_COMMIT}" refs/remotes/origin/main',
+    );
+    const publishScript = extractStepRunScript(
+      workflow,
+      "Publish or prune gh-pages site tree",
+    );
+    expect(publishScript).toContain(
+      'elif [ "$EVENT_NAME" = "workflow_dispatch" ]; then',
+    );
+    expect(publishScript).toContain(
+      'COMMIT_MSG="ci(pages): re-deploy production root from tag $' +
+        "{REF} ($" +
+        '{COMMIT_SHA:0:7})"',
+    );
+    expect(publishScript).toContain(
+      'elif [ "$EVENT_NAME" = "push" ] || [ "$EVENT_NAME" = "workflow_dispatch" ]; then',
+    );
+  });
+
+  it("gates ci.yml native build jobs at job level on vars.NATIVE_BUILDS_ENABLED == 'true' with no secrets/env in any job-level if:", () => {
+    expect(ciWorkflow).toMatch(
+      /android-native-build:\n {4}if: \$\{\{ vars\.NATIVE_BUILDS_ENABLED == 'true' \}\}/,
+    );
+    expect(ciWorkflow).toMatch(
+      /ios-native-build:\n {4}if: \$\{\{ vars\.NATIVE_BUILDS_ENABLED == 'true' \}\}/,
+    );
+    // Job-level `if:` lines (4-space indent) must never reference secrets/env.
+    for (const match of ciWorkflow.matchAll(/^ {4}if:.*$/gm)) {
+      expect(match[0]).not.toMatch(/secrets\./);
+      expect(match[0]).not.toMatch(/\benv\./);
+    }
+    // Signing secrets are mapped into step env: only.
+    expect(ciWorkflow).toContain(
+      "ANDROID_KEYSTORE_B64: $" + "{{ secrets.ANDROID_KEYSTORE_B64 }}",
+    );
+    expect(ciWorkflow).toContain(
+      "IOS_CERTIFICATE_B64: $" + "{{ secrets.IOS_CERTIFICATE_B64 }}",
+    );
+    expect(ciWorkflow).toContain(
+      "IOS_PROVISIONING_PROFILE_B64: $" +
+        "{{ secrets.IOS_PROVISIONING_PROFILE_B64 }}",
+    );
   });
 
   it("computes VITE_BASE_PATH for PR previews (/simple-budget-app/pr-<PR#>/) and main (/simple-budget-app/) and runs verify:gates", () => {
@@ -193,6 +264,96 @@ describe("deploy-pages.yml mode-(a) git publish, prune & concurrency runtime beh
     workflow,
     "Publish or prune gh-pages site tree",
   );
+  const validateScript = extractStepRunScript(
+    workflow,
+    "Validate re-deploy tag ref (untrusted input)",
+  );
+
+  /**
+   * Tags the current `main` commit as an annotated tag and pushes the tag to the bare `origin`.
+   */
+  function tagMainAs(workspaceDir, tagName) {
+    execFileSync(
+      "git",
+      [
+        "-C",
+        workspaceDir,
+        "tag",
+        "-a",
+        tagName,
+        "-m",
+        `tag ${tagName}`,
+        "main",
+      ],
+      { stdio: "pipe" },
+    );
+    execFileSync(
+      "git",
+      ["-C", workspaceDir, "push", "origin", `refs/tags/${tagName}`],
+      {
+        stdio: "pipe",
+      },
+    );
+  }
+
+  /**
+   * Creates a side branch with one extra commit, tags it, and pushes both (a tag NOT on main).
+   */
+  function tagSideBranch(workspaceDir, branchName, tagName) {
+    execFileSync("git", ["-C", workspaceDir, "checkout", "-b", branchName], {
+      stdio: "pipe",
+    });
+    writeFileSync(path.join(workspaceDir, "side.md"), "side branch\n");
+    execFileSync("git", ["-C", workspaceDir, "add", "side.md"], {
+      stdio: "pipe",
+    });
+    execFileSync(
+      "git",
+      ["-C", workspaceDir, "commit", "-m", "side branch commit"],
+      {
+        stdio: "pipe",
+      },
+    );
+    execFileSync(
+      "git",
+      ["-C", workspaceDir, "tag", "-a", tagName, "-m", `tag ${tagName}`],
+      {
+        stdio: "pipe",
+      },
+    );
+    execFileSync(
+      "git",
+      ["-C", workspaceDir, "push", "origin", `HEAD:refs/heads/${branchName}`],
+      {
+        stdio: "pipe",
+      },
+    );
+    execFileSync(
+      "git",
+      ["-C", workspaceDir, "push", "origin", `refs/tags/${tagName}`],
+      {
+        stdio: "pipe",
+      },
+    );
+    execFileSync("git", ["-C", workspaceDir, "checkout", "main"], {
+      stdio: "pipe",
+    });
+  }
+
+  /**
+   * Runs the extracted `Validate re-deploy tag ref (untrusted input)` script in `workspaceDir`.
+   */
+  function runValidateStep(workspaceDir, envVars) {
+    return execFileSync("bash", ["-c", validateScript], {
+      cwd: workspaceDir,
+      env: {
+        ...process.env,
+        REF: envVars.REF ?? "",
+      },
+      encoding: "utf8",
+      stdio: "pipe",
+    });
+  }
 
   /**
    * Creates an isolated test fixture with a bare `origin` git repo and a cloned `workspace` repo.
@@ -597,5 +758,109 @@ fi
       "index.html": "shallow-main-v1",
       "pr-300/index.html": "shallow-pr-300",
     });
+  });
+
+  it("validates the untrusted dispatch ref: accepts a real annotated main tag, rejects malformed/missing refs and tags not on main", () => {
+    const { workspaceDir } = createGitFixture();
+    tagMainAs(workspaceDir, "v0.1.0");
+
+    const output = runValidateStep(workspaceDir, { REF: "v0.1.0" });
+    expect(output).toContain("Validated re-deploy tag v0.1.0 (commit");
+
+    for (const badRef of [
+      "main",
+      "",
+      "v0.1",
+      "v0.1.0; rm -rf /",
+      "V0.1.0",
+      "v0.1.0-rc1",
+    ]) {
+      expect(() => runValidateStep(workspaceDir, { REF: badRef })).toThrow(
+        /Invalid re-deploy ref/,
+      );
+    }
+    expect(() => runValidateStep(workspaceDir, { REF: "v9.9.9" })).toThrow(
+      /does not exist on origin/,
+    );
+
+    // A real annotated tag that is NOT on main must be rejected.
+    tagSideBranch(workspaceDir, "side-branch", "v8.8.8");
+    expect(() => runValidateStep(workspaceDir, { REF: "v8.8.8" })).toThrow(
+      /does not point at a commit on main/,
+    );
+  });
+
+  it("re-deploys the production root on workflow_dispatch (same-schema tag) while preserving pr-*/ previews, and rejects a non-SemVer ref at publish time", () => {
+    const { baseDir, originDir, workspaceDir } = createGitFixture();
+
+    // Seed a PR preview and a production root.
+    writeDist(workspaceDir, {
+      "index.html": "pr-120-preview",
+      "assets/preview.js": "pr-120-app",
+    });
+    runPublishStep(workspaceDir, {
+      EVENT_NAME: "pull_request",
+      EVENT_ACTION: "opened",
+      PR_NUMBER: "120",
+    });
+    writeDist(workspaceDir, {
+      "index.html": "prod-v1",
+      "assets/prod.js": "prod-v1-app",
+    });
+    runPublishStep(workspaceDir, {
+      EVENT_NAME: "push",
+      EVENT_ACTION: "",
+      PR_NUMBER: "",
+    });
+
+    // The good tag points at the current main commit.
+    tagMainAs(workspaceDir, "v0.1.0");
+
+    // A non-SemVer ref must be rejected by the publish step's own guard.
+    expect(() =>
+      runPublishStep(workspaceDir, {
+        EVENT_NAME: "workflow_dispatch",
+        EVENT_ACTION: "",
+        PR_NUMBER: "",
+        REF: "main",
+      }),
+    ).toThrow(/Invalid re-deploy tag/);
+
+    // Same-schema tag re-deploy: root replaced, pr-120/ preserved.
+    writeDist(workspaceDir, {
+      "index.html": "good-tag-build",
+      "assets/tag.js": "tag-build-app",
+    });
+    const output = runPublishStep(workspaceDir, {
+      EVENT_NAME: "workflow_dispatch",
+      EVENT_ACTION: "",
+      PR_NUMBER: "",
+      REF: "v0.1.0",
+    });
+    expect(output).toContain("Successfully pushed to gh-pages");
+
+    expect(inspectOriginGhPages(baseDir, originDir)).toEqual({
+      "index.html": "good-tag-build",
+      "assets/tag.js": "tag-build-app",
+      "pr-120/index.html": "pr-120-preview",
+      "pr-120/assets/preview.js": "pr-120-app",
+    });
+
+    // The gh-pages commit message must identify the re-deployed tag.
+    const inspectDir = mkdtempSync(path.join(baseDir, "subject-"));
+    tempDirs.push(inspectDir);
+    execFileSync(
+      "git",
+      ["clone", "--branch", "gh-pages", originDir, inspectDir],
+      { stdio: "pipe" },
+    );
+    const subject = execFileSync(
+      "git",
+      ["-C", inspectDir, "log", "-1", "--pretty=%s"],
+      { encoding: "utf8", stdio: "pipe" },
+    ).trim();
+    expect(subject).toBe(
+      "ci(pages): re-deploy production root from tag v0.1.0 (abcdef1)",
+    );
   });
 });

@@ -61,6 +61,107 @@ jobs:
             echo "No e2e/**/*.spec.ts files found; skipping Playwright E2E until Phase 4A."
           fi
 
+  android-native-build:
+    if: ${{ vars.NATIVE_BUILDS_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: ".nvmrc"
+          cache: "pnpm"
+
+      - name: Setup JDK (AGP floor)
+        uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        with:
+          java-version: "21"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build web bundle and verify gates (dist/ must exist before native sync)
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm run build
+          pnpm run verify:gates
+
+      - name: Android build-only verification (Phase 6 scaffolding)
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          set -euo pipefail
+          if [ ! -d native ]; then
+            echo "::error::NATIVE_BUILDS_ENABLED is 'true' but native/ does not exist (Phase 6 not shipped); unset the variable or wait for Phase 6." >&2
+            exit 1
+          fi
+          if [ -z "${ANDROID_KEYSTORE_B64:-}" ]; then
+            echo "::error::ANDROID_KEYSTORE_B64 is not set; it is required when NATIVE_BUILDS_ENABLED is 'true'." >&2
+            exit 1
+          fi
+          # Phase 6 finalizes the exact commands, e.g.:
+          #   pnpm --dir native install --frozen-lockfile
+          #   pnpm --dir native exec cap sync android
+          #   pnpm --dir native exec cap build android
+          # Build-only: no store upload, no emulators; artifact retention is deferred to Phase 6.
+          echo "Android native build scaffolding: prerequisites verified (native/ present, ANDROID_KEYSTORE_B64 set). Phase 6 finalizes the build commands."
+
+  ios-native-build:
+    if: ${{ vars.NATIVE_BUILDS_ENABLED == 'true' }}
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: ".nvmrc"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build web bundle and verify gates (dist/ must exist before native sync)
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm run build
+          pnpm run verify:gates
+
+      - name: iOS build-only verification (Phase 6 scaffolding)
+        shell: bash
+        env:
+          IOS_CERTIFICATE_B64: ${{ secrets.IOS_CERTIFICATE_B64 }}
+          IOS_PROVISIONING_PROFILE_B64: ${{ secrets.IOS_PROVISIONING_PROFILE_B64 }}
+        run: |
+          set -euo pipefail
+          if [ ! -d native ]; then
+            echo "::error::NATIVE_BUILDS_ENABLED is 'true' but native/ does not exist (Phase 6 not shipped); unset the variable or wait for Phase 6." >&2
+            exit 1
+          fi
+          if [ -z "${IOS_CERTIFICATE_B64:-}" ] || [ -z "${IOS_PROVISIONING_PROFILE_B64:-}" ]; then
+            echo "::error::IOS_CERTIFICATE_B64 and IOS_PROVISIONING_PROFILE_B64 are required when NATIVE_BUILDS_ENABLED is 'true'." >&2
+            exit 1
+          fi
+          # Xcode/keychain setup uses standard macOS runner tooling and shell
+          # steps (no extra action). Phase 6 finalizes the exact commands, e.g.:
+          #   pnpm --dir native install --frozen-lockfile
+          #   pnpm --dir native exec cap sync ios
+          #   pnpm --dir native exec cap build ios
+          # Build-only: no store upload; artifact retention is deferred to Phase 6.
+          echo "iOS native build scaffolding: prerequisites verified (native/ present, signing secrets set). Phase 6 finalizes the build commands."
+
   codeql:
     runs-on: ubuntu-latest
     permissions:
