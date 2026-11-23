@@ -1,0 +1,225 @@
+name: Release
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "release-${{ github.ref }}"
+  cancel-in-progress: false
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  verify:
+    name: Verify release gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout tagged commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - name: "Guard: tag name is strict SemVer vX.Y.Z"
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [[ ! "${TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Guard failed: tag '${TAG}' is not a strict vX.Y.Z SemVer tag (no prerelease/build suffixes)" >&2
+            exit 1
+          fi
+
+      - name: "Guard: tag is annotated"
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          KIND="$(git cat-file -t "${TAG}" 2>/dev/null || true)"
+          if [ "$KIND" != "tag" ]; then
+            echo "::error::Guard failed: tag '${TAG}' is a ${KIND:-unknown object}, not an annotated tag" >&2
+            exit 1
+          fi
+
+      - name: "Guard: tag commit is an ancestor of origin/main"
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --quiet origin +refs/heads/main:refs/remotes/origin/main
+          TAG_COMMIT="$(git rev-parse "${TAG}^{commit}")"
+          if ! git merge-base --is-ancestor "${TAG_COMMIT}" refs/remotes/origin/main; then
+            echo "::error::Guard failed: tag commit is not an ancestor of origin/main (release tags must be cut on main)" >&2
+            exit 1
+          fi
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: ".nvmrc"
+          cache: "pnpm"
+
+      - name: "Guard: tag matches package.json version"
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          if [ "$TAG" != "v${PKG_VERSION}" ]; then
+            echo "::error::Guard failed: tag ${TAG} does not match package.json version ${PKG_VERSION} (bump package.json on main before pushing the tag)" >&2
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint and format check
+        run: pnpm run lint
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      - name: Run unit tests with coverage
+        run: pnpm test
+
+      - name: Build production bundle
+        run: pnpm run build
+
+      - name: Verify post-build security and privacy gates
+        run: pnpm run verify:gates
+
+      - name: Run Playwright E2E tests
+        shell: bash
+        run: |
+          if [ -d e2e ] && [ -n "$(find e2e -type f -name '*.spec.ts' -print -quit)" ]; then
+            pnpm exec playwright install --with-deps chromium webkit
+            pnpm run test:e2e
+          else
+            echo "No e2e/**/*.spec.ts files found; skipping Playwright E2E."
+          fi
+
+  publish:
+    name: Publish GitHub Release
+    needs: verify
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout tagged commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: ".nvmrc"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Rebuild and re-verify the shipping artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm run build
+          pnpm run verify:gates
+
+      - name: Package deterministic dist/ archive
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [[ ! "${TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Refusing to package: tag '${TAG}' is not a strict vX.Y.Z SemVer tag" >&2
+            exit 1
+          fi
+          if [ ! -d dist ]; then
+            echo "::error::dist/ is missing; the build step must run first" >&2
+            exit 1
+          fi
+          ART="simple-budget-app-${TAG}-dist.tar.gz"
+          tar --sort=name --owner=0 --group=0 --numeric-owner --mtime='UTC 2020-01-01' -czf "${ART}" dist
+          sha256sum "${ART}" > "${ART}.sha256"
+
+      - name: "Install gh CLI (official release artifact, checksum-verified)"
+        shell: bash
+        env:
+          GH_VERSION: "2.105.0"
+        run: |
+          set -euo pipefail
+          # First-party: the official `cli/cli` release artifact — exact
+          # version + SHA-256 verified against the release's own checksums
+          # file (no third-party action; the `cli/cli` repo defines no
+          # root action, so no `uses:` reference is involved at all).
+          # The install dir is appended to GITHUB_PATH, so in every later
+          # step the pinned binary shadows the runner's preinstalled `gh`.
+          ASSET="gh_${GH_VERSION}_linux_amd64.tar.gz"
+          CHECKSUMS="gh_${GH_VERSION}_checksums.txt"
+          WORKDIR="$(mktemp -d)"
+          curl --fail --location --silent --show-error \
+            -o "${WORKDIR}/${ASSET}" \
+            "https://github.com/cli/cli/releases/download/v${GH_VERSION}/${ASSET}"
+          curl --fail --location --silent --show-error \
+            -o "${WORKDIR}/${CHECKSUMS}" \
+            "https://github.com/cli/cli/releases/download/v${GH_VERSION}/${CHECKSUMS}"
+          ( cd "${WORKDIR}" && awk -v a="${ASSET}" '$2 == a' "${CHECKSUMS}" | sha256sum -c - )
+          mkdir -p "${WORKDIR}/bin"
+          tar -xzf "${WORKDIR}/${ASSET}" -C "${WORKDIR}"
+          mv "${WORKDIR}/gh_${GH_VERSION}_linux_amd64/bin/gh" "${WORKDIR}/bin/gh"
+          chmod +x "${WORKDIR}/bin/gh"
+          rm -f "${WORKDIR}/${ASSET}" "${WORKDIR}/${CHECKSUMS}"
+          echo "${WORKDIR}/bin" >> "${GITHUB_PATH}"
+          "${WORKDIR}/bin/gh" --version
+
+      - name: Publish GitHub Release (idempotent)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [[ ! "${TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Refusing to publish: tag '${TAG}' is not a strict vX.Y.Z SemVer tag" >&2
+            exit 1
+          fi
+          ART="simple-budget-app-${TAG}-dist.tar.gz"
+          # `gh release create` hard-errors when a release for the same tag
+          # already exists, so a re-run deletes the previous release first.
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            echo "Release ${TAG} already exists; deleting it for an idempotent re-run."
+            gh release delete "${TAG}" --yes
+          fi
+          # "Previous tag" is reachability-based (mirrors gh's own
+          # detectPreviousTag): legacy/orphaned tags on unreachable history are
+          # never selected, and the flag is omitted when none is reachable
+          # (first real release -> full-history notes).
+          PREV="$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || true)"
+          NOTES_ARGS=()
+          if [ -n "${PREV}" ]; then
+            NOTES_ARGS=(--notes-start-tag "${PREV}")
+            echo "Generating Conventional Commits notes since previous reachable tag: ${PREV}"
+          else
+            echo "No previous reachable v* tag; generating notes for full history."
+          fi
+          gh release create "${TAG}" "${ART}" "${ART}.sha256" \
+            --verify-tag \
+            --title "${TAG}" \
+            --generate-notes \
+            --target "$(git rev-parse "${TAG}^{commit}")" \
+            "${NOTES_ARGS[@]}"
