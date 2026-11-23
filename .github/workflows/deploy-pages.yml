@@ -181,10 +181,18 @@ jobs:
                 echo "::error::Invalid re-deploy tag '${REF:-<empty>}': expected a strict vX.Y.Z SemVer tag" >&2
                 exit 1
               fi
+              # On workflow_dispatch, ${COMMIT_SHA} (github.sha) is the
+              # default-branch HEAD at dispatch time, NOT the tag commit that
+              # was built — resolve the validated tag to its commit so the
+              # audit trail identifies the built ref (peels annotated tags).
+              if ! TAG_COMMIT="$(git -C "$WORKSPACE_DIR" rev-list -n 1 "refs/tags/${REF}")" || [[ ! "${TAG_COMMIT}" =~ ^[0-9a-f]{7,40}$ ]]; then
+                echo "::error::Could not resolve tag ${REF} to a commit" >&2
+                exit 1
+              fi
               find "$PAGES_DIR" -mindepth 1 -maxdepth 1 ! -name '.git' ! -name 'pr-*' -exec rm -rf {} +
               cp -R "${WORKSPACE_DIR}/dist/." "${PAGES_DIR}/"
               git -C "$PAGES_DIR" add -A
-              COMMIT_MSG="ci(pages): re-deploy production root from tag ${REF} (${COMMIT_SHA:0:7})"
+              COMMIT_MSG="ci(pages): re-deploy production root from tag ${REF} (${TAG_COMMIT:0:7})"
             elif [ "$EVENT_NAME" = "push" ]; then
               find "$PAGES_DIR" -mindepth 1 -maxdepth 1 ! -name '.git' ! -name 'pr-*' -exec rm -rf {} +
               cp -R "${WORKSPACE_DIR}/dist/." "${PAGES_DIR}/"

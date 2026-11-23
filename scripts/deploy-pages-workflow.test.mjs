@@ -207,10 +207,18 @@ describe(".github/workflows/deploy-pages.yml static security & spec invariants",
     expect(publishScript).toContain(
       'elif [ "$EVENT_NAME" = "workflow_dispatch" ]; then',
     );
+    // The dispatch re-deploy must NOT embed github.sha (default-branch HEAD
+    // at dispatch time); it must resolve the validated tag to its commit and
+    // use THAT sha in the publish commit message (provenance, #341).
+    expect(publishScript).toContain(
+      'TAG_COMMIT="$(git -C "$WORKSPACE_DIR" rev-list -n 1 ' +
+        '"refs/tags/$' +
+        '{REF}")"',
+    );
     expect(publishScript).toContain(
       'COMMIT_MSG="ci(pages): re-deploy production root from tag $' +
         "{REF} ($" +
-        '{COMMIT_SHA:0:7})"',
+        '{TAG_COMMIT:0:7})"',
     );
     expect(publishScript).toContain(
       'elif [ "$EVENT_NAME" = "push" ] || [ "$EVENT_NAME" = "workflow_dispatch" ]; then',
@@ -846,7 +854,17 @@ fi
       "pr-120/assets/preview.js": "pr-120-app",
     });
 
-    // The gh-pages commit message must identify the re-deployed tag.
+    // The gh-pages commit message must identify the re-deployed tag AND use
+    // the sha of the tag commit that was actually built (provenance, #341) —
+    // NOT the default-branch HEAD sha (the `abcdef1...` `COMMIT_SHA` env).
+    // Resolve the tag to its commit exactly as the publish branch does.
+    const tagCommit = execFileSync(
+      "git",
+      ["-C", workspaceDir, "rev-list", "-n", "1", "refs/tags/v0.1.0"],
+      { encoding: "utf8", stdio: "pipe" },
+    ).trim();
+    expect(tagCommit).not.toBe("abcdef1234567890abcdef1234567890abcdef12");
+
     const inspectDir = mkdtempSync(path.join(baseDir, "subject-"));
     tempDirs.push(inspectDir);
     execFileSync(
@@ -860,7 +878,7 @@ fi
       { encoding: "utf8", stdio: "pipe" },
     ).trim();
     expect(subject).toBe(
-      "ci(pages): re-deploy production root from tag v0.1.0 (abcdef1)",
+      `ci(pages): re-deploy production root from tag v0.1.0 (${tagCommit.slice(0, 7)})`,
     );
   });
 });
