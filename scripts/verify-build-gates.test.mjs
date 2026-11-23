@@ -6,9 +6,11 @@ import {
   checkDependenciesAndCapacitor,
   checkDistExternalUrls,
   checkDistHtmlSecurityHeaders,
+  checkDistServiceWorker,
   checkSourceXssSinks,
   stripHtmlComments,
 } from "./verify-build-gates.mjs";
+import { generateServiceWorkerSource } from "./vite-sw-plugin";
 
 const CSP =
   "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'; worker-src 'self'; manifest-src 'self'; require-trusted-types-for 'script'; trusted-types sw-register";
@@ -142,6 +144,121 @@ describe("previously fixed bypasses still fail", () => {
     });
     expect(checkDependenciesAndCapacitor(root).join("\n")).toMatch(
       /optionalDependencies/,
+    );
+  });
+});
+
+describe("Gate 5 (Phase 4D dist/sw.js)", () => {
+  function rootWithSw(swContent, extraFiles = {}) {
+    const root = mkdtempSync(path.join(tmpdir(), "gates-sw-"));
+    dirs.push(root);
+    mkdirSync(path.join(root, "dist"), { recursive: true });
+    if (swContent !== null) {
+      writeFileSync(path.join(root, "dist", "sw.js"), swContent);
+    }
+    for (const [rel, content] of Object.entries(extraFiles)) {
+      const full = path.join(root, rel);
+      mkdirSync(path.dirname(full), { recursive: true });
+      writeFileSync(full, content);
+    }
+    return root;
+  }
+
+  const validProdSw = generateServiceWorkerSource({
+    basePath: "/simple-budget-app/",
+    buildHash: "a1b2c3d4e5f6",
+    assetPaths: [
+      "index.html",
+      "assets/index-123.js",
+      "manifest.webmanifest",
+      "icons/icon-192.png",
+    ],
+  });
+
+  const validPreviewSw = generateServiceWorkerSource({
+    basePath: "/simple-budget-app/pr-999/",
+    buildHash: "f6e5d4c3b2a1",
+    assetPaths: [
+      "index.html",
+      "assets/index-123.js",
+      "manifest.webmanifest",
+      "icons/icon-192.png",
+    ],
+  });
+
+  it("passes for valid production dist/sw.js", () => {
+    const root = rootWithSw(validProdSw);
+    expect(checkDistServiceWorker(root)).toEqual([]);
+  });
+
+  it("passes for valid PR preview dist/sw.js", () => {
+    const root = rootWithSw(validPreviewSw);
+    expect(checkDistServiceWorker(root)).toEqual([]);
+  });
+
+  it("fails closed when dist/sw.js is missing", () => {
+    const root = rootWithSw(null);
+    expect(checkDistServiceWorker(root).join("\n")).toMatch(
+      /missing dist\/sw\.js/,
+    );
+  });
+
+  it("fails when a static public/sw.js exists", () => {
+    const root = rootWithSw(validProdSw, { "public/sw.js": "// static" });
+    expect(checkDistServiceWorker(root).join("\n")).toMatch(
+      /static public\/sw\.js is forbidden/,
+    );
+  });
+
+  it("fails when same-origin guard is removed", () => {
+    const broken = validProdSw.replace(
+      "if (url.origin !== self.location.origin)",
+      "if (false)",
+    );
+    const root = rootWithSw(broken);
+    expect(checkDistServiceWorker(root).join("\n")).toMatch(/same-origin/);
+  });
+
+  it("fails when skipWaiting() is called silently inside install", () => {
+    const broken = validProdSw.replace(
+      'self.addEventListener("install", (event) => {',
+      'self.addEventListener("install", (event) => { self.skipWaiting();',
+    );
+    const root = rootWithSw(broken);
+    expect(checkDistServiceWorker(root).join("\n")).toMatch(
+      /must not call skipWaiting/,
+    );
+  });
+
+  it("fails when pr-* sub-path bypass is removed", () => {
+    const broken = validProdSw.replace(
+      'if (!IS_PR_PREVIEW && url.pathname.startsWith(BASE_URL + "pr-"))',
+      "if (false)",
+    );
+    const root = rootWithSw(broken);
+    expect(checkDistServiceWorker(root).join("\n")).toMatch(
+      /pr-" sub-path bypass/,
+    );
+  });
+
+  it("fails when sbapp-pr- cache preservation is removed", () => {
+    const broken = validProdSw.replace(
+      'return key.startsWith("sbapp-") && !key.startsWith("sbapp-pr-");',
+      'return key.startsWith("sbapp-");',
+    );
+    const root = rootWithSw(broken);
+    expect(checkDistServiceWorker(root).join("\n")).toMatch(/sbapp-pr-/);
+  });
+
+  it("fails when PRECACHE_URLS omits manifest.webmanifest", () => {
+    const broken = generateServiceWorkerSource({
+      basePath: "/simple-budget-app/",
+      buildHash: "a1b2c3d4e5f6",
+      assetPaths: ["index.html", "assets/index-123.js"],
+    });
+    const root = rootWithSw(broken);
+    expect(checkDistServiceWorker(root).join("\n")).toMatch(
+      /manifest\.webmanifest/,
     );
   });
 });

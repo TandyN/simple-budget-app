@@ -227,8 +227,6 @@ export function stripHtmlComments(html) {
 
 /**
  * Gate 2: Strict CSP, Trusted Types, Referrer meta, and absence of frame-ancestors in dist/index.html.
- * Note: Phase 4D dist/sw.js manifest verification is intentionally omitted/no-op in Phases 1–4C
- * per project-plan/testing.md step 4b.2.
  * @param {string} rootDir
  * @returns {string[]}
  */
@@ -429,7 +427,247 @@ export function checkSourceXssSinks(rootDir) {
 }
 
 /**
- * Runs all 4 post-build security & privacy gates against `rootDir`.
+ * Extracts the source slice for a top-level `self.addEventListener("<eventName>", ...)` handler.
+ * @param {string} source
+ * @param {string} eventName
+ * @returns {string | null}
+ */
+function extractSwListenerBlock(source, eventName) {
+  const marker = `self.addEventListener("${eventName}"`;
+  const start = source.indexOf(marker);
+  if (start === -1) {
+    return null;
+  }
+  const next = source.indexOf("self.addEventListener(", start + marker.length);
+  return next === -1 ? source.slice(start) : source.slice(start, next);
+}
+
+/**
+ * Gate 5 (Phase 4D): Custom Vite SW plugin output (dist/sw.js) integrity, base-path scope
+ * isolation, non-overlapping cache cleanup, pr-* bypass, same-origin guard, and SKIP_WAITING.
+ * @param {string} rootDir
+ * @returns {string[]}
+ */
+export function checkDistServiceWorker(rootDir) {
+  const failures = [];
+  const staticPublicSw = path.join(rootDir, "public", "sw.js");
+  if (existsSync(staticPublicSw)) {
+    failures.push(
+      "Gate 5 (public/sw.js): static public/sw.js is forbidden; dist/sw.js must be emitted by the custom Vite SW plugin",
+    );
+  }
+
+  const swPath = path.join(rootDir, "dist", "sw.js");
+  if (!existsSync(swPath)) {
+    failures.push(
+      "Gate 5 (dist/sw.js): missing dist/sw.js (run `pnpm run build` first)",
+    );
+    return failures;
+  }
+
+  const sw = readFileSync(swPath, "utf8");
+
+  const baseUrlMatch = /const\s+BASE_URL\s*=\s*("[^"]*")\s*;/.exec(sw);
+  let baseUrl = null;
+  if (!baseUrlMatch?.[1]) {
+    failures.push("Gate 5 (dist/sw.js): missing embedded BASE_URL constant");
+  } else {
+    try {
+      const parsed = JSON.parse(baseUrlMatch[1]);
+      if (
+        typeof parsed === "string" &&
+        parsed.startsWith("/") &&
+        parsed.endsWith("/")
+      ) {
+        baseUrl = parsed;
+      } else {
+        failures.push(
+          `Gate 5 (dist/sw.js): BASE_URL must start and end with "/", found ${baseUrlMatch[1]}`,
+        );
+      }
+    } catch {
+      failures.push("Gate 5 (dist/sw.js): invalid BASE_URL JSON literal");
+    }
+  }
+
+  const buildHashMatch = /const\s+BUILD_HASH\s*=\s*"([0-9a-f]{8,})"\s*;/.exec(
+    sw,
+  );
+  const buildHash = buildHashMatch?.[1] ?? null;
+  if (!buildHash) {
+    failures.push(
+      "Gate 5 (dist/sw.js): missing or invalid embedded hex BUILD_HASH constant",
+    );
+  }
+
+  const isPrPreviewMatch = /const\s+IS_PR_PREVIEW\s*=\s*(true|false)\s*;/.exec(
+    sw,
+  );
+  const isPrPreview =
+    isPrPreviewMatch?.[1] === "true"
+      ? true
+      : isPrPreviewMatch?.[1] === "false"
+        ? false
+        : null;
+  if (isPrPreview === null) {
+    failures.push(
+      "Gate 5 (dist/sw.js): missing embedded IS_PR_PREVIEW boolean constant",
+    );
+  }
+
+  const activeCacheMatch = /const\s+ACTIVE_CACHE\s*=\s*"([^"]+)"\s*;/.exec(sw);
+  const activeCache = activeCacheMatch?.[1] ?? null;
+  if (!activeCache) {
+    failures.push(
+      "Gate 5 (dist/sw.js): missing embedded ACTIVE_CACHE constant",
+    );
+  } else if (baseUrl && buildHash) {
+    const prMatch = /\/pr-(\d+)\/$/.exec(baseUrl);
+    if (prMatch?.[1]) {
+      const expectedCache = `sbapp-pr-${prMatch[1]}-${buildHash}`;
+      if (isPrPreview !== true) {
+        failures.push(
+          `Gate 5 (dist/sw.js): IS_PR_PREVIEW must be true for preview BASE_URL "${baseUrl}"`,
+        );
+      }
+      if (activeCache !== expectedCache) {
+        failures.push(
+          `Gate 5 (dist/sw.js): ACTIVE_CACHE must be "${expectedCache}", found "${activeCache}"`,
+        );
+      }
+      const expectedPrefix = `const PR_PREFIX = "sbapp-pr-${prMatch[1]}-";`;
+      if (!sw.includes(expectedPrefix)) {
+        failures.push(
+          `Gate 5 (dist/sw.js): missing preview cache prefix ${expectedPrefix}`,
+        );
+      }
+    } else {
+      const expectedCache = `sbapp-${buildHash}`;
+      if (isPrPreview !== false) {
+        failures.push(
+          `Gate 5 (dist/sw.js): IS_PR_PREVIEW must be false for production BASE_URL "${baseUrl}"`,
+        );
+      }
+      if (activeCache !== expectedCache) {
+        failures.push(
+          `Gate 5 (dist/sw.js): ACTIVE_CACHE must be "${expectedCache}", found "${activeCache}"`,
+        );
+      }
+    }
+  }
+
+  const precacheMatch = /const\s+PRECACHE_URLS\s*=\s*(\[[\s\S]*?\])\s*;/.exec(
+    sw,
+  );
+  if (!precacheMatch?.[1]) {
+    failures.push(
+      "Gate 5 (dist/sw.js): missing embedded PRECACHE_URLS manifest array",
+    );
+  } else {
+    try {
+      const urls = JSON.parse(precacheMatch[1]);
+      if (!Array.isArray(urls) || urls.length === 0) {
+        failures.push(
+          "Gate 5 (dist/sw.js): PRECACHE_URLS must be a non-empty array",
+        );
+      } else {
+        const allStrings = urls.every(
+          (entry) => typeof entry === "string" && entry.length > 0,
+        );
+        if (!allStrings) {
+          failures.push(
+            "Gate 5 (dist/sw.js): PRECACHE_URLS must contain only non-empty strings",
+          );
+        } else {
+          if (!urls.some((u) => u.endsWith("index.html"))) {
+            failures.push(
+              "Gate 5 (dist/sw.js): PRECACHE_URLS must include index.html",
+            );
+          }
+          if (!urls.some((u) => u.endsWith("manifest.webmanifest"))) {
+            failures.push(
+              "Gate 5 (dist/sw.js): PRECACHE_URLS must include manifest.webmanifest",
+            );
+          }
+          if (urls.some((u) => u.endsWith("/sw.js") || u === "sw.js")) {
+            failures.push(
+              "Gate 5 (dist/sw.js): PRECACHE_URLS must exclude sw.js",
+            );
+          }
+          if (urls.some((u) => u.endsWith("budgetApi.es.js"))) {
+            failures.push(
+              "Gate 5 (dist/sw.js): PRECACHE_URLS must exclude budgetApi.es.js",
+            );
+          }
+          if (baseUrl && urls.some((u) => !u.startsWith(baseUrl))) {
+            failures.push(
+              `Gate 5 (dist/sw.js): every PRECACHE_URLS entry must be scoped under BASE_URL "${baseUrl}"`,
+            );
+          }
+          if (urls.some((u) => /^https?:\/\//i.test(u))) {
+            failures.push(
+              "Gate 5 (dist/sw.js): PRECACHE_URLS must not contain external http(s):// URLs",
+            );
+          }
+        }
+      }
+    } catch {
+      failures.push(
+        "Gate 5 (dist/sw.js): PRECACHE_URLS is not valid JSON array",
+      );
+    }
+  }
+
+  if (!/url\.origin\s*!==\s*self\.location\.origin/.test(sw)) {
+    failures.push(
+      "Gate 5 (dist/sw.js): missing strict same-origin guard (url.origin !== self.location.origin)",
+    );
+  }
+
+  if (
+    !sw.includes('key.startsWith("sbapp-") && !key.startsWith("sbapp-pr-")')
+  ) {
+    failures.push(
+      'Gate 5 (dist/sw.js): missing non-overlapping cache cleanup predicate preserving "sbapp-pr-" caches',
+    );
+  }
+
+  if (!sw.includes('url.pathname.startsWith(BASE_URL + "pr-")')) {
+    failures.push(
+      'Gate 5 (dist/sw.js): missing production "pr-" sub-path bypass in fetch handler',
+    );
+  }
+
+  const installBlock = extractSwListenerBlock(sw, "install");
+  if (!installBlock) {
+    failures.push('Gate 5 (dist/sw.js): missing "install" event listener');
+  } else if (/skipWaiting\s*\(/.test(installBlock)) {
+    failures.push(
+      'Gate 5 (dist/sw.js): "install" listener must not call skipWaiting() silently',
+    );
+  }
+
+  const messageBlock = extractSwListenerBlock(sw, "message");
+  if (!messageBlock) {
+    failures.push('Gate 5 (dist/sw.js): missing "message" event listener');
+  } else {
+    if (!messageBlock.includes("SKIP_WAITING")) {
+      failures.push(
+        'Gate 5 (dist/sw.js): "message" listener must handle SKIP_WAITING',
+      );
+    }
+    if (!/self\.skipWaiting\s*\(\s*\)/.test(messageBlock)) {
+      failures.push(
+        'Gate 5 (dist/sw.js): "message" listener must invoke self.skipWaiting()',
+      );
+    }
+  }
+
+  return failures;
+}
+
+/**
+ * Runs all 5 post-build security & privacy gates against `rootDir`.
  * @param {string} rootDir
  * @returns {{ ok: boolean; results: Array<{ name: string; failures: string[] }> }}
  */
@@ -450,6 +688,10 @@ export function runAllGates(rootDir) {
     {
       name: "Gate 4: Zero banned DOM XSS / eval sinks in src/",
       failures: checkSourceXssSinks(rootDir),
+    },
+    {
+      name: "Gate 5: Phase 4D dist/sw.js manifest, scope isolation, pr-* bypass & SKIP_WAITING",
+      failures: checkDistServiceWorker(rootDir),
     },
   ];
 
