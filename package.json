@@ -25,11 +25,11 @@
     "@biomejs/biome": "2.6.8",
     "@playwright/test": "1.65.1",
     "@types/node": "26.6.6",
-    "@vitest/coverage-v8": "5.1.0",
+    "@vitest/coverage-v8": "5.1.1",
     "fake-indexeddb": "6.2.8",
     "happy-dom": "21.0.4",
     "typescript": "7.0.2",
     "vite": "8.3.8",
-    "vitest": "5.1.0"
+    "vitest": "5.1.1"
   }
 }
